@@ -58,6 +58,12 @@
   background: var(--color-primary-pressed);
 }
 
+.uploadButton.disabled {
+  background: var(--color-secondary-bg);
+  color: var(--color-ash);
+  pointer-events: none;
+}
+
 .fileInput {
   position: absolute;
   width: 1px;

@@ -11,6 +11,7 @@ type ImageRecord = {
 
 const images = ref<ImageRecord[]>([])
 const loading = ref(true)
+const saving = ref(false)
 const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
 const selectedImageId = ref<string | null>(null)
@@ -64,6 +65,7 @@ const loadImages = async () => {
 const handleSave = async (file: File) => {
   const formData = new FormData()
   formData.append('image', file)
+  saving.value = true
 
   try {
     const saved = await $fetch<ImageRecord>('/api/images', {
@@ -76,6 +78,27 @@ const handleSave = async (file: File) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not save this image.'
     showNotice(message, 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
+const handleSaveUrl = async (url: string) => {
+  saving.value = true
+
+  try {
+    const saved = await $fetch<ImageRecord>('/api/images', {
+      method: 'POST',
+      body: { url },
+    })
+
+    images.value = [saved, ...images.value]
+    showNotice('Saved.', 'success')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'This image URL cannot be saved.'
+    showNotice(message, 'error')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -147,7 +170,9 @@ onMounted(() => {
     <SaveDropzone
       :notice="notice"
       :notice-kind="noticeKind"
+      :saving="saving"
       @save="handleSave"
+      @save-url="handleSaveUrl"
       @error="showNotice($event, 'error')"
     />
 

@@ -9,6 +9,7 @@ export type ImageRow = {
   mime_type: string
   size_bytes: number
   created_at: string
+  source_url: string | null
 }
 
 const dataDir = join(process.cwd(), 'data')
@@ -29,9 +30,16 @@ export const ensureDataStore = async () => {
         original_name TEXT,
         mime_type TEXT NOT NULL,
         size_bytes INTEGER NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        source_url TEXT
       )
     `)
+
+    const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>
+
+    if (!columns.some((column) => column.name === 'source_url')) {
+      db.exec('ALTER TABLE images ADD COLUMN source_url TEXT')
+    }
   }
 
   return db

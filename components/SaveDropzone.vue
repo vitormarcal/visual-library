@@ -4,10 +4,12 @@ import styles from './SaveDropzone.module.css'
 defineProps<{
   notice: string
   noticeKind: 'success' | 'error'
+  saving: boolean
 }>()
 
 const emit = defineEmits<{
   save: [file: File]
+  saveUrl: [url: string]
   error: [message: string]
 }>()
 
@@ -50,6 +52,21 @@ const filesFromTransfer = (transfer: DataTransfer | null) => {
 const preferredFile = (files: FileList | File[]) => {
   const fileList = Array.from(files)
   return firstImageFile(fileList) ?? fileList[0]
+}
+
+const looksLikeUrl = (value: string) => {
+  const trimmed = value.trim()
+
+  if (!trimmed || /\s/.test(trimmed)) {
+    return false
+  }
+
+  try {
+    const url = new URL(trimmed)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 const submitFile = (file: File | undefined) => {
@@ -98,7 +115,20 @@ const handleDrop = (event: DragEvent) => {
 }
 
 const handlePaste = (event: ClipboardEvent) => {
-  submitFile(event.clipboardData?.files ? preferredFile(event.clipboardData.files) : undefined)
+  const file = event.clipboardData?.files ? firstImageFile(event.clipboardData.files) : undefined
+
+  if (file) {
+    event.preventDefault()
+    emit('save', file)
+    return
+  }
+
+  const text = event.clipboardData?.getData('text/plain')?.trim() ?? ''
+
+  if (looksLikeUrl(text)) {
+    event.preventDefault()
+    emit('saveUrl', text)
+  }
 }
 
 const handleInput = (event: Event) => {
@@ -143,11 +173,11 @@ onBeforeUnmount(() => {
     @paste="handlePaste"
   >
     <div :class="styles.copy">
-      <strong>Drop or paste an image</strong>
-      <span>Local files only</span>
+      <strong>{{ saving ? 'Saving image...' : 'Drop or paste an image' }}</strong>
+      <span>Paste, drop, or choose an image</span>
     </div>
 
-    <label :class="styles.uploadButton" :for="inputId">
+    <label :class="[styles.uploadButton, saving && styles.disabled]" :for="inputId">
       Choose image
     </label>
     <input
@@ -155,6 +185,7 @@ onBeforeUnmount(() => {
       :class="styles.fileInput"
       type="file"
       :accept="acceptTypes"
+      :disabled="saving"
       @change="handleInput"
     >
 
