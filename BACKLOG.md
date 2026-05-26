@@ -35,38 +35,16 @@ Potential pressure areas:
 Important boundaries:
 - avoid management-heavy organization;
 - avoid taxonomy systems;
-- avoid AI tagging;
+- avoid automatic metadata expansion;
 - avoid complex metadata workflows.
 
-### Viewer feels slightly heavy on mobile
-Overlay controls feel too large on narrow screens.
-
-Potential pressure areas:
-- lighter mobile chrome;
-- smaller controls;
-- touch ergonomics;
-- calmer overlay spacing.
-
-Avoid:
-- gesture complexity;
-- cinematic transitions;
-- feature-heavy viewer controls.
-
-### images.post.ts is growing
-URL saving added network validation and remote fetch logic to the upload route.
-
-Decision:
-- acceptable for v1;
-- consider extracting URL-fetch validation into a small cohesive module if this route grows again.
-
-Avoid:
-- service hierarchies;
-- downloader abstractions;
-- queue/workers;
-- generic network infrastructure.
-
 ### Rediscovery still depends mostly on visual memory
-The current browsing flow works well for recent saves, and lightweight tags now provide a first rediscovery path. Intentional rediscovery can still feel weak for untagged images, cross-cutting themes, or curated reference groups as the library grows.
+The current browsing flow works well for recent saves, and lightweight tags now provide a first rediscovery path.
+
+Intentional rediscovery can still feel weak for:
+- untagged images;
+- cross-cutting themes;
+- curated reference groups.
 
 Potential pressure areas:
 - curated collections;
@@ -79,19 +57,28 @@ Avoid:
 - dense metadata panels;
 - dashboard-style organization.
 
-### Optional tag suggestions may become useful later
+### Optional AI-assisted tag suggestions may become useful later
 Manual tagging preserves personal visual memory, but adding tags may become repetitive as the library grows.
 
 Potential future direction:
-- optional viewer-only tag suggestions;
-- user explicitly accepts suggestions;
-- no automatic tagging;
-- no batch processing;
-- no background analysis.
+- optional viewer-only suggestions;
+- explicit user-triggered suggestion flow;
+- user manually accepts suggestions;
+- small number of suggestions;
+- optional local model or external provider;
+- preserving human meaning-making.
+
+Potential uses:
+- lightweight tag suggestions;
+- short atmospheric descriptions;
+- rediscovery assistance.
 
 Avoid:
-- AI-first tagging;
-- provider systems;
-- embeddings;
+- automatic tagging;
+- background processing;
+- embeddings/vector search;
 - similarity search;
-- automatic metadata generation.
+- AI-first workflows;
+- provider-management systems;
+- metadata explosion;
+- automatic organization.
