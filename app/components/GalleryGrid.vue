@@ -14,6 +14,7 @@ type ImageRecord = {
 defineProps<{
   images: ImageRecord[]
   loading: boolean
+  emptyText?: string
 }>()
 
 defineEmits<{
@@ -25,7 +26,7 @@ defineEmits<{
 <template>
   <section aria-label="Saved images">
     <p v-if="loading" :class="styles.empty">Loading library.</p>
-    <p v-else-if="images.length === 0" :class="styles.empty">No images saved yet.</p>
+    <p v-else-if="images.length === 0" :class="styles.empty">{{ emptyText || 'No images saved yet.' }}</p>
 
     <div v-else :class="styles.grid">
       <figure

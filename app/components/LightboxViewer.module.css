@@ -16,9 +16,132 @@
   grid-column: 2;
   display: block;
   max-width: min(100%, 1180px);
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - 156px);
   border-radius: var(--radius-md);
   object-fit: contain;
+}
+
+.tagsPanel {
+  position: absolute;
+  right: var(--space-xl);
+  bottom: var(--space-xl);
+  left: var(--space-xl);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.tagList,
+.tagEditor {
+  display: flex;
+  max-width: min(760px, 100%);
+  pointer-events: auto;
+}
+
+.tagList {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.filterNotice {
+  width: 100%;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tagChip,
+.addTagButton,
+.editChip,
+.suggestion,
+.doneButton {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tagChip,
+.addTagButton,
+.suggestion {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--color-ink);
+}
+
+.tagChip:active,
+.addTagButton:active,
+.editChip:active,
+.suggestion:active,
+.doneButton:active {
+  background: var(--color-secondary-pressed);
+}
+
+.tagEditor {
+  position: relative;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.editChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.editChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: var(--color-surface-card);
+  color: var(--color-ink);
+}
+
+.tagInput {
+  width: 180px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-full);
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.suggestion {
+  background: var(--color-secondary-bg);
+}
+
+.tagError {
+  width: 100%;
+  margin: 0;
+  color: var(--color-primary-pressed);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.doneButton {
+  padding: 8px 12px;
+  background: var(--color-ink);
+  color: var(--color-canvas);
 }
 
 .control {
@@ -81,7 +204,18 @@
 
   .image {
     grid-column: 1 / -1;
-    max-height: calc(100vh - 128px);
+    max-height: calc(100vh - 188px);
+  }
+
+  .tagsPanel {
+    right: var(--space-lg);
+    bottom: 76px;
+    left: var(--space-lg);
+  }
+
+  .tagEditor {
+    max-height: 34vh;
+    overflow: auto;
   }
 
   .closeButton {

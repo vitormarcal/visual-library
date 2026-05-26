@@ -7,6 +7,18 @@ type ImageRecord = {
   sizeBytes: number
   createdAt: string
   src: string
+  tags: ImageTag[]
+}
+
+type ImageTag = {
+  id: string
+  name: string
+  normalizedName: string
+}
+
+type TagSummary = ImageTag & {
+  imageCount: number
+  lastUsedAt: string
 }
 
 type DuplicateSaveResponse = {
@@ -23,14 +35,33 @@ const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
 const selectedImageId = ref<string | null>(null)
 const returnFocusImageId = ref<string | null>(null)
+const tagSummaries = ref<TagSummary[]>([])
+const activeTagFilters = ref<ImageTag[]>([])
+const filterNotice = ref('')
+const viewerFilterNotice = ref('')
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
+let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
+let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
+
+const visibleImages = computed(() => {
+  if (activeTagFilters.value.length === 0) {
+    return images.value
+  }
+
+  return images.value.filter((image) => {
+    const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
+    return activeTagFilters.value.every((filter) => imageTags.has(filter.normalizedName))
+  })
+})
+
+const hasLibraryTags = computed(() => tagSummaries.value.length > 0)
 
 const selectedImageIndex = computed(() => {
   if (!selectedImageId.value) {
     return -1
   }
 
-  return images.value.findIndex((image) => image.id === selectedImageId.value)
+  return visibleImages.value.findIndex((image) => image.id === selectedImageId.value)
 })
 
 const selectedImage = computed(() => {
@@ -38,11 +69,11 @@ const selectedImage = computed(() => {
     return null
   }
 
-  return images.value[selectedImageIndex.value]
+  return visibleImages.value[selectedImageIndex.value]
 })
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
-const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < images.value.length - 1)
+const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
 
 const showNotice = (message: string, kind: 'success' | 'error') => {
   notice.value = message
@@ -71,11 +102,44 @@ const applySaveResponse = (response: SaveImageResponse) => {
   showNotice('Saved.', 'success')
 }
 
+const showFilterNotice = (message: string) => {
+  filterNotice.value = message
+
+  if (filterNoticeTimer) {
+    clearTimeout(filterNoticeTimer)
+  }
+
+  filterNoticeTimer = setTimeout(() => {
+    filterNotice.value = ''
+  }, 2200)
+}
+
+const showViewerFilterNotice = (message: string) => {
+  viewerFilterNotice.value = message
+
+  if (viewerFilterNoticeTimer) {
+    clearTimeout(viewerFilterNoticeTimer)
+  }
+
+  viewerFilterNoticeTimer = setTimeout(() => {
+    viewerFilterNotice.value = ''
+  }, 2200)
+}
+
+const loadTags = async () => {
+  try {
+    tagSummaries.value = await $fetch<TagSummary[]>('/api/tags')
+  } catch {
+    tagSummaries.value = []
+  }
+}
+
 const loadImages = async () => {
   loading.value = true
 
   try {
     images.value = await $fetch<ImageRecord[]>('/api/images')
+    await loadTags()
   } catch {
     showNotice('Could not load the library.', 'error')
   } finally {
@@ -125,6 +189,10 @@ const handleDelete = async (id: string) => {
   try {
     await $fetch(`/api/images/${id}`, { method: 'DELETE' })
     images.value = images.value.filter((image) => image.id !== id)
+    activeTagFilters.value = activeTagFilters.value.filter((filter) => {
+      return images.value.some((image) => image.tags.some((tag) => tag.normalizedName === filter.normalizedName))
+    })
+    void loadTags()
 
     if (selectedImageId.value === id) {
       selectedImageId.value = null
@@ -132,6 +200,46 @@ const handleDelete = async (id: string) => {
   } catch {
     showNotice('Could not remove this image.', 'error')
   }
+}
+
+const addTagFilter = (tag: ImageTag) => {
+  if (activeTagFilters.value.some((filter) => filter.normalizedName === tag.normalizedName)) {
+    return true
+  }
+
+  if (activeTagFilters.value.length >= 3) {
+    showFilterNotice('Too many filters')
+    return false
+  }
+
+  activeTagFilters.value = [...activeTagFilters.value, tag]
+  return true
+}
+
+const removeTagFilter = (normalizedName: string) => {
+  activeTagFilters.value = activeTagFilters.value.filter((filter) => filter.normalizedName !== normalizedName)
+}
+
+const clearTagFilters = () => {
+  activeTagFilters.value = []
+}
+
+const handleViewerTagFilter = (tag: ImageTag) => {
+  if (addTagFilter(tag)) {
+    viewerFilterNotice.value = ''
+    selectedImageId.value = null
+    returnFocusImageId.value = null
+  } else {
+    showViewerFilterNotice('Too many filters')
+  }
+}
+
+const handleImageTagsUpdated = (id: string, tags: ImageTag[]) => {
+  images.value = images.value.map((image) => image.id === id ? { ...image, tags } : image)
+  activeTagFilters.value = activeTagFilters.value.filter((filter) => {
+    return images.value.some((image) => image.tags.some((tag) => tag.normalizedName === filter.normalizedName))
+  })
+  void loadTags()
 }
 
 const focusGalleryTile = async (id: string | null) => {
@@ -161,7 +269,7 @@ const showPreviousImage = () => {
     return
   }
 
-  selectedImageId.value = images.value[selectedImageIndex.value - 1]?.id ?? selectedImageId.value
+  selectedImageId.value = visibleImages.value[selectedImageIndex.value - 1]?.id ?? selectedImageId.value
 }
 
 const showNextImage = () => {
@@ -169,11 +277,18 @@ const showNextImage = () => {
     return
   }
 
-  selectedImageId.value = images.value[selectedImageIndex.value + 1]?.id ?? selectedImageId.value
+  selectedImageId.value = visibleImages.value[selectedImageIndex.value + 1]?.id ?? selectedImageId.value
 }
 
 onMounted(() => {
   void loadImages()
+})
+
+watch(visibleImages, () => {
+  if (selectedImageId.value && !visibleImages.value.some((image) => image.id === selectedImageId.value)) {
+    selectedImageId.value = null
+    returnFocusImageId.value = null
+  }
 })
 </script>
 
@@ -195,9 +310,20 @@ onMounted(() => {
       @error="showNotice($event, 'error')"
     />
 
+    <GalleryTagFilters
+      :active-filters="activeTagFilters"
+      :tags="tagSummaries"
+      :has-library-tags="hasLibraryTags"
+      :notice="filterNotice"
+      @select="addTagFilter"
+      @remove="removeTagFilter"
+      @clear="clearTagFilters"
+    />
+
     <GalleryGrid
-      :images="images"
+      :images="visibleImages"
       :loading="loading"
+      :empty-text="activeTagFilters.length > 0 ? 'No images match these tags.' : 'No images saved yet.'"
       @open="openViewer"
       @delete="handleDelete"
     />
@@ -207,9 +333,13 @@ onMounted(() => {
       :image="selectedImage"
       :has-previous="hasPreviousImage"
       :has-next="hasNextImage"
+      :library-tags="tagSummaries"
+      :filter-notice="viewerFilterNotice"
       @close="closeViewer"
       @previous="showPreviousImage"
       @next="showNextImage"
+      @filter-tag="handleViewerTagFilter"
+      @tags-updated="handleImageTagsUpdated"
     />
   </main>
 </template>

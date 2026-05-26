@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(id)
   db.prepare('DELETE FROM images WHERE id = ?').run(id)
   await unlink(`${imageDir}/${row.filename}`).catch(() => {})
 

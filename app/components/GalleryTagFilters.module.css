@@ -1,0 +1,99 @@
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 44px;
+  margin: 0 0 var(--space-md);
+}
+
+.activeBar {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.shortcut {
+  position: relative;
+  margin-left: auto;
+}
+
+.tagsButton,
+.clearButton,
+.chip {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tagsButton,
+.clearButton {
+  padding: 8px 13px;
+  background: var(--color-surface-card);
+  color: var(--color-ink);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: var(--color-surface-card);
+  color: var(--color-ink);
+}
+
+.activeChip {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+
+.tagsButton:active,
+.clearButton:active,
+.chip:active {
+  background: var(--color-secondary-pressed);
+  color: var(--color-ink);
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--space-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+
+.empty,
+.notice {
+  margin: 0;
+  color: var(--color-mute);
+  font-size: 12px;
+}
+
+.notice {
+  position: absolute;
+  right: 0;
+  bottom: -18px;
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    align-items: flex-start;
+  }
+
+  .shortcut {
+    flex: 0 0 auto;
+  }
+}
