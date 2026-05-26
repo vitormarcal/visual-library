@@ -17,6 +17,7 @@ defineProps<{
 }>()
 
 defineEmits<{
+  open: [id: string]
   delete: [id: string]
 }>()
 </script>
@@ -32,11 +33,19 @@ defineEmits<{
         :key="image.id"
         :class="styles.card"
       >
-        <img
-          :src="image.src"
-          :alt="image.originalName || 'Saved image'"
-          loading="lazy"
+        <button
+          :class="styles.openButton"
+          type="button"
+          :aria-label="`Open ${image.originalName || 'saved image'} fullscreen`"
+          :data-lightbox-open-id="image.id"
+          @click="$emit('open', image.id)"
         >
+          <img
+            :src="image.src"
+            :alt="image.originalName || 'Saved image'"
+            loading="lazy"
+          >
+        </button>
         <button
           :class="styles.deleteButton"
           type="button"

@@ -1,0 +1,101 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) minmax(0, auto) minmax(48px, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+  background: rgba(0, 0, 0, 0.82);
+  animation: lightboxIn 120ms ease-out;
+}
+
+.image {
+  grid-column: 2;
+  display: block;
+  max-width: min(100%, 1180px);
+  max-height: calc(100vh - 96px);
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.control {
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.control:active {
+  background: var(--color-secondary-pressed);
+}
+
+.control:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.closeButton {
+  position: absolute;
+  top: var(--space-xl);
+  right: var(--space-xl);
+  padding: 10px 14px;
+}
+
+.navButton {
+  width: 48px;
+  padding: 0;
+}
+
+.previousButton {
+  grid-column: 1;
+}
+
+.nextButton {
+  grid-column: 3;
+}
+
+@keyframes lightboxIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .image {
+    grid-column: 1 / -1;
+    max-height: calc(100vh - 128px);
+  }
+
+  .closeButton {
+    top: var(--space-lg);
+    right: var(--space-lg);
+  }
+
+  .previousButton,
+  .nextButton {
+    grid-column: auto;
+    grid-row: 2;
+  }
+
+  .navButton {
+    width: 100%;
+  }
+}

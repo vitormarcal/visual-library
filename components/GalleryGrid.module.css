@@ -14,7 +14,19 @@
   break-inside: avoid;
 }
 
-.card img {
+.openButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  line-height: 0;
+  text-align: inherit;
+}
+
+.openButton img {
   display: block;
   width: 100%;
   height: auto;

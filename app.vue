@@ -13,7 +13,28 @@ const images = ref<ImageRecord[]>([])
 const loading = ref(true)
 const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
+const selectedImageId = ref<string | null>(null)
+const returnFocusImageId = ref<string | null>(null)
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
+const selectedImageIndex = computed(() => {
+  if (!selectedImageId.value) {
+    return -1
+  }
+
+  return images.value.findIndex((image) => image.id === selectedImageId.value)
+})
+
+const selectedImage = computed(() => {
+  if (selectedImageIndex.value === -1) {
+    return null
+  }
+
+  return images.value[selectedImageIndex.value]
+})
+
+const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
+const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < images.value.length - 1)
 
 const showNotice = (message: string, kind: 'success' | 'error') => {
   notice.value = message
@@ -62,9 +83,51 @@ const handleDelete = async (id: string) => {
   try {
     await $fetch(`/api/images/${id}`, { method: 'DELETE' })
     images.value = images.value.filter((image) => image.id !== id)
+
+    if (selectedImageId.value === id) {
+      selectedImageId.value = null
+    }
   } catch {
     showNotice('Could not remove this image.', 'error')
   }
+}
+
+const focusGalleryTile = async (id: string | null) => {
+  if (!id) {
+    return
+  }
+
+  await nextTick()
+  const element = document.querySelector<HTMLElement>(`[data-lightbox-open-id="${id}"]`)
+  element?.focus()
+}
+
+const openViewer = (id: string) => {
+  selectedImageId.value = id
+  returnFocusImageId.value = id
+}
+
+const closeViewer = () => {
+  const focusId = returnFocusImageId.value
+  selectedImageId.value = null
+  returnFocusImageId.value = null
+  void focusGalleryTile(focusId)
+}
+
+const showPreviousImage = () => {
+  if (!hasPreviousImage.value) {
+    return
+  }
+
+  selectedImageId.value = images.value[selectedImageIndex.value - 1]?.id ?? selectedImageId.value
+}
+
+const showNextImage = () => {
+  if (!hasNextImage.value) {
+    return
+  }
+
+  selectedImageId.value = images.value[selectedImageIndex.value + 1]?.id ?? selectedImageId.value
 }
 
 onMounted(() => {
@@ -91,7 +154,18 @@ onMounted(() => {
     <GalleryGrid
       :images="images"
       :loading="loading"
+      @open="openViewer"
       @delete="handleDelete"
+    />
+
+    <LightboxViewer
+      v-if="selectedImage"
+      :image="selectedImage"
+      :has-previous="hasPreviousImage"
+      :has-next="hasNextImage"
+      @close="closeViewer"
+      @previous="showPreviousImage"
+      @next="showNextImage"
     />
   </main>
 </template>
