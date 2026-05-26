@@ -87,8 +87,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
+  gap: 6px;
+  padding: 7px;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.94);
 }
@@ -96,14 +96,14 @@
 .editChips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
 .editChip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 7px 10px;
   background: var(--color-surface-card);
   color: var(--color-ink);
 }
@@ -122,7 +122,7 @@
 .suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: 6px;
 }
 
 .suggestion {
@@ -139,9 +139,9 @@
 }
 
 .doneButton {
-  padding: 8px 12px;
-  background: var(--color-ink);
-  color: var(--color-canvas);
+  padding: 7px 11px;
+  background: var(--color-secondary-bg);
+  color: var(--color-ink);
 }
 
 .control {
@@ -196,40 +196,79 @@
 
 @media (max-width: 640px) {
   .overlay {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr auto;
-    gap: var(--space-md);
-    padding: var(--space-lg);
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: var(--space-md);
   }
 
   .image {
     grid-column: 1 / -1;
-    max-height: calc(100vh - 188px);
+    max-width: calc(100% - 64px);
+    max-height: calc(100vh - 112px);
+    max-height: calc(100svh - 112px);
   }
 
   .tagsPanel {
-    right: var(--space-lg);
-    bottom: 76px;
-    left: var(--space-lg);
+    right: var(--space-md);
+    bottom: var(--space-md);
+    left: var(--space-md);
+  }
+
+  .tagList {
+    max-width: calc(100% - 64px);
+    gap: 6px;
   }
 
   .tagEditor {
-    max-height: 34vh;
+    max-width: calc(100% - 24px);
+    max-height: min(38vh, 220px);
     overflow: auto;
   }
 
+  .tagChip,
+  .addTagButton,
+  .editChip,
+  .suggestion,
+  .doneButton {
+    min-height: 32px;
+    font-size: 12px;
+  }
+
+  .tagChip,
+  .addTagButton,
+  .suggestion {
+    padding: 7px 10px;
+  }
+
+  .tagInput {
+    width: min(180px, 100%);
+    min-height: 34px;
+  }
+
   .closeButton {
-    top: var(--space-lg);
-    right: var(--space-lg);
+    top: var(--space-md);
+    right: var(--space-md);
+    min-height: 36px;
+    padding: 8px 12px;
   }
 
   .previousButton,
   .nextButton {
-    grid-column: auto;
-    grid-row: 2;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   .navButton {
-    width: 100%;
+    width: 40px;
+    min-height: 40px;
+  }
+
+  .previousButton {
+    left: var(--space-md);
+  }
+
+  .nextButton {
+    right: var(--space-md);
   }
 }

@@ -73,12 +73,17 @@ const focusableControls = () => {
     return []
   }
 
-  return Array.from(viewer.value.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+  return Array.from(viewer.value.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)'))
+}
+
+const isTagEditorTarget = (target: EventTarget | null) => {
+  return target instanceof HTMLElement && Boolean(target.closest('[data-tag-editor="true"]'))
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
   const target = event.target
-  const isTyping = target instanceof HTMLInputElement
+  const isEditingTagControl = editingTags.value && isTagEditorTarget(target)
+  const shouldKeepNavigationInEditor = target instanceof HTMLInputElement || isEditingTagControl
 
   if (event.key === 'Escape') {
     event.preventDefault()
@@ -89,12 +94,12 @@ const handleKeydown = (event: KeyboardEvent) => {
     }
   }
 
-  if (!isTyping && event.key === 'ArrowLeft') {
+  if (!shouldKeepNavigationInEditor && event.key === 'ArrowLeft') {
     event.preventDefault()
     emit('previous')
   }
 
-  if (!isTyping && event.key === 'ArrowRight') {
+  if (!shouldKeepNavigationInEditor && event.key === 'ArrowRight') {
     event.preventDefault()
     emit('next')
   }
@@ -301,6 +306,9 @@ syncDraftTags()
         <p
           v-if="filterNotice"
           :class="styles.filterNotice"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
         >
           {{ filterNotice }}
         </p>
@@ -309,6 +317,7 @@ syncDraftTags()
       <form
         v-else
         :class="styles.tagEditor"
+        data-tag-editor="true"
         @submit.prevent="addDraftTag()"
       >
         <div :class="styles.editChips">
@@ -355,6 +364,9 @@ syncDraftTags()
         <p
           v-if="tagError"
           :class="styles.tagError"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
         >
           {{ tagError }}
         </p>
