@@ -4,7 +4,7 @@ import { unlink, writeFile } from 'node:fs/promises'
 import { isIP } from 'node:net'
 import { extname } from 'node:path'
 import { createError, getRequestHeader, readBody, readMultipartFormData, type H3Event } from 'h3'
-import { ensureDataStore, imageDir, toImageResponse, type ImageRow } from '../db'
+import { ensureDataStore, hashImageBytes, imageDir, toImageResponse, type ImageRow } from '../db'
 
 const maxImageSizeBytes = 15 * 1024 * 1024
 const remoteFetchTimeoutMs = 5000
@@ -17,6 +17,22 @@ type SaveImageInput = {
   originalName: string | null
   mimeType: string
   sourceUrl: string | null
+}
+
+const duplicateResponse = () => ({
+  duplicate: true,
+  message: 'Already saved.',
+})
+
+const isContentHashUniqueError = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false
+  }
+
+  return (
+    error.message.includes('SQLITE_CONSTRAINT_UNIQUE') ||
+    error.message.includes('UNIQUE constraint failed: images.content_hash')
+  )
 }
 
 const hasImageExtension = (name: string | undefined) => {
@@ -344,6 +360,15 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await ensureDataStore()
+  const contentHash = hashImageBytes(input.data)
+  const existing = db
+    .prepare('SELECT id FROM images WHERE content_hash = ? LIMIT 1')
+    .get(contentHash) as { id: string } | undefined
+
+  if (existing) {
+    return duplicateResponse()
+  }
+
   const id = randomUUID()
   const createdAt = new Date().toISOString()
   const filename = `${id}${extensionFor(input.originalName ?? undefined, input.mimeType)}`
@@ -353,11 +378,16 @@ export default defineEventHandler(async (event) => {
 
   try {
     db.prepare(`
-      INSERT INTO images (id, filename, original_name, mime_type, size_bytes, created_at, source_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, filename, input.originalName, input.mimeType, input.data.length, createdAt, input.sourceUrl)
+      INSERT INTO images (id, filename, original_name, mime_type, size_bytes, created_at, source_url, content_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, filename, input.originalName, input.mimeType, input.data.length, createdAt, input.sourceUrl, contentHash)
   } catch (error) {
     await unlink(path).catch(() => {})
+
+    if (isContentHashUniqueError(error)) {
+      return duplicateResponse()
+    }
+
     throw error
   }
 

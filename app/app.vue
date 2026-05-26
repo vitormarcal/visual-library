@@ -9,6 +9,13 @@ type ImageRecord = {
   src: string
 }
 
+type DuplicateSaveResponse = {
+  duplicate: true
+  message: string
+}
+
+type SaveImageResponse = ImageRecord | DuplicateSaveResponse
+
 const images = ref<ImageRecord[]>([])
 const loading = ref(true)
 const saving = ref(false)
@@ -50,6 +57,20 @@ const showNotice = (message: string, kind: 'success' | 'error') => {
   }, 3200)
 }
 
+const isDuplicateSaveResponse = (response: SaveImageResponse): response is DuplicateSaveResponse => {
+  return 'duplicate' in response && response.duplicate
+}
+
+const applySaveResponse = (response: SaveImageResponse) => {
+  if (isDuplicateSaveResponse(response)) {
+    showNotice(response.message, 'success')
+    return
+  }
+
+  images.value = [response, ...images.value]
+  showNotice('Saved.', 'success')
+}
+
 const loadImages = async () => {
   loading.value = true
 
@@ -68,13 +89,12 @@ const handleSave = async (file: File) => {
   saving.value = true
 
   try {
-    const saved = await $fetch<ImageRecord>('/api/images', {
+    const saved = await $fetch<SaveImageResponse>('/api/images', {
       method: 'POST',
       body: formData,
     })
 
-    images.value = [saved, ...images.value]
-    showNotice('Saved.', 'success')
+    applySaveResponse(saved)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not save this image.'
     showNotice(message, 'error')
@@ -87,13 +107,12 @@ const handleSaveUrl = async (url: string) => {
   saving.value = true
 
   try {
-    const saved = await $fetch<ImageRecord>('/api/images', {
+    const saved = await $fetch<SaveImageResponse>('/api/images', {
       method: 'POST',
       body: { url },
     })
 
-    images.value = [saved, ...images.value]
-    showNotice('Saved.', 'success')
+    applySaveResponse(saved)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'This image URL cannot be saved.'
     showNotice(message, 'error')
