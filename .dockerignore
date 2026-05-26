@@ -1,0 +1,7 @@
+.git
+.idea
+.nuxt
+.output
+data
+node_modules
+npm-debug.log
