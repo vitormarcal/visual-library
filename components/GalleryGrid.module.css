@@ -1,0 +1,81 @@
+.grid {
+  column-count: 5;
+  column-gap: var(--space-sm);
+}
+
+.card {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  margin: 0 0 var(--space-sm);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-card);
+  break-inside: avoid;
+}
+
+.card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.deleteButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.card:hover .deleteButton,
+.deleteButton:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.deleteButton:active {
+  background: var(--color-secondary-pressed);
+}
+
+.empty {
+  margin: 64px 0 0;
+  color: var(--color-mute);
+  font-size: 16px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    column-count: 4;
+  }
+}
+
+@media (max-width: 900px) {
+  .grid {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 420px) {
+  .grid {
+    column-count: 1;
+  }
+}
