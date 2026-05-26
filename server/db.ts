@@ -103,6 +103,26 @@ export const normalizeTagName = (value: string) => {
   }
 }
 
+export const normalizeTagValues = (values: string[]) => {
+  const cleanedTags = values
+    .map((value) => normalizeTagName(value))
+    .filter((tag) => tag.normalizedName.length > 0)
+
+  const uniqueTags = cleanedTags.filter((tag, index) => {
+    return cleanedTags.findIndex((candidate) => candidate.normalizedName === tag.normalizedName) === index
+  })
+
+  if (uniqueTags.length > maxTagsPerImage) {
+    throw new Error('Too many tags')
+  }
+
+  if (uniqueTags.some((tag) => tag.name.length > maxTagLength)) {
+    throw new Error('Tag is too long')
+  }
+
+  return uniqueTags
+}
+
 export const toTagResponse = (row: ImageTagRow) => ({
   id: row.id,
   name: row.name,
@@ -164,22 +184,7 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
     return []
   }
 
-  const cleanedTags = values
-    .map((value) => normalizeTagName(value))
-    .filter((tag) => tag.normalizedName.length > 0)
-
-  const uniqueTags = cleanedTags.filter((tag, index) => {
-    return cleanedTags.findIndex((candidate) => candidate.normalizedName === tag.normalizedName) === index
-  })
-
-  if (uniqueTags.length > maxTagsPerImage) {
-    throw new Error('Too many tags')
-  }
-
-  if (uniqueTags.some((tag) => tag.name.length > maxTagLength)) {
-    throw new Error('Tag is too long')
-  }
-
+  const uniqueTags = normalizeTagValues(values)
   const now = new Date().toISOString()
 
   dbInstance.exec('BEGIN')

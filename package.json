@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "nuxt dev",
+    "test": "node --test --test-isolation=none tests/*.test.ts",
     "build": "nuxt build",
     "preview": "nuxt preview"
   },
