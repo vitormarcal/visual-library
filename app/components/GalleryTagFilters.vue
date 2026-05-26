@@ -95,13 +95,6 @@ const selectTag = (tag: ImageTag) => {
         >
           {{ tag.name }}
         </button>
-
-        <p
-          v-if="availableTags.length === 0"
-          :class="styles.empty"
-        >
-          No more tags.
-        </p>
       </div>
     </div>
 

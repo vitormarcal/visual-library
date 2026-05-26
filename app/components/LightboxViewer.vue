@@ -259,7 +259,7 @@ syncDraftTags()
       aria-label="Close viewer"
       @click="$emit('close')"
     >
-      Close
+      <span aria-hidden="true">×</span>
     </button>
 
     <button
@@ -269,7 +269,7 @@ syncDraftTags()
       :disabled="!hasPrevious"
       @click="$emit('previous')"
     >
-      Prev
+      <span aria-hidden="true">‹</span>
     </button>
 
     <img
@@ -388,7 +388,7 @@ syncDraftTags()
       :disabled="!hasNext"
       @click="$emit('next')"
     >
-      Next
+      <span aria-hidden="true">›</span>
     </button>
   </section>
 </template>
