@@ -120,6 +120,17 @@ After implementation:
     - UX consistency;
     - security risks where applicable.
 
+When reviewing implementations, prioritize preserving:
+- visual calmness;
+- image-first interaction;
+- low interaction weight;
+- contemplative browsing feel.
+
+Avoid drifting toward:
+- workspace UX;
+- metadata-management UI;
+- tooling-heavy interaction patterns.
+
 Do not continuously push for new features.
 
 Prefer:
