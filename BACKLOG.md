@@ -20,8 +20,15 @@ Avoid speculative feature accumulation.
 ### Hard to rediscover certain images
 Browsing works well up to ~150 images, but thematic rediscovery is becoming harder.
 
+Current state:
+- partially addressed by lightweight tags in `docs/specs/005-lightweight-tags`;
+- tags can now be added from the fullscreen viewer and used as temporary gallery filters.
+
+Remaining pressure areas:
+- rediscovery still depends on images having been tagged manually;
+- broader themes may still need curated collections or very small search/filter affordances.
+
 Potential pressure areas:
-- lightweight tags;
 - lightweight collections;
 - simple filtering/search.
 
@@ -59,10 +66,9 @@ Avoid:
 - generic network infrastructure.
 
 ### Rediscovery still depends mostly on visual memory
-The current browsing flow works well for recent saves, but intentional rediscovery remains weak as the library grows.
+The current browsing flow works well for recent saves, and lightweight tags now provide a first rediscovery path. Intentional rediscovery can still feel weak for untagged images, cross-cutting themes, or curated reference groups as the library grows.
 
 Potential pressure areas:
-- lightweight tags;
 - curated collections;
 - small filtering/search surfaces;
 - preserving calm visual browsing.
@@ -72,3 +78,20 @@ Avoid:
 - advanced query builders;
 - dense metadata panels;
 - dashboard-style organization.
+
+### Optional tag suggestions may become useful later
+Manual tagging preserves personal visual memory, but adding tags may become repetitive as the library grows.
+
+Potential future direction:
+- optional viewer-only tag suggestions;
+- user explicitly accepts suggestions;
+- no automatic tagging;
+- no batch processing;
+- no background analysis.
+
+Avoid:
+- AI-first tagging;
+- provider systems;
+- embeddings;
+- similarity search;
+- automatic metadata generation.
