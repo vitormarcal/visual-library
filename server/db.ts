@@ -165,7 +165,6 @@ export const listTagSummaries = () => {
     INNER JOIN image_tags ON image_tags.tag_id = tags.id
     GROUP BY tags.id
     ORDER BY tags.last_used_at DESC, image_count DESC, tags.name ASC
-    LIMIT 30
   `).all() as TagSummaryRow[]
 
   return rows.map((row) => ({

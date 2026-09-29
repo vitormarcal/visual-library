@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { matchesImageSearch } from './utils/image-search'
 type ImageRecord = {
   id: string
   filename: string
@@ -37,6 +38,7 @@ const selectedImageId = ref<string | null>(null)
 const returnFocusImageId = ref<string | null>(null)
 const tagSummaries = ref<TagSummary[]>([])
 const activeTagFilters = ref<ImageTag[]>([])
+const searchQuery = ref('')
 const filterNotice = ref('')
 const viewerFilterNotice = ref('')
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -44,13 +46,10 @@ let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 
 const visibleImages = computed(() => {
-  if (activeTagFilters.value.length === 0) {
-    return images.value
-  }
-
   return images.value.filter((image) => {
     const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
-    return activeTagFilters.value.every((filter) => imageTags.has(filter.normalizedName))
+    return matchesImageSearch(image, searchQuery.value)
+      && activeTagFilters.value.every((filter) => imageTags.has(filter.normalizedName))
   })
 })
 
@@ -221,6 +220,7 @@ const removeTagFilter = (normalizedName: string) => {
 }
 
 const clearTagFilters = () => {
+  searchQuery.value = ''
   activeTagFilters.value = []
 }
 
@@ -311,6 +311,7 @@ watch(visibleImages, () => {
     />
 
     <GalleryTagFilters
+      v-model:query="searchQuery"
       :active-filters="activeTagFilters"
       :tags="tagSummaries"
       :has-library-tags="hasLibraryTags"
@@ -323,7 +324,7 @@ watch(visibleImages, () => {
     <GalleryGrid
       :images="visibleImages"
       :loading="loading"
-      :empty-text="activeTagFilters.length > 0 ? 'No images match these tags.' : 'No images saved yet.'"
+      :empty-text="activeTagFilters.length > 0 || searchQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
       @open="openViewer"
       @delete="handleDelete"
     />
