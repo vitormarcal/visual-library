@@ -11,5 +11,6 @@
   "dependencies": {
     "nuxt": "^4.4.6"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "version": "0.1.0"
 }

@@ -39,6 +39,45 @@ const returnFocusImageId = ref<string | null>(null)
 const tagSummaries = ref<TagSummary[]>([])
 const activeTagFilters = ref<ImageTag[]>([])
 const searchQuery = ref('')
+const selecting = ref(false)
+const selectedIds = ref<string[]>([])
+const applyingTags = ref(false)
+const bulkNotice = ref('')
+const exitSelection = () => {
+  if (applyingTags.value) return
+  selecting.value = false
+  selectedIds.value = []
+  bulkNotice.value = ''
+}
+const toggleSelection = (id: string) => {
+  if (applyingTags.value) return
+  bulkNotice.value = ''
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter((selected) => selected !== id)
+    : [...selectedIds.value, id]
+}
+const applyBulkTags = async (tags: string[]) => {
+  if (applyingTags.value || !selectedIds.value.length) return
+  applyingTags.value = true
+  bulkNotice.value = ''
+  try {
+    const response = await $fetch<{ images: { id: string; tags: ImageTag[] }[] }>('/api/images/tags', {
+      method: 'POST', body: { imageIds: [...selectedIds.value], tags },
+    })
+    const updated = new Map(response.images.map((image) => [image.id, image.tags]))
+    images.value = images.value.map((image) => updated.has(image.id) ? { ...image, tags: updated.get(image.id)! } : image)
+    selectedIds.value = []
+    bulkNotice.value = 'Tags added.'
+    await loadTags()
+  } catch (error) {
+    const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
+    bulkNotice.value = message === 'Too many tags' ? 'Some images would exceed 8 tags.'
+      : message === 'Tag is too long' ? 'Tag is too long.'
+        : message === 'Image not found' ? 'An image no longer exists. Refresh the library and try again.'
+          : 'Could not add tags. Try again.'
+  } finally { applyingTags.value = false }
+}
+
 const filterNotice = ref('')
 const viewerFilterNotice = ref('')
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -285,6 +324,8 @@ onMounted(() => {
 })
 
 watch(visibleImages, () => {
+  const visibleIds = new Set(visibleImages.value.map((image) => image.id))
+  selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id))
   if (selectedImageId.value && !visibleImages.value.some((image) => image.id === selectedImageId.value)) {
     selectedImageId.value = null
     returnFocusImageId.value = null
@@ -293,7 +334,7 @@ watch(visibleImages, () => {
 </script>
 
 <template>
-  <main class="page">
+  <main class="page" @keydown.esc="selecting && exitSelection()">
     <header class="topbar">
       <div>
         <p class="eyebrow">Visual Library</p>
@@ -310,19 +351,38 @@ watch(visibleImages, () => {
       @error="showNotice($event, 'error')"
     />
 
-    <GalleryTagFilters
-      v-model:query="searchQuery"
-      :active-filters="activeTagFilters"
+    <fieldset :disabled="applyingTags" :inert="applyingTags" class="filterFieldset">
+      <GalleryTagFilters
+        v-model:query="searchQuery"
+        :active-filters="activeTagFilters"
+        :tags="tagSummaries"
+        :has-library-tags="hasLibraryTags"
+        :notice="filterNotice"
+        @select="addTagFilter"
+        @remove="removeTagFilter"
+        @clear="clearTagFilters"
+      />
+
+    </fieldset>
+
+    <GalleryBulkTags
+      :selecting="selecting"
+      :count="selectedIds.length"
+      :busy="applyingTags"
+      :notice="bulkNotice"
       :tags="tagSummaries"
-      :has-library-tags="hasLibraryTags"
-      :notice="filterNotice"
-      @select="addTagFilter"
-      @remove="removeTagFilter"
-      @clear="clearTagFilters"
+      @enter="selecting = true; bulkNotice = ''"
+      @exit="exitSelection"
+      @select-all="selectedIds = visibleImages.map((image) => image.id)"
+      @apply="applyBulkTags"
     />
 
     <GalleryGrid
       :images="visibleImages"
+      :selecting="selecting"
+      :selected-ids="selectedIds"
+      :busy="applyingTags"
+      @toggle="toggleSelection"
       :loading="loading"
       :empty-text="activeTagFilters.length > 0 || searchQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
       @open="openViewer"
@@ -346,6 +406,7 @@ watch(visibleImages, () => {
 </template>
 
 <style>
+.filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .page {
   width: min(100%, 1280px);
   margin: 0 auto;

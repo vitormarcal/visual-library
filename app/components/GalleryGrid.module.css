@@ -91,3 +91,7 @@
     column-count: 1;
   }
 }
+
+.selected .openButton { outline: 3px solid var(--color-ink); outline-offset: -3px; }
+.selected img { opacity: 0.8; }
+.selectionMark { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-full); background: white; color: black; pointer-events: none; }

@@ -15,9 +15,13 @@ defineProps<{
   images: ImageRecord[]
   loading: boolean
   emptyText?: string
+  selecting?: boolean
+  selectedIds?: string[]
+  busy?: boolean
 }>()
 
 defineEmits<{
+  toggle: [id: string]
   open: [id: string]
   delete: [id: string]
 }>()
@@ -32,14 +36,16 @@ defineEmits<{
       <figure
         v-for="image in images"
         :key="image.id"
-        :class="styles.card"
+        :class="[styles.card, { [styles.selected]: selectedIds?.includes(image.id) }]"
       >
         <button
           :class="styles.openButton"
           type="button"
-          :aria-label="`Open ${image.originalName || 'saved image'} fullscreen`"
+          :aria-label="`${selecting ? 'Select' : 'Open'} ${image.originalName || 'saved image'}`"
+          :aria-pressed="selecting ? Boolean(selectedIds?.includes(image.id)) : undefined"
+          :disabled="busy"
           :data-lightbox-open-id="image.id"
-          @click="$emit('open', image.id)"
+          @click="selecting ? $emit('toggle', image.id) : $emit('open', image.id)"
         >
           <img
             :src="image.src"
@@ -47,7 +53,9 @@ defineEmits<{
             loading="lazy"
           >
         </button>
+        <span v-if="selecting" :class="styles.selectionMark" aria-hidden="true">{{ selectedIds?.includes(image.id) ? '✓' : '○' }}</span>
         <button
+          v-if="!selecting"
           :class="styles.deleteButton"
           type="button"
           aria-label="Remove image"

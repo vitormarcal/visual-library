@@ -228,6 +228,50 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
     .map(toTagResponse)
 }
 
+// One transaction keeps a group's additions all-or-nothing.
+export const addTagsToImages = (imageIds: string[], values: string[]) => {
+  if (!db) throw new Error('Data store is not initialized')
+  const dbInstance = db
+  const ids = [...new Set(imageIds)]
+  const additions = normalizeTagValues(values)
+  if (!ids.length || !additions.length) throw new Error('Select images and add tags')
+
+  dbInstance.exec('BEGIN')
+  try {
+    const current = new Map(ids.map((id) => {
+      if (!dbInstance.prepare('SELECT id FROM images WHERE id = ?').get(id)) {
+        throw new Error('Image not found')
+      }
+      const tags = getImageTags(id)
+      normalizeTagValues([...tags.map((tag) => tag.name), ...additions.map((tag) => tag.name)])
+      return [id, tags] as const
+    }))
+    const now = new Date().toISOString()
+    for (const [index, tag] of additions.entries()) {
+      const missing = ids.filter((id) => !current.get(id)!.some((existing) => existing.normalizedName === tag.normalizedName))
+      if (!missing.length) continue
+      let row = dbInstance.prepare('SELECT id FROM tags WHERE normalized_name = ?').get(tag.normalizedName) as { id: string } | undefined
+      if (!row) {
+        row = { id: randomUUID() }
+        dbInstance.prepare('INSERT INTO tags (id, name, normalized_name, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)')
+          .run(row.id, tag.name, tag.normalizedName, now, now)
+      } else {
+        dbInstance.prepare('UPDATE tags SET last_used_at = ? WHERE id = ?').run(now, row.id)
+      }
+      for (const id of missing) {
+        dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)')
+          .run(id, row.id, new Date(Date.parse(now) + index).toISOString())
+      }
+    }
+    const images = ids.map((id) => ({ id, tags: getImageTags(id) }))
+    dbInstance.exec('COMMIT')
+    return images
+  } catch (error) {
+    dbInstance.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => ({
   id: row.id,
   filename: row.filename,
