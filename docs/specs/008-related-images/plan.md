@@ -1,19 +1,35 @@
 # Implementation: Related Images
 
-Use the already loaded `visibleImages` in `app.vue`. A small pure utility ranks distinct candidates by shared normalized tags and existing gallery order, returning at most six. No API, schema, or dependency changes.
+## Data and State
 
-Pass ranked images to `LightboxViewer.vue` and handle its related-image selection by changing the current image ID while retaining the original focus-return tile and filters.
+Use `visibleImages` already loaded in `app.vue`. `app/utils/related-images.ts` ranks distinct candidates by shared normalized tags, breaking ties by current gallery order and limiting results to six. No API, schema, or dependency changes.
 
-Keep a viewport-sized main viewing area inside the scrollable overlay. Add a conditional neutral masonry section below it, toggled by an accessible Related button. Preserve the main image fit and keep close fixed. Reset expansion and overlay scroll on image changes; restore focus and announce navigation. Hide related content during tag editing and keep global arrow navigation from acting on related cards.
+Pass candidates to `LightboxViewer.vue`; its selection event changes the image ID while retaining search, filters, original focus-return tile, and adjacent gallery navigation.
 
-Capture the target ID before individual tag saves. Prevent navigation while saving and apply editor response state only if the same image is still open. Restore gallery focus with `preventScroll`.
+Capture the target ID before individual tag saves. Prevent navigation during saving and apply editor response state only if the same image remains open. Restore gallery focus with `preventScroll`.
 
-Validate ranking, exclusions, deduplication, tag identity, visible-candidate restriction, and the six-item limit with meaningful unit tests. Run the full test suite and production build. Check browser interaction if tooling is available, and record any remaining verification limitation.
+## Continuous Viewer
 
-## Validation Results
+Keep a viewport-sized main area in one scrollable overlay. Render the related section whenever confirmed matches exist and tagging is not being edited. There is no expansion state.
 
-- `npm test`: all 14 tests passed, including shared-tag ranking, stable tie order, duplicate exclusion, exact identity, visible-candidate restriction, no-match cases, and the six-result limit.
-- `npm run build`: production build passed. Existing sourcemap and `node:sqlite` externalization warnings remain.
-- `git diff --check`: passed.
-- Headless Chrome with an isolated temporary SQLite library: verified expansion, ranking, unchanged main-image height, related-card navigation, collapsed state and scroll reset after selection, focus on the Related action, return to the original gallery tile, absence of UI for untagged images, single-column layout at 390px, and no horizontal overlay overflow.
-- Browser fixtures did not exercise delayed tag-save responses, every keyboard interaction, or physical touch gestures; these remain useful manual checks.
+Separate Explore related from tag chips. Its shortcut scrolls to the section and focuses the heading for keyboard activation or the section container for pointer activation. Back to image scrolls to the top without hiding the section. Respect reduced motion. On image changes reset scroll, announce the image, and restore a valid viewer focus target.
+
+Keep close fixed with a 44px target. Preserve the focus loop, including programmatically focused destinations, and prevent global arrow navigation from acting on related content.
+
+## Presentation
+
+Follow DESIGN.md: continuous dark viewing surface, neutral tertiary actions, 18px section heading, quiet 14px contextual copy, 16px full-bleed image cards, 8px gutters, and no extra panel chrome.
+
+Use a maximum 960px section width. General masonry has three desktop columns, two tablet columns, and one narrow-phone column. Sparse content uses a capped single column or two explicit aligned columns; pair layout collapses on phones. Reserve header space for fixed close and use lazy image loading.
+
+## Validation
+
+- All 14 unit tests pass, including shared-tag ranking, stable ties, duplicate exclusion, exact identity, visible-candidate restriction, no-match behavior, and six-result limit.
+- Production build and `git diff --check` pass. Existing sourcemap and `node:sqlite` externalization warnings remain.
+- Headless Chrome with isolated SQLite fixtures verifies continuous content before shortcut activation, heading focus for keyboard, container focus for real pointer clicks, back scroll without hiding, related-card navigation, original tile focus return, no-match UI omission, one/two/six-result layouts, mobile overflow, reduced motion, and 44px close target.
+- Desktop/mobile screenshots with synthetic images were visually inspected; sparse two-image distribution and gallery interference were corrected.
+- Physical touch, the full range of real image ratios/long tag labels, and delayed tag-save responses remain useful manual checks. Synthetic fixtures do not establish final aesthetics with the user's collection.
+
+## Design Rationale
+
+See [ux-review.md](ux-review.md) for official competitor references and the approved refinement. The original hidden expansion and subsequent automatic-reveal fix are replaced by continuous related content with explicit scroll shortcuts.

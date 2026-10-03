@@ -45,10 +45,21 @@ const viewer = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 const tagInput = ref<HTMLInputElement | null>(null)
 const editingTags = ref(false)
-const relatedExpanded = ref(false)
 const relatedButton = ref<HTMLButtonElement | null>(null)
 const relatedSection = ref<HTMLElement | null>(null)
+const relatedHeading = ref<HTMLHeadingElement | null>(null)
 const announcement = ref('')
+const scrollBehavior = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' as const : 'smooth' as const
+const exploreRelated = async (event: MouseEvent) => {
+  await nextTick()
+  const destination = event.detail === 0 ? relatedHeading.value : relatedSection.value
+  destination?.focus({ preventScroll: true })
+  relatedSection.value?.scrollIntoView({ block: 'start', behavior: scrollBehavior() })
+}
+const returnToImage = () => {
+  relatedButton.value?.focus({ preventScroll: true })
+  viewer.value?.scrollTo({ top: 0, behavior: scrollBehavior() })
+}
 const openRelated = (id: string) => {
   if (!savingTags.value) emit('openRelated', id)
 }
@@ -126,7 +137,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     const firstControl = controls[0]
     const lastControl = controls[controls.length - 1]
 
-    if (event.shiftKey && document.activeElement === firstControl) {
+    if (event.shiftKey && (document.activeElement === firstControl || document.activeElement === relatedHeading.value || document.activeElement === relatedSection.value)) {
       event.preventDefault()
       lastControl?.focus()
     } else if (!event.shiftKey && document.activeElement === lastControl) {
@@ -143,7 +154,6 @@ const syncDraftTags = () => {
 }
 
 const startEditingTags = async () => {
-  relatedExpanded.value = false
   editingTags.value = true
   syncDraftTags()
   await nextTick()
@@ -249,7 +259,6 @@ onBeforeUnmount(() => {
 })
 
 watch(() => props.image.id, async () => {
-  relatedExpanded.value = false
   editingTags.value = false
   syncDraftTags()
   await nextTick()
@@ -262,7 +271,6 @@ watch(() => props.relatedImages, async (images) => {
   if (images.length) return
   const lostFocus = document.activeElement === relatedButton.value
     || Boolean(relatedSection.value?.contains(document.activeElement))
-  relatedExpanded.value = false
   if (lostFocus) {
     await nextTick()
     closeButton.value?.focus({ preventScroll: true })
@@ -341,16 +349,6 @@ syncDraftTags()
             {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
           </button>
 
-          <button
-            v-if="relatedImages.length"
-            ref="relatedButton"
-            type="button"
-            :class="styles.relatedButton"
-            :disabled="savingTags"
-            :aria-expanded="relatedExpanded"
-            aria-controls="related-images"
-            @click="relatedExpanded = !relatedExpanded"
-          >Related</button>
 
           <p
             v-if="filterNotice"
@@ -429,6 +427,15 @@ syncDraftTags()
             Done
           </button>
         </form>
+        <button
+          v-if="!editingTags && relatedImages.length"
+          ref="relatedButton"
+          type="button"
+          :class="styles.exploreButton"
+          :disabled="savingTags"
+          aria-controls="related-images"
+          @click="exploreRelated"
+        >Explore related <span aria-hidden="true">↓</span></button>
       </div>
 
       <button
@@ -443,17 +450,25 @@ syncDraftTags()
     </div>
 
     <section
-      v-if="relatedExpanded && !editingTags && relatedImages.length"
+      v-if="!editingTags && relatedImages.length"
       id="related-images"
       ref="relatedSection"
       data-related-images
-      :class="styles.relatedSection"
+      tabindex="-1"
+      :class="[styles.relatedSection, { [styles.singleRelated]: relatedImages.length === 1, [styles.pairRelated]: relatedImages.length === 2 }]"
       aria-labelledby="related-heading"
     >
-      <h2 id="related-heading">More with these tags</h2>
+      <div :class="styles.relatedHeader">
+        <div>
+          <h2 id="related-heading" ref="relatedHeading" tabindex="-1">Related images</h2>
+          <p :class="styles.relatedContext">Shared tags · Current view</p>
+        </div>
+        <button type="button" :class="styles.returnButton" @click="returnToImage"><span aria-hidden="true">↑</span> Back to image</button>
+      </div>
       <div :class="styles.relatedGrid">
         <button
           v-for="related in relatedImages"
+          data-related-card
           :key="related.id"
           type="button"
           :class="styles.relatedCard"

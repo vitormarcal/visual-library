@@ -1,79 +1,65 @@
 # Feature: Related Images
 
-Status: approved and implemented. Validation is recorded in [plan.md](plan.md).
+Status: approved and implemented, including the UX refinement in [ux-review.md](ux-review.md). Validation is recorded in [plan.md](plan.md).
 
-## Problem and Goal
+## Goal and Boundaries
 
-Gallery order and explicit filters help find images, but do not provide a direct path from one image to others with related personal meaning. Let the user follow shared tags from the fullscreen viewer without losing gallery context.
+Follow shared personal tags from one saved image to another without losing gallery context. Related means sharing manually assigned tags, not visual similarity.
 
-Related means sharing manually assigned tags. It does not imply visual similarity. No minimum library size is required, but the feature appears only when actual matches exist.
-
-## Feature Boundaries
-
-[005](../005-lightweight-tags/spec.md) defines tag identity and individual editing; [006](../006-library-search/spec.md) defines the current visible results. This feature extends the fullscreen viewer in 002 with an optional related-image section. Its no-thumbnail-strip and sparse-controls rules are narrowed only for this section.
+[005](../005-lightweight-tags/spec.md) defines tags and individual editing; [006](../006-library-search/spec.md) defines visible results. This feature extends the base viewer in 002 with related-image content below the main image.
 
 ## User Flow
 
-1. Open an image from the gallery as today, fitted to the viewport without cropping.
-2. If other images in the current gallery results share at least one tag, show a quiet `Related` action beside the normal viewer tag controls.
-3. Activate it to reveal `More with these tags` below the main image and its tags, within the same overlay.
-4. Browse up to six related images as a small masonry grid. Scroll the overlay to reach them; the gallery underneath stays stationary.
-5. Activate a related image to replace the main image in the same viewer. Return the overlay to its top, collapse the related section, announce the new image, and focus the Related action if available or the close button otherwise.
-6. Previous/next continue following the current gallery order from the newly opened image. Related images do not become a separate playlist.
-7. Closing returns to the original gallery scroll position and restores focus to the tile that first opened the viewer without scrolling the gallery.
+1. Open an image in the fullscreen viewer, fitted without cropping.
+2. If matches exist, show `Explore related ↓` on a separate line below tag controls. Related content is already available below the main viewing area through normal scrolling.
+3. Activate the shortcut to scroll directly to `Related images`. Keyboard activation focuses its heading; pointer activation focuses its container without a decorative focus ring.
+4. Browse up to six images. A quiet `Shared tags · Current view` line explains their relationship and current search/filter boundary.
+5. `Back to image ↑` scrolls to the top and restores focus to the shortcut without removing the related content.
+6. Selecting a related image replaces the main image, resets overlay scroll, announces the new image, and recomputes its related content.
+7. Previous/next retain current gallery ordering. Closing retains the gallery position and returns focus to the tile that originally opened the viewer without scrolling it.
 
-## Relatedness Rules
+## Matching Rules
 
-- Use only current visible gallery results, respecting text search and active tag filters. Do not change either when following a related image.
-- Exclude the current image and images with no shared tags.
-- Match shared tags using their normalized identity, without additional accent folding or semantic merging.
-- Rank by number of shared tags, highest first; break ties using the current gallery order.
-- Show at most six matches, each once. Show fewer if fewer qualify.
-- An image with `playboy` and `mel lisboa` prioritizes images sharing both over images sharing only one.
-- With no tags or no matches, omit the action and section entirely. Do not fill the space with arbitrary images or empty-state prompts.
-- Use confirmed tag changes when updating matches. While editing tags, hide the Related action and section; during saving, prevent following another image. Associate save responses with the image whose request was started.
-- If matches disappear, remove the section and return focus to a surviving viewer control if needed.
+- Use only current visible gallery results; preserve search and exact tag filters.
+- Exclude the current image and candidates with no shared normalized tag identity.
+- Rank by number of distinct shared tags, highest first; ties follow gallery order.
+- Return at most six distinct images. No additional accent folding, semantic merging, or filename matching.
+- `playboy` plus `mel lisboa` prioritizes candidates sharing both over candidates sharing one.
+- No tags or no matches means no shortcut, section, empty-state panel, or arbitrary filler.
+- Use confirmed edits when updating matches. Hide exploration while editing and prevent navigation during pending tag saves. Responses remain associated with the image whose request began.
+- If related controls disappear while focused, return focus to a surviving viewer control.
 
 ## Visual Direction — DESIGN.md
 
-- Preserve the initial immersive image view. Related images appear only on explicit request and below the image, never as a side panel or an overlapping bottom tray.
-- Opening the section adds scrollable content without shrinking or cropping the main image. Keep close available while scrolling.
-- Use `button-tertiary` for the Related action with `typography.button-md` and neutral ink. No red discovery CTA, counts, badges, or scores.
-- Use `typography.heading-md` (18px, weight 600) for `More with these tags`, in a neutral surface below the main viewing area. Keep existing tag controls near the main image.
-- Separate the related block from the main content with `spacing.xl` (24px); use `spacing.md` (12px) between its heading and grid and `spacing.sm` (8px) gutters.
-- Reuse `pin-card`: `colors.surface-card`, `rounded.md` (16px), zero internal padding, no shadows. Images preserve natural aspect ratio, without text rows, tag overlays, delete actions, or selection marks.
-- Use `colors.canvas` or `colors.surface-soft` behind the related section, with `colors.ink` text. Keep the existing immersive overlay around the main image.
-- Three columns on desktop, two on tablet/mobile, one at 480px and below. Keep the same six-item limit and use lazy loading for related imagery.
-- Keep cards secondary in width to the main image; do not create another full library grid or an infinite feed.
-- Use the existing system font stack and focus treatment. Ensure a minimum 44px interactive target for the Related action.
+- Use one continuous scrollable viewer with a quiet `colors.surface-dark` background. Main image and related content share this viewing surface; no second pale modal, sidebar, tray, or nested scrolling.
+- Preserve the fitted image and its natural ratio. Keep close fixed and accessible during scrolling, with a 44px target.
+- Exploration and return actions use neutral tertiary emphasis, `typography.button-md`, 16px corners, and 44px minimum height. No red discovery CTA, scores, or badges.
+- Heading uses `typography.heading-md` (18px/600), `colors.on-dark`; explanatory copy uses `typography.body-sm` and `colors.on-dark-mute`.
+- Align section heading and cards within a maximum 960px width, 24px desktop gutters and 16px phone gutters.
+- Use `spacing.xl` (24px) section separation, `spacing.md` (12px) before cards, and `spacing.sm` (8px) card gutters.
+- Reuse `pin-card`: natural image ratios, zero internal padding, `colors.surface-card` backing, 16px corners, and no shadows, metadata rows, overlays, removal controls, or selection marks.
+- General masonry uses three columns on desktop, two at 768px and below, and one at 480px and below. A single match uses a single column capped at 320px; two matches use two aligned columns capped at 640px, becoming one column capped at 320px on narrow phones.
+- Load related images lazily. Keep related content secondary to the main view and bounded to six items.
+- Respect reduced motion with immediate scroll navigation and no opening animation. Other shortcut scrolls may use a brief native smooth transition.
 
 ## Accessibility and Interaction
 
-- Use real buttons for the action and each related image, with clear accessible names.
-- Expose expanded state and the controlled section on the Related action; activating it again collapses the section.
-- Include related controls in the viewer focus loop only while visible. Keep navigation and Escape behavior consistent with the viewer and tag editor.
-- Make revealed content reachable by keyboard and touch. Do not rely on hover, animation, or horizontal dragging.
-- Prevent global left/right shortcuts from interfering with related-card keyboard interaction; arrows on related cards must not replace the current image unexpectedly.
-- Reset related expansion on previous/next navigation and when a different image is opened.
-- Selecting a card replaces the current viewer image; it does not nest dialogs or modify tags.
+- Use native buttons with accessible image names and an `aria-controls` shortcut; there is no expanded/collapsed state.
+- Keep programmatically focused section/heading in the viewer's keyboard loop. Related cards and return controls must not trigger global adjacent-image shortcuts.
+- Keyboard activation focuses the heading so the user can read context before choosing an image; pointer activation does not highlight a candidate as though it were selected.
+- Escape and tag-editor behavior retain their existing meaning. No hover-only interaction or horizontal dragging requirement.
+- Selecting related cards reuses the viewer rather than creating nested dialogs, routes, or a playlist.
 
 ## Non-goals
 
-- AI, embeddings, visual similarity, filename matching, or automatic tags.
-- External recommendations or discovery outside the saved library.
-- Recommendations outside current search/filter results.
-- Weighted tag systems, user preference settings, similarity scores, or analytics.
-- Infinite scrolling, autoplay, browsing history, or a new back-navigation stack.
-- Collections, metadata panels, persistent thumbnail strips, or changes to capture.
+AI, embeddings, visual similarity, external recommendations, results outside current filters, weighted tag systems, scores, statistics, preference settings, infinite feeds, autoplay, history stacks, collections, metadata panels, capture changes, or new dependencies.
 
 ## Acceptance Criteria
 
-- Shared-tag matches appear in the documented order, excluding the current image and limiting results to six.
-- Untagged images and images without matches add no UI.
-- Search and exact tag filters constrain recommendations and remain unchanged after selection.
-- The main image retains its initial fitted presentation; expanding related images adds content below it.
-- A related card opens in the same viewer, resets overlay scroll and expansion, and supports further exploration.
-- Previous/next retain gallery ordering. Close retains gallery position and original focus context.
-- Tag saves cannot update a different image after navigation; editing and confirmed updates keep matches coherent.
-- Desktop, mobile, keyboard focus, announcements, and close behavior remain usable.
-- The implementation adds no dependencies, schema changes, or new recommendation infrastructure.
+- Correct ranking, exclusions, distinct results, current-view restrictions, and six-image limit.
+- Normal scroll and Explore related reach the same content without toggling visibility.
+- Keyboard and pointer navigation make the destination visible with appropriate focus.
+- Back to image returns without collapsing content; card selection opens the new image at the top.
+- One, two, and six matches have balanced widths; phone layout does not overflow horizontally.
+- Main images are not cropped, controls remain legible, and close stays reachable.
+- Navigation, pending tag saves, no-match states, and returning to the gallery retain their documented context.
