@@ -38,6 +38,12 @@ Implemented: explicitly select gallery images and add tags to the group, preserv
 
 The implementation exists and automated persistence tests pass. The feature plan records browser interaction checks as pending; actual-use evaluation is still needed before expanding this flow.
 
+### Exploring connections between images
+
+Implemented: the viewer can reveal up to six images sharing tags within the current search/filter results. Selecting one continues in the same viewer while preserving gallery context: [008](docs/specs/008-related-images/spec.md).
+
+This supports exploration of existing personal associations. Untagged images still require useful filenames or visual browsing.
+
 ## Remaining Friction and Open Questions
 
 ### Rediscovery with little textual context

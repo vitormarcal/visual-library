@@ -25,6 +25,7 @@ type TagSummary = ImageTag & {
 
 const props = defineProps<{
   image: ImageRecord
+  relatedImages: ImageRecord[]
   hasPrevious: boolean
   hasNext: boolean
   libraryTags: TagSummary[]
@@ -33,6 +34,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  openRelated: [id: string]
   previous: []
   next: []
   filterTag: [tag: ImageTag]
@@ -43,6 +45,13 @@ const viewer = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 const tagInput = ref<HTMLInputElement | null>(null)
 const editingTags = ref(false)
+const relatedExpanded = ref(false)
+const relatedButton = ref<HTMLButtonElement | null>(null)
+const relatedSection = ref<HTMLElement | null>(null)
+const announcement = ref('')
+const openRelated = (id: string) => {
+  if (!savingTags.value) emit('openRelated', id)
+}
 const draftTags = ref<ImageTag[]>([])
 const pendingTag = ref('')
 const tagError = ref('')
@@ -84,6 +93,8 @@ const handleKeydown = (event: KeyboardEvent) => {
   const target = event.target
   const isEditingTagControl = editingTags.value && isTagEditorTarget(target)
   const shouldKeepNavigationInEditor = target instanceof HTMLInputElement || isEditingTagControl
+    || (target instanceof HTMLElement && Boolean(target.closest('[data-related-images]')))
+    || savingTags.value
 
   if (event.key === 'Escape') {
     event.preventDefault()
@@ -132,6 +143,7 @@ const syncDraftTags = () => {
 }
 
 const startEditingTags = async () => {
+  relatedExpanded.value = false
   editingTags.value = true
   syncDraftTags()
   await nextTick()
@@ -144,20 +156,25 @@ const stopEditingTags = () => {
 }
 
 const saveDraftTags = async () => {
+  if (savingTags.value) return
+  const imageId = props.image.id
   savingTags.value = true
 
   try {
-    const response = await $fetch<{ tags: ImageTag[] }>(`/api/images/${props.image.id}/tags`, {
+    const response = await $fetch<{ tags: ImageTag[] }>(`/api/images/${imageId}/tags`, {
       method: 'PUT',
       body: {
         tags: draftTags.value.map((tag) => tag.name),
       },
     })
 
-    emit('tagsUpdated', props.image.id, response.tags)
-    draftTags.value = response.tags
-    tagError.value = ''
+    emit('tagsUpdated', imageId, response.tags)
+    if (props.image.id === imageId) {
+      draftTags.value = response.tags
+      tagError.value = ''
+    }
   } catch (error) {
+    if (props.image.id !== imageId) return
     const statusMessage = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     tagError.value = statusMessage?.startsWith('Too many tags')
       ? 'Too many tags'
@@ -170,6 +187,7 @@ const saveDraftTags = async () => {
 }
 
 const addDraftTag = async (value = pendingTag.value) => {
+  if (savingTags.value) return
   const tag = normalizeTag(value)
 
   if (!tag.normalizedName) {
@@ -209,6 +227,7 @@ const addDraftTag = async (value = pendingTag.value) => {
 }
 
 const removeDraftTag = async (normalizedName: string) => {
+  if (savingTags.value) return
   draftTags.value = draftTags.value.filter((tag) => tag.normalizedName !== normalizedName)
   await saveDraftTags()
   await nextTick()
@@ -229,10 +248,26 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-watch(() => props.image.id, () => {
+watch(() => props.image.id, async () => {
+  relatedExpanded.value = false
   editingTags.value = false
   syncDraftTags()
+  await nextTick()
+  viewer.value?.scrollTo({ top: 0 })
+  announcement.value = `Opened ${props.image.originalName || 'saved image'}`
+  ;(relatedButton.value ?? closeButton.value)?.focus({ preventScroll: true })
 })
+
+watch(() => props.relatedImages, async (images) => {
+  if (images.length) return
+  const lostFocus = document.activeElement === relatedButton.value
+    || Boolean(relatedSection.value?.contains(document.activeElement))
+  relatedExpanded.value = false
+  if (lostFocus) {
+    await nextTick()
+    closeButton.value?.focus({ preventScroll: true })
+  }
+}, { flush: 'pre' })
 
 watch(() => props.image.tags, () => {
   if (!editingTags.value) {
@@ -262,133 +297,172 @@ syncDraftTags()
       <span aria-hidden="true">×</span>
     </button>
 
-    <button
-      :class="[styles.control, styles.navButton, styles.previousButton]"
-      type="button"
-      aria-label="Previous image"
-      :disabled="!hasPrevious"
-      @click="$emit('previous')"
-    >
-      <span aria-hidden="true">‹</span>
-    </button>
-
-    <img
-      :class="styles.image"
-      :src="image.src"
-      :alt="image.originalName || 'Saved image'"
-    >
-
-    <div :class="styles.tagsPanel">
-      <div
-        v-if="!editingTags"
-        :class="styles.tagList"
+    <div :class="styles.mainView" @click.self="$emit('close')">
+      <button
+        :class="[styles.control, styles.navButton, styles.previousButton]"
+        type="button"
+        aria-label="Previous image"
+        :disabled="!hasPrevious || savingTags"
+        @click="$emit('previous')"
       >
-        <button
-          v-for="tag in image.tags"
-          :key="tag.id"
-          :class="styles.tagChip"
-          type="button"
-          :aria-label="`Filter by ${tag.name}`"
-          @click="$emit('filterTag', tag)"
-        >
-          {{ tag.name }}
-        </button>
+        <span aria-hidden="true">‹</span>
+      </button>
 
-        <button
-          :class="styles.addTagButton"
-          type="button"
-          aria-label="Add or edit tags"
-          @click="startEditingTags"
-        >
-          {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
-        </button>
+      <img
+        :class="styles.image"
+        :src="image.src"
+        :alt="image.originalName || 'Saved image'"
+      >
 
-        <p
-          v-if="filterNotice"
-          :class="styles.filterNotice"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
+      <div :class="styles.tagsPanel">
+        <div
+          v-if="!editingTags"
+          :class="styles.tagList"
         >
-          {{ filterNotice }}
-        </p>
+          <button
+            v-for="tag in image.tags"
+            :key="tag.id"
+            :class="styles.tagChip"
+            type="button"
+            :disabled="savingTags"
+            :aria-label="`Filter by ${tag.name}`"
+            @click="$emit('filterTag', tag)"
+          >
+            {{ tag.name }}
+          </button>
+
+          <button
+            :class="styles.addTagButton"
+            type="button"
+            aria-label="Add or edit tags"
+            :disabled="savingTags"
+            @click="startEditingTags"
+          >
+            {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
+          </button>
+
+          <button
+            v-if="relatedImages.length"
+            ref="relatedButton"
+            type="button"
+            :class="styles.relatedButton"
+            :disabled="savingTags"
+            :aria-expanded="relatedExpanded"
+            aria-controls="related-images"
+            @click="relatedExpanded = !relatedExpanded"
+          >Related</button>
+
+          <p
+            v-if="filterNotice"
+            :class="styles.filterNotice"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {{ filterNotice }}
+          </p>
+        </div>
+
+        <form
+          v-else
+          :class="styles.tagEditor"
+          data-tag-editor="true"
+          @submit.prevent="addDraftTag()"
+        >
+          <div :class="styles.editChips">
+            <button
+              v-for="tag in draftTags"
+              :key="tag.normalizedName"
+              :class="styles.editChip"
+              type="button"
+              :disabled="savingTags"
+              :aria-label="`Remove ${tag.name}`"
+              @click="removeDraftTag(tag.normalizedName)"
+            >
+              {{ tag.name }}
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+
+          <input
+            ref="tagInput"
+            v-model="pendingTag"
+            :class="styles.tagInput"
+            type="text"
+            maxlength="56"
+            placeholder="Add tag"
+            aria-label="Tag to add to this image"
+            :disabled="savingTags"
+          >
+
+          <div
+            v-if="availableSuggestions.length > 0 && pendingTag"
+            :class="styles.suggestions"
+          >
+            <button
+              v-for="tag in availableSuggestions"
+              :key="tag.id"
+              :class="styles.suggestion"
+              type="button"
+              :disabled="savingTags"
+              @click="addDraftTag(tag.name)"
+            >
+              {{ tag.name }}
+            </button>
+          </div>
+
+          <p
+            v-if="tagError"
+            :class="styles.tagError"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {{ tagError }}
+          </p>
+
+          <button
+            :class="styles.doneButton"
+            type="button"
+            @click="editingTags = false"
+          >
+            Done
+          </button>
+        </form>
       </div>
 
-      <form
-        v-else
-        :class="styles.tagEditor"
-        data-tag-editor="true"
-        @submit.prevent="addDraftTag()"
+      <button
+        :class="[styles.control, styles.navButton, styles.nextButton]"
+        type="button"
+        aria-label="Next image"
+        :disabled="!hasNext || savingTags"
+        @click="$emit('next')"
       >
-        <div :class="styles.editChips">
-          <button
-            v-for="tag in draftTags"
-            :key="tag.normalizedName"
-            :class="styles.editChip"
-            type="button"
-            :disabled="savingTags"
-            :aria-label="`Remove ${tag.name}`"
-            @click="removeDraftTag(tag.normalizedName)"
-          >
-            {{ tag.name }}
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-
-        <input
-          ref="tagInput"
-          v-model="pendingTag"
-          :class="styles.tagInput"
-          type="text"
-          maxlength="56"
-          placeholder="Add tag"
-          :disabled="savingTags"
-        >
-
-        <div
-          v-if="availableSuggestions.length > 0 && pendingTag"
-          :class="styles.suggestions"
-        >
-          <button
-            v-for="tag in availableSuggestions"
-            :key="tag.id"
-            :class="styles.suggestion"
-            type="button"
-            :disabled="savingTags"
-            @click="addDraftTag(tag.name)"
-          >
-            {{ tag.name }}
-          </button>
-        </div>
-
-        <p
-          v-if="tagError"
-          :class="styles.tagError"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {{ tagError }}
-        </p>
-
-        <button
-          :class="styles.doneButton"
-          type="button"
-          @click="editingTags = false"
-        >
-          Done
-        </button>
-      </form>
+        <span aria-hidden="true">›</span>
+      </button>
     </div>
 
-    <button
-      :class="[styles.control, styles.navButton, styles.nextButton]"
-      type="button"
-      aria-label="Next image"
-      :disabled="!hasNext"
-      @click="$emit('next')"
+    <section
+      v-if="relatedExpanded && !editingTags && relatedImages.length"
+      id="related-images"
+      ref="relatedSection"
+      data-related-images
+      :class="styles.relatedSection"
+      aria-labelledby="related-heading"
     >
-      <span aria-hidden="true">›</span>
-    </button>
+      <h2 id="related-heading">More with these tags</h2>
+      <div :class="styles.relatedGrid">
+        <button
+          v-for="related in relatedImages"
+          :key="related.id"
+          type="button"
+          :class="styles.relatedCard"
+          :disabled="savingTags"
+          :aria-label="`Open related image ${related.originalName || 'saved image'}`"
+          @click="openRelated(related.id)"
+        ><img :src="related.src" :alt="related.originalName || 'Saved image'" loading="lazy"></button>
+      </div>
+    </section>
+    <p :class="styles.screenReaderOnly" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
   </section>
 </template>

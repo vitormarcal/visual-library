@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { matchesImageSearch } from './utils/image-search'
+import { findRelatedImages } from './utils/related-images'
 type ImageRecord = {
   id: string
   filename: string
@@ -109,6 +110,8 @@ const selectedImage = computed(() => {
 
   return visibleImages.value[selectedImageIndex.value]
 })
+
+const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, visibleImages.value) : [])
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
 const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
@@ -288,7 +291,7 @@ const focusGalleryTile = async (id: string | null) => {
 
   await nextTick()
   const element = document.querySelector<HTMLElement>(`[data-lightbox-open-id="${id}"]`)
-  element?.focus()
+  element?.focus({ preventScroll: true })
 }
 
 const openViewer = (id: string) => {
@@ -392,6 +395,8 @@ watch(visibleImages, () => {
     <LightboxViewer
       v-if="selectedImage"
       :image="selectedImage"
+      :related-images="relatedImages"
+      @open-related="selectedImageId = $event"
       :has-previous="hasPreviousImage"
       :has-next="hasNextImage"
       :library-tags="tagSummaries"
