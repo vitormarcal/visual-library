@@ -11,7 +11,7 @@ Follow shared personal tags from one saved image to another without losing galle
 ## User Flow
 
 1. Open an image in the fullscreen viewer, fitted without cropping.
-2. If matches exist, show `Explore related ↓` on a separate line below tag controls. Related content is already available below the main viewing area through normal scrolling.
+2. If matches exist, show `Explore related ↓` in the compact navigation row below the fitted image, separate from previous/next. Tags follow the viewing stage in normal flow as defined in [009](../009-viewer-image-fit/spec.md). Related content is already available below the main viewing area through normal scrolling.
 3. Activate the shortcut to scroll directly to `Related images`. Keyboard activation focuses its heading; pointer activation focuses its container without a decorative focus ring.
 4. Browse up to six images. A quiet `Shared tags · Current view` line explains their relationship and current search/filter boundary.
 5. `Back to image ↑` scrolls to the top and restores focus to the shortcut without removing the related content.

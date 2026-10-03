@@ -12,7 +12,7 @@ Capture the target ID before individual tag saves. Prevent navigation during sav
 
 Keep a viewport-sized main area in one scrollable overlay. Render the related section whenever confirmed matches exist and tagging is not being edited. There is no expansion state.
 
-Separate Explore related from tag chips. Its shortcut scrolls to the section and focuses the heading for keyboard activation or the section container for pointer activation. Back to image scrolls to the top without hiding the section. Respect reduced motion. On image changes reset scroll, announce the image, and restore a valid viewer focus target.
+Place Explore related in the image navigation row, separate from previous/next; tags follow the viewport stage in normal flow, as defined in [009](../009-viewer-image-fit/plan.md). Its shortcut scrolls to the section and focuses the heading for keyboard activation or the section container for pointer activation. Back to image scrolls to the top without hiding the section. Respect reduced motion. On image changes reset scroll, announce the image, and restore a valid viewer focus target.
 
 Keep close fixed with a 44px target. Preserve the focus loop, including programmatically focused destinations, and prevent global arrow navigation from acting on related content.
 

@@ -9,36 +9,54 @@
 }
 
 .mainView {
-  position: relative;
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(48px, 1fr) minmax(0, auto) minmax(48px, 1fr);
-  align-items: center;
-  justify-items: center;
-  gap: var(--space-lg);
-  padding: var(--space-xl);
+  grid-template-rows: 44px minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+}
+
+.imageStage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
 }
 
 .image {
-  grid-column: 2;
+  position: absolute;
+  inset: 0;
+  margin: auto;
   display: block;
-  max-width: min(100%, 1180px);
-  max-height: calc(100vh - 156px);
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: var(--radius-md);
   object-fit: contain;
 }
 
-.tagsPanel {
-  position: absolute;
-  right: var(--space-xl);
-  bottom: var(--space-xl);
-  left: var(--space-xl);
+.viewingFooter {
   display: flex;
   align-items: center;
-  flex-direction: column;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  min-height: 44px;
+}
+
+.adjacentNavigation {
+  display: flex;
+  align-items: center;
   gap: var(--space-sm);
-  pointer-events: none;
+}
+
+.tagsPanel {
+  display: flex;
+  justify-content: center;
+  width: min(760px, calc(100% - 48px));
+  margin: var(--space-xl) auto;
 }
 
 .tagList,
@@ -68,7 +86,9 @@
 .editChip,
 .suggestion,
 .doneButton {
-  min-height: 34px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  min-height: 44px;
   border: 0;
   border-radius: var(--radius-full);
   font-size: 13px;
@@ -107,6 +127,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  max-width: 100%;
 }
 
 .editChip {
@@ -120,7 +141,8 @@
 
 .tagInput {
   width: 180px;
-  min-height: 34px;
+  max-width: 100%;
+  min-height: 44px;
   padding: 7px 11px;
   border: 0;
   border-radius: var(--radius-full);
@@ -159,7 +181,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.92);
@@ -181,24 +203,16 @@
 .closeButton {
   position: fixed;
   z-index: 1;
-  top: var(--space-xl);
-  right: var(--space-xl);
+  top: max(16px, env(safe-area-inset-top));
+  right: max(24px, env(safe-area-inset-right));
   width: 44px;
   min-height: 44px;
   padding: 0;
 }
 
 .navButton {
-  width: 48px;
+  width: 44px;
   padding: 0;
-}
-
-.previousButton {
-  grid-column: 1;
-}
-
-.nextButton {
-  grid-column: 3;
 }
 
 @keyframes lightboxIn {
@@ -211,84 +225,17 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) {
   .mainView {
-    grid-template-columns: 1fr;
-    gap: 0;
-    padding: var(--space-md);
+    padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
-
-  .image {
-    grid-column: 1 / -1;
-    max-width: calc(100% - 64px);
-    max-height: calc(100vh - 112px);
-    max-height: calc(100svh - 112px);
-  }
-
-  .tagsPanel {
-    right: var(--space-md);
-    bottom: var(--space-md);
-    left: var(--space-md);
-  }
-
-  .tagList {
-    max-width: calc(100% - 64px);
-    gap: 6px;
-  }
-
-  .tagEditor {
-    max-width: calc(100% - 24px);
-    max-height: min(30vh, 172px);
-    padding: 4px;
-    overflow: auto;
-  }
-
-  .tagChip,
-  .addTagButton,
-  .editChip,
-  .suggestion,
-  .doneButton {
-    min-height: 32px;
-    font-size: 12px;
-  }
-
-  .tagChip,
-  .addTagButton,
-  .suggestion {
-    padding: 7px 10px;
-  }
-
-  .tagInput {
-    width: min(180px, 100%);
-    min-height: 32px;
-  }
-
   .closeButton {
-    top: var(--space-md);
-    right: var(--space-md);
-    min-height: 44px;
-    width: 44px;
+    top: max(8px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
   }
-
-  .previousButton,
-  .nextButton {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-
-  .navButton {
-    width: 40px;
-    min-height: 40px;
-  }
-
-  .previousButton {
-    left: var(--space-md);
-  }
-
-  .nextButton {
-    right: var(--space-md);
-  }
+  .tagsPanel { width: calc(100% - 32px); }
+  .tagList { gap: var(--space-sm); }
+  .tagEditor { padding: var(--space-sm); }
 }
 
 .exploreButton,

@@ -305,128 +305,37 @@ syncDraftTags()
       <span aria-hidden="true">×</span>
     </button>
 
-    <div :class="styles.mainView" @click.self="$emit('close')">
-      <button
-        :class="[styles.control, styles.navButton, styles.previousButton]"
-        type="button"
-        aria-label="Previous image"
-        :disabled="!hasPrevious || savingTags"
-        @click="$emit('previous')"
-      >
-        <span aria-hidden="true">‹</span>
-      </button>
-
-      <img
-        :class="styles.image"
-        :src="image.src"
-        :alt="image.originalName || 'Saved image'"
-      >
-
-      <div :class="styles.tagsPanel">
-        <div
-          v-if="!editingTags"
-          :class="styles.tagList"
+    <div :class="styles.mainView">
+      <div :class="styles.viewingHeader" aria-hidden="true" />
+      <div :class="styles.imageStage" @click.self="$emit('close')">
+        <img
+          :class="styles.image"
+          :src="image.src"
+          :alt="image.originalName || 'Saved image'"
         >
+      </div>
+      <div :class="styles.viewingFooter">
+        <div :class="styles.adjacentNavigation" role="group" aria-label="Browse images">
           <button
-            v-for="tag in image.tags"
-            :key="tag.id"
-            :class="styles.tagChip"
+            :class="[styles.control, styles.navButton, styles.previousButton]"
             type="button"
-            :disabled="savingTags"
-            :aria-label="`Filter by ${tag.name}`"
-            @click="$emit('filterTag', tag)"
+            aria-label="Previous image"
+            :disabled="!hasPrevious || savingTags"
+            @click="$emit('previous')"
           >
-            {{ tag.name }}
+            <span aria-hidden="true">‹</span>
           </button>
 
           <button
-            :class="styles.addTagButton"
+            :class="[styles.control, styles.navButton, styles.nextButton]"
             type="button"
-            aria-label="Add or edit tags"
-            :disabled="savingTags"
-            @click="startEditingTags"
+            aria-label="Next image"
+            :disabled="!hasNext || savingTags"
+            @click="$emit('next')"
           >
-            {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
+            <span aria-hidden="true">›</span>
           </button>
-
-
-          <p
-            v-if="filterNotice"
-            :class="styles.filterNotice"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {{ filterNotice }}
-          </p>
         </div>
-
-        <form
-          v-else
-          :class="styles.tagEditor"
-          data-tag-editor="true"
-          @submit.prevent="addDraftTag()"
-        >
-          <div :class="styles.editChips">
-            <button
-              v-for="tag in draftTags"
-              :key="tag.normalizedName"
-              :class="styles.editChip"
-              type="button"
-              :disabled="savingTags"
-              :aria-label="`Remove ${tag.name}`"
-              @click="removeDraftTag(tag.normalizedName)"
-            >
-              {{ tag.name }}
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-
-          <input
-            ref="tagInput"
-            v-model="pendingTag"
-            :class="styles.tagInput"
-            type="text"
-            maxlength="56"
-            placeholder="Add tag"
-            aria-label="Tag to add to this image"
-            :disabled="savingTags"
-          >
-
-          <div
-            v-if="availableSuggestions.length > 0 && pendingTag"
-            :class="styles.suggestions"
-          >
-            <button
-              v-for="tag in availableSuggestions"
-              :key="tag.id"
-              :class="styles.suggestion"
-              type="button"
-              :disabled="savingTags"
-              @click="addDraftTag(tag.name)"
-            >
-              {{ tag.name }}
-            </button>
-          </div>
-
-          <p
-            v-if="tagError"
-            :class="styles.tagError"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {{ tagError }}
-          </p>
-
-          <button
-            :class="styles.doneButton"
-            type="button"
-            @click="editingTags = false"
-          >
-            Done
-          </button>
-        </form>
         <button
           v-if="!editingTags && relatedImages.length"
           ref="relatedButton"
@@ -437,16 +346,113 @@ syncDraftTags()
           @click="exploreRelated"
         >Explore related <span aria-hidden="true">↓</span></button>
       </div>
+    </div>
 
-      <button
-        :class="[styles.control, styles.navButton, styles.nextButton]"
-        type="button"
-        aria-label="Next image"
-        :disabled="!hasNext || savingTags"
-        @click="$emit('next')"
+    <div :class="styles.tagsPanel">
+      <div
+        v-if="!editingTags"
+        :class="styles.tagList"
       >
-        <span aria-hidden="true">›</span>
-      </button>
+        <button
+          v-for="tag in image.tags"
+          :key="tag.id"
+          :class="styles.tagChip"
+          type="button"
+          :disabled="savingTags"
+          :aria-label="`Filter by ${tag.name}`"
+          @click="$emit('filterTag', tag)"
+        >
+          {{ tag.name }}
+        </button>
+
+        <button
+          :class="styles.addTagButton"
+          type="button"
+          aria-label="Add or edit tags"
+          :disabled="savingTags"
+          @click="startEditingTags"
+        >
+          {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
+        </button>
+
+
+        <p
+          v-if="filterNotice"
+          :class="styles.filterNotice"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ filterNotice }}
+        </p>
+      </div>
+
+      <form
+        v-else
+        :class="styles.tagEditor"
+        data-tag-editor="true"
+        @submit.prevent="addDraftTag()"
+      >
+        <div :class="styles.editChips">
+          <button
+            v-for="tag in draftTags"
+            :key="tag.normalizedName"
+            :class="styles.editChip"
+            type="button"
+            :disabled="savingTags"
+            :aria-label="`Remove ${tag.name}`"
+            @click="removeDraftTag(tag.normalizedName)"
+          >
+            {{ tag.name }}
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <input
+          ref="tagInput"
+          v-model="pendingTag"
+          :class="styles.tagInput"
+          type="text"
+          maxlength="56"
+          placeholder="Add tag"
+          aria-label="Tag to add to this image"
+          :disabled="savingTags"
+        >
+
+        <div
+          v-if="availableSuggestions.length > 0 && pendingTag"
+          :class="styles.suggestions"
+        >
+          <button
+            v-for="tag in availableSuggestions"
+            :key="tag.id"
+            :class="styles.suggestion"
+            type="button"
+            :disabled="savingTags"
+            @click="addDraftTag(tag.name)"
+          >
+            {{ tag.name }}
+          </button>
+        </div>
+
+        <p
+          v-if="tagError"
+          :class="styles.tagError"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ tagError }}
+        </p>
+
+        <button
+          :class="styles.doneButton"
+          type="button"
+          @click="editingTags = false"
+        >
+          Done
+        </button>
+      </form>
     </div>
 
     <section

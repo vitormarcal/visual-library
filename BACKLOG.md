@@ -44,6 +44,10 @@ Implemented: the viewer can reveal up to six images sharing tags within the curr
 
 This supports exploration of existing personal associations. Untagged images still require useful filenames or visual browsing.
 
+### Main-image viewing space
+
+The selected image was narrower than related cards on phones, capped unnecessarily on large desktops, and sometimes covered by tags. Addressed by viewport-based image fitting, navigation below the image, and tags outside the viewing stage: [009](docs/specs/009-viewer-image-fit/spec.md).
+
 ## Remaining Friction and Open Questions
 
 ### Rediscovery with little textual context

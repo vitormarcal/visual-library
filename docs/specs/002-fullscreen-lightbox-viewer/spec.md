@@ -2,6 +2,8 @@
 
 This document defines the base viewer. Individual tagging is defined in [005](../005-lightweight-tags/spec.md), current gallery search/navigation in [006](../006-library-search/spec.md), and the optional related-image section in [008](../008-related-images/spec.md). The related section extends the original sparse-controls and no-thumbnail-content boundaries only for explicit shared-tag exploration.
 
+Current image fitting, control placement, and below-stage tags are defined in [009](../009-viewer-image-fit/spec.md). Previous/next controls now sit below the image rather than reserving side columns.
+
 ## Problem
 
 The gallery is optimized for fast visual scanning, but a user sometimes needs to pause on one saved image without leaving the browsing flow. Opening an image should feel like leaning into the masonry grid, not entering a separate media-management screen.
