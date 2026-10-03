@@ -4,7 +4,7 @@
 
 Tags currently act as personal memory cues: authors, characters, works, publications, and people. Examples include `manara`, `spider-man`, and `sono bisque doll`. Describing mood or style adds cognitive overhead and is not the user's normal tagging behavior.
 
-Related images often need the same tags. Tagging Playboy scans featuring Mel Lisboa currently requires opening each image and repeating `playboy` and `mel lisboa`.
+Related images often need the same tags. Without group addition, tagging Playboy scans featuring Mel Lisboa requires opening each image and repeating `playboy` and `mel lisboa`.
 
 ## Goal
 
@@ -40,7 +40,7 @@ Select saved images in the gallery and add the same tags to all of them in one a
 
 ## Non-goals
 
-- Showing common tags, partial tag coverage, counts, or statistics.
+- Showing tags shared by the selected images, partial tag coverage, counts, or statistics about the selection.
 - Bulk tag removal or replacement.
 - Bulk deletion or other unrelated actions.
 - Required tags, capture-time tagging, or save-flow changes.
@@ -59,12 +59,10 @@ Select saved images in the gallery and add the same tags to all of them in one a
 - Failed application preserves pending work for retry.
 - Successful changes appear immediately and persist after reload.
 - Normal browsing and viewer interaction remain available after exiting selection mode.
-- Common-tag display, bulk removal, replacement, and management screens are absent.
+- Display of tags shared by the selection, bulk removal, replacement, and management screens are absent.
 
 ## Explicit Boundaries
 
-This feature supersedes the no-multi-select and no-bulk-tagging boundaries of features 001, 005, and 006 only for adding tags to selected images. Other organization and metadata boundaries remain in force.
+[005](../005-lightweight-tags/spec.md) defines shared tag rules and individual editing. [006](../006-library-search/spec.md) defines search and gallery discovery. This feature adds tags to explicitly selected images only; removal and replacement remain individual viewer actions.
 
-The mood and atmosphere examples in feature 005 are not requirements for tag content. Observed usage confirms that names and contextual memory cues are valid tags.
-
-Common-tag display is deferred for evaluation after actual use of this basic flow.
+Showing tags shared by the selected images is deferred until observed usage demonstrates a need. Existing gallery suggestions of frequently used tags remain available.

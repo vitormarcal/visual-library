@@ -1,105 +1,61 @@
 # BACKLOG.md
 
-This file captures observed product friction and emerging usage patterns.
+This file captures observed product friction and emerging usage patterns. It is not a commitment list or feature roadmap.
 
-It is not a commitment list or feature roadmap.
+New entries should come primarily from real usage, repeated friction, browsing behavior, rediscovery difficulty, and interaction discomfort. Avoid speculative feature accumulation.
 
-New entries should come primarily from:
-- real usage;
-- repeated friction;
-- browsing behavior;
-- rediscovery difficulty;
-- interaction discomfort.
+## Observed Usage
 
-Avoid speculative feature accumulation.
+### Tags are personal memory cues
 
----
+Observed on 2026-10-01:
 
-## Observed Frictions
+- Tags identify authors, characters, works, publications, and people.
+- Examples include `manara`, `spider-man`, and `sono bisque doll`.
+- Playboy scans featuring Mel Lisboa can share `playboy` and `mel lisboa`.
+- The user does not usually describe mood, feeling, style, or visual atmosphere; choosing descriptive attributes adds cognitive overhead.
 
-### Tags are personal memory cues in current usage
+Tags remain optional and freeform. These observations do not impose a taxonomy or restrict other useful associations. Shared behavior is defined in [lightweight tags](docs/specs/005-lightweight-tags/spec.md).
 
-Observed usage on 2026-10-01:
-- tags identify authors, characters, works, publications, and people;
-- examples include `manara`, `spider-man`, and `sono bisque doll`;
-- Playboy scans featuring Mel Lisboa can share `playboy` and `mel lisboa`;
-- the user does not usually describe mood, feeling, style, or visual atmosphere;
-- choosing descriptive attributes adds cognitive overhead to tagging.
+## Implemented Responses to Friction
 
-The mood/style examples in feature 005 do not reflect this observed usage. Tags should remain optional, freeform personal memory cues, without requiring descriptive analysis or categories. These examples describe current behavior, not a mandatory taxonomy.
+### Finding saved images
 
-### Repeating the same tags across a group of images
+Visual browsing became less effective for thematic rediscovery at around 150 images.
 
-Related images currently need to be opened and tagged individually. A group of scans may need the same two tags on every image.
+Implemented:
 
-Selected next scope: explicitly select gallery images and add tags to the group, preserving each image's existing tags and keeping controls contextual. See `docs/specs/007-bulk-tagging/spec.md`.
+- Individual viewer tagging and temporary exact tag filters: [005](docs/specs/005-lightweight-tags/spec.md).
+- Search by original filename and tags, suggestions of frequently used tags, and access to all attached tags: [006](docs/specs/006-library-search/spec.md).
 
-Showing common tags is deferred until actual use demonstrates a need. Bulk removal, replacement, statistics, and general metadata management are outside this first scope.
+Search ignores case, accents, and repeated whitespace. Tags remain manually assigned; search does not analyze image content.
 
-### Hard to rediscover certain images
-Browsing works well up to ~150 images, but thematic rediscovery is becoming harder.
+### Repeating tags across related images
 
-Current state:
-- partially addressed by lightweight tags in `docs/specs/005-lightweight-tags`;
-- tags can now be added from the fullscreen viewer and used as temporary gallery filters.
+Opening each image to repeat the same tags created unnecessary work.
 
-Remaining pressure areas:
-- rediscovery still depends on images having been tagged manually;
-- broader themes may still need curated collections or very small search/filter affordances.
+Implemented: explicitly select gallery images and add tags to the group, preserving existing tags with all-or-nothing updates: [007](docs/specs/007-bulk-tagging/spec.md).
 
-Potential pressure areas:
-- lightweight collections;
-- simple filtering/search.
+The implementation exists and automated persistence tests pass. The feature plan records browser interaction checks as pending; actual-use evaluation is still needed before expanding this flow.
 
-Important boundaries:
-- avoid management-heavy organization;
-- avoid taxonomy systems;
-- avoid automatic metadata expansion;
-- avoid complex metadata workflows.
+## Remaining Friction and Open Questions
 
-### Rediscovery still depends mostly on visual memory
-The current browsing flow works well for recent saves, and lightweight tags now provide a first rediscovery path.
+### Rediscovery with little textual context
 
-Intentional rediscovery can still feel weak for:
-- untagged images;
-- cross-cutting themes;
-- curated reference groups.
+Images without useful filenames or manually assigned tags still depend on visual memory. Search and filtering address known textual cues, but do not establish whether cross-cutting themes or curated reference groups need another interaction.
 
-Potential pressure areas:
-- curated collections;
-- small filtering/search surfaces;
-- preserving calm visual browsing.
+Observe actual use before selecting further work. Curated collections remain a possible direction, not a committed feature.
 
-Avoid:
-- enterprise search;
-- advanced query builders;
-- dense metadata panels;
-- dashboard-style organization.
+Preserve calm visual browsing. Avoid taxonomy systems, enterprise search, advanced query builders, dense metadata panels, and automatic metadata expansion.
 
-### Optional AI-assisted tag suggestions may become useful later
-This remains speculative, not a selected next feature. Current usage favors personally meaningful names; repetitive work should first be addressed by adding tags to a selected group. Atmospheric suggestions have not been requested.
+### Evaluating group tagging
 
-Manual tagging preserves personal visual memory, but adding tags may become repetitive as the library grows.
+Observe whether additive group tagging removes the repeated work that motivated it.
 
-Potential future direction:
-- optional viewer-only suggestions;
-- explicit user-triggered suggestion flow;
-- user manually accepts suggestions;
-- small number of suggestions;
-- optional local model or external provider;
-- preserving human meaning-making.
+Showing tags shared by selected images is deferred until usage demonstrates a need. This is separate from the existing gallery suggestions of frequently used tags. Bulk removal, replacement, statistics, and general metadata management remain outside the current scope.
 
-Potential uses:
-- lightweight tag suggestions;
-- short atmospheric descriptions;
-- rediscovery assistance.
+### Optional AI-assisted suggestions
 
-Avoid:
-- automatic tagging;
-- background processing;
-- embeddings/vector search;
-- similarity search;
-- AI-first workflows;
-- provider-management systems;
-- metadata explosion;
-- automatic organization.
+This remains speculative, not a selected next feature. Atmospheric suggestions have not been requested. Evaluate existing manual entry, search, and group additions before introducing assistance.
+
+Any future exploration should preserve personally meaningful tags and explicit user choice. Avoid automatic tagging, background processing, embeddings/vector search, similarity search, provider-management systems, and automatic organization.

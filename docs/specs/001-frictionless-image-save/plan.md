@@ -1,6 +1,8 @@
 # Technical Direction
 
-Build a small single-user local Nuxt 3 app with one primary library screen. The app should make saving images feel immediate: a lightweight integrated dropzone sits above or near the masonry gallery, accepts paste, drag-and-drop, and local file selection, then stores the image and refreshes the grid after the save succeeds.
+This document covers image capture only. Optional organization after saving is defined in [005](../005-lightweight-tags/spec.md), [006](../006-library-search/spec.md), and [007](../007-bulk-tagging/spec.md). Capture remains free of required metadata.
+
+Build a small single-user local Nuxt app with one primary library screen. The app should make saving images feel immediate: a lightweight integrated dropzone sits above or near the masonry gallery, accepts paste, drag-and-drop, and local file selection, then stores the image and refreshes the grid after the save succeeds.
 
 Keep the implementation direct and feature-oriented. Use Nuxt server routes for listing images, uploading images, serving saved image files, and deleting images. Avoid separate backend services, generic media pipelines, layered architecture, background processing, accounts, permissions, or remote ingestion.
 
@@ -12,7 +14,7 @@ Prefer browser-native behavior whenever possible. Use local component state and 
 
 # Proposed Stack
 
-- Nuxt 3
+- Nuxt 4
 - Vue
 - TypeScript
 - SQLite

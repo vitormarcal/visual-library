@@ -4,7 +4,7 @@
 
 Extend the existing gallery, local Vue state, Nuxt routes, and SQLite tag tables. No new dependencies, migrations, global state, management pages, or generic bulk-action framework.
 
-The approved spec is `spec.md`. Tags remain freeform personal memory cues. Implement addition only; do not expose common tags or partial coverage.
+The approved spec is `spec.md`. Tags remain freeform personal memory cues. Implement addition only; do not expose tags shared by the selected images or partial coverage.
 
 ## Current Implementation
 
@@ -77,12 +77,12 @@ Use an isolated temporary library for database tests; never mutate the user's sa
 
 Run `npm test` and `npm run build`.
 
-Manually verify desktop and mobile selection, keyboard toggling and focus, select-all under search and combined tag filters, pruning hidden selections, adding two tags together, draft cancellation, retry after failure, reload persistence, and returning to normal lightbox browsing. Review against the approved spec, constitution, and design rules: contextual controls, image dominance, no common-tag display, no permanent metadata on tiles, and no dependency growth.
+Manually verify desktop and mobile selection, keyboard toggling and focus, select-all under search and combined tag filters, pruning hidden selections, adding two tags together, draft cancellation, retry after failure, reload persistence, and returning to normal lightbox browsing. Review against the approved spec, constitution, and design rules: contextual controls, image dominance, no display of tags shared by the selection, no permanent metadata on tiles, and no dependency growth.
 
 ## Implementation Validation
 
 - `npm test`: all 10 tests passed, including an isolated SQLite persistence test for additive group updates, existing associations, display-name reuse, redundant requests, limit validation, missing images, and rollback after a write failure.
 - `npm run build`: production build completed.
 - `git diff --check`: passed.
-- Code review against the approved scope: existing tag associations are preserved; no dependencies or schema changes; selection controls remain contextual; common tags and unrelated bulk actions are absent.
+- Code review against the approved scope: existing tag associations are preserved; no dependencies or schema changes; selection controls remain contextual; tags shared by the selected images and unrelated bulk actions are absent.
 - Browser interaction checks remain pending: this environment has no browser tool. A temporary HTTP smoke test could not start its local listening socket in the restricted environment.

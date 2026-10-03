@@ -1,5 +1,7 @@
 # Feature: Frictionless Image Save
 
+This document covers image capture only. Optional organization after saving is defined in [005](../005-lightweight-tags/spec.md), [006](../006-library-search/spec.md), and [007](../007-bulk-tagging/spec.md). Capture remains free of required metadata.
+
 ## Problem
 
 Users need a fast way to save visual references from the internet without turning the action into a form or file-management task.

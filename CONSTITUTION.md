@@ -118,9 +118,10 @@ Avoid:
 ## Collections and tags have distinct purposes
 
 Tags:
-- lightweight;
-- flexible;
-- associative.
+- optional, freeform personal memory cues;
+- lightweight, flexible, and associative;
+- may identify authors, characters, works, publications, people, themes, or any useful association;
+- do not require descriptive analysis, mood/style labels, or a mandatory taxonomy.
 
 Collections:
 - curated;
