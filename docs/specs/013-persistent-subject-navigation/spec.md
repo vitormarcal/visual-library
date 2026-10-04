@@ -65,7 +65,7 @@ Destinos navegáveis devem permitir o comportamento esperado de links, inclusive
 
 Esta feature substitui os limites de 012 que deixam endereços/reload fora de escopo e o limite de 010 que não integra o visualizador ao histórico do navegador. Seu histórico interno de conexões continua temporário e separado.
 
-Não altera capas, regras de tags, ranking de relacionadas, upload ou a entrada padrão de Library em um acesso sem destino especificado. Não introduz coleções, favoritos internos, histórico permanente de visitas, perfis, compartilhamento público ou dependências externas. Endereços acessam o mesmo acervo local.
+Não altera capas, regras de tags, ranking de relacionadas, upload. Não introduz coleções, favoritos internos, histórico permanente de visitas, perfis, compartilhamento público ou dependências externas. Endereços acessam o mesmo acervo local.
 
 ## Critérios de aceitação
 
@@ -83,3 +83,8 @@ Não altera capas, regras de tags, ranking de relacionadas, upload ou a entrada 
 Constituição: reforça redescoberta e comportamento previsível sem taxonomia ou ferramentas de administração. DESIGN.md: preserva controles e linguagem visual existentes. A pressão técnica está na conciliação entre endereço, histórico de páginas, origem da galeria e excursão temporária; resolver apenas os estados descritos, sem um sistema genérico de navegação.
 
 Implementação concluída. A validação isolada está registrada no plano; a avaliação de redescoberta com o acervo real permanece pendente.
+
+
+## Ajuste da entrada inicial
+
+A pedido do usuário, `/` abre Explore, acompanhando a ordem Explore → Library dos links. Library possui endereço explícito `/?view=library`. Endereços antigos com busca, filtros ou imagem e sem view continuam abrindo Library; a busca de Explore mantém view=explore explícito. Esta decisão substitui a entrada padrão Library definida anteriormente em 012 e no roadmap.

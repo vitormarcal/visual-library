@@ -11,7 +11,12 @@ test('navigation addresses preserve subject identity, refinements and an image b
   assert.deepEqual(parseLibraryDestination(new URL(address, 'http://library.local')), requested)
   assert.ok(address.includes('tracking=keep'))
   assert.ok(address.endsWith('#section'))
-  assert.deepEqual(parseLibraryDestination(new URL('http://library.local/')), libraryDestination())
+  assert.deepEqual(parseLibraryDestination(new URL('http://library.local/')), libraryDestination('explore'))
+  assert.equal(libraryDestinationUrl(libraryDestination('explore')), '/')
+  assert.equal(libraryDestinationUrl(libraryDestination('library')), '/?view=library')
+  assert.deepEqual(parseLibraryDestination(new URL('http://library.local/?view=library')), libraryDestination('library'))
+  assert.equal(parseLibraryDestination(new URL('http://library.local/?q=alpha')).screen, 'library')
+  assert.equal(parseLibraryDestination(new URL('http://library.local/?image=a')).screen, 'library')
   const directory = { ...libraryDestination('explore'), query: 'manara' }
   assert.deepEqual(parseLibraryDestination(new URL(libraryDestinationUrl(directory), 'http://library.local')), directory)
 })

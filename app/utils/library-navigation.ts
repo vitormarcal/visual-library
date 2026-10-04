@@ -13,7 +13,9 @@ export const libraryDestination = (screen: LibraryDestination['screen'] = 'libra
 
 export const parseLibraryDestination = (url: URL): LibraryDestination => {
   const params = url.searchParams
-  const view = params.get('view') ?? 'library'
+  // Preserve older Library links that carried criteria without an explicit view.
+  const legacyLibrary = ['q', 'tag', 'image'].some((key) => params.has(key))
+  const view = params.get('view') ?? (legacyLibrary ? 'library' : 'explore')
   const destination = libraryDestination(view === 'explore' || view === 'subject' ? view : 'library')
   destination.subjectId = params.get('subject')
   destination.query = params.get('q') ?? ''
@@ -35,7 +37,8 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
 export const libraryDestinationUrl = (destination: LibraryDestination, source = '/'): string => {
   const url = new URL(source, 'http://library.local')
   for (const key of ['view', 'subject', 'q', 'tag', 'image']) url.searchParams.delete(key)
-  if (destination.screen !== 'library') url.searchParams.set('view', destination.screen)
+  // Explore searches need an explicit view to distinguish older Library links.
+  if (destination.screen !== 'explore' || destination.query) url.searchParams.set('view', destination.screen)
   if (destination.screen === 'subject' && destination.subjectId) url.searchParams.set('subject', destination.subjectId)
   if (destination.query) url.searchParams.set('q', destination.query)
   for (const id of [...new Set(destination.tagIds)].filter((id) => id !== destination.subjectId)) url.searchParams.append('tag', id)

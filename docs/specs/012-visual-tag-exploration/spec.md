@@ -8,7 +8,7 @@ As tags já permitem encontrar referências, mas seus acessos são predominantem
 
 ## Fluxo principal aprovado
 
-1. A biblioteca permanece a entrada padrão, com acesso discreto a Explorar.
+1. Explore passa a ser a entrada padrão, conforme ajuste solicitado pelo usuário após 013; Library permanece acessível no segundo link.
 2. Explorar apresenta as tags utilizadas em cartões ordenados alfabeticamente e oferece busca pelo nome do assunto.
 3. Cada cartão tem uma única capa grande, nome e quantidade de imagens sempre visíveis. O cartão inteiro abre o assunto.
 4. A capa é escolhida automaticamente e permanece estável entre sessões e ao adicionar imagens. Se for apagada ou deixar de pertencer à tag, escolher uma substituta.

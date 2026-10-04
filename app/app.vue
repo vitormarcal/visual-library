@@ -564,7 +564,7 @@ watch(visibleImages, () => {
       <p>{{ destinationUnavailable }}</p>
       <button v-if="destination.problem && screen !== 'explore'" type="button" @click="clearAddressRefinements">Open without refinements</button>
       <a href="/?view=explore" @click="linkAction($event, recoverExplore)">Explore subjects</a>
-      <a href="/" @click="linkAction($event, () => navigation.push(libraryDestination()))">Library</a>
+      <a href="/?view=library" @click="linkAction($event, () => navigation.push(libraryDestination()))">Library</a>
     </section>
     <TagExploreGrid
       v-else-if="screen === 'explore'"

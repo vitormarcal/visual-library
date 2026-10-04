@@ -8,13 +8,13 @@ Manter app.vue e as telas atuais no caminho `/`, usando parâmetros de consulta.
 
 | Contexto | Endereço ilustrativo |
 | --- | --- |
-| Library | `/` |
+| Library | `/?view=library` |
 | Explore | `/?view=explore&q=manara` |
 | Assunto | `/?view=subject&subject=<tag-id>` |
 | Assunto refinado | `/?view=subject&subject=<tag-id>&q=wallpaper&tag=<outro-tag-id>` |
 | Imagem aberta | Endereço da galeria + `&image=<image-id>` |
 
-Library também admite q, tag repetido e image. Explore admite q, mas não filtros de imagens ou visualizador. Usar IDs persistidos para identidade de assunto/filtros e URLSearchParams para codificação; nomes exibidos vêm do acervo. A tag base fica em subject, não deve reaparecer entre tags adicionais. O limite de três conta a base.
+Explore sem busca usa `/`. Library também admite q, tag repetido e image. Explore admite q, mas não filtros de imagens ou visualizador. Usar IDs persistidos para identidade de assunto/filtros e URLSearchParams para codificação; nomes exibidos vêm do acervo. A tag base fica em subject, não deve reaparecer entre tags adicionais. O limite de três conta a base.
 
 Adicionar app/utils/library-navigation.ts com tipos concretos de destino e funções puras de parse/serialize/validação. Preservar valores inválidos como problemas recuperáveis, sem descartá-los silenciosamente. Normalizar parâmetros válidos sem alterar critérios de busca nem unir identidades distintas.
 
@@ -153,3 +153,8 @@ Versão avançada para 0.4.0 a pedido do usuário, com package.json e package-lo
 Revisada a apresentação da navegação persistente: labels compactas de Explore, imagem sem padding, cantos de 16px, gutters de 8px, links com foco visível e vermelho reservado à ação principal/estado ativo. Corrigido o contorno de seleção que encobria o foco azul das miniaturas. Os controles de recuperação usam button-secondary e seu estado pressionado, com espaçamento de 8px via flex gap, quebra em telas estreitas e alvos mínimos de 44px.
 
 Build 0.4.0 e git diff --check passaram. O roteiro Chrome de produção passou novamente, incluindo medição dos tokens/altura dos controles de recuperação, foco azul por teclado em imagem selecionada e ausência de overflow nas quatro larguras. A revisão preserva a apresentação compacta aprovada e o espaço do viewer; não representa auditoria completa de acessibilidade dos componentes anteriores.
+
+
+## Entrada inicial em Explore
+
+A pedido do usuário após a entrega 0.4.0, o acesso raiz sem critérios abre Explore e Library passa a usar view=library. Endereços antigos sem view que contenham q, tag ou image preservam o contexto Library. Parse/serialize e recuperação foram ajustados juntos. npm test (29 testes), build de produção e git diff --check passaram.

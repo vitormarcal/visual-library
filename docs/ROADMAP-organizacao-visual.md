@@ -23,7 +23,7 @@ Implementada em 2026-10-04 em [012](specs/012-visual-tag-exploration/spec.md), c
 
 **Prioridade:** primeira entrega. **Esforço relativo:** pequeno a médio.
 
-Adicionar uma entrada discreta “Explorar”, mantendo a biblioteca como entrada padrão. Mostrar cada tag utilizada como cartão com imagem representativa, nome e quantidade de imagens. Buscar tags pelo nome e começar com uma ordenação alfabética previsível.
+Adicionar uma entrada discreta “Explorar”, com Explore como entrada padrão, conforme ajuste solicitado após 013. Mostrar cada tag utilizada como cartão com imagem representativa, nome e quantidade de imagens. Buscar tags pelo nome e começar com uma ordenação alfabética previsível.
 
 A capa inicial será derivada de uma imagem existente, por uma regra determinística a definir na spec. Não exigir configuração nem criar novas categorias. Imagens sem tags continuam acessíveis na biblioteca.
 
