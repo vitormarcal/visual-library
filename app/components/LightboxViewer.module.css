@@ -57,6 +57,7 @@
   justify-content: center;
   width: min(760px, calc(100% - 48px));
   margin: var(--space-xl) auto;
+  scroll-margin-top: 76px;
 }
 
 .tagList,
@@ -258,6 +259,8 @@
 
 .exploreButton:active,
 .returnButton:active { background: rgba(255, 255, 255, 0.12); }
+
+.tagsHint { color: rgba(255, 255, 255, 0.7); font-weight: 400; }
 
 .relatedSection {
   width: min(960px, calc(100% - 48px));

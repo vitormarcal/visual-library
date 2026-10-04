@@ -44,12 +44,19 @@ const emit = defineEmits<{
 const viewer = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 const tagInput = ref<HTMLInputElement | null>(null)
+const tagsPanel = ref<HTMLElement | null>(null)
+const tagsButton = ref<HTMLButtonElement | null>(null)
 const editingTags = ref(false)
 const relatedButton = ref<HTMLButtonElement | null>(null)
 const relatedSection = ref<HTMLElement | null>(null)
 const relatedHeading = ref<HTMLHeadingElement | null>(null)
 const announcement = ref('')
 const scrollBehavior = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' as const : 'smooth' as const
+const exploreTags = async () => {
+  await nextTick()
+  tagsPanel.value?.scrollIntoView({ block: 'start', behavior: scrollBehavior() })
+  tagsPanel.value?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true })
+}
 const exploreRelated = async (event: MouseEvent) => {
   await nextTick()
   const destination = event.detail === 0 ? relatedHeading.value : relatedSection.value
@@ -264,7 +271,7 @@ watch(() => props.image.id, async () => {
   await nextTick()
   viewer.value?.scrollTo({ top: 0 })
   announcement.value = `Opened ${props.image.originalName || 'saved image'}`
-  ;(relatedButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+  ;(relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
 })
 
 watch(() => props.relatedImages, async (images) => {
@@ -337,6 +344,15 @@ syncDraftTags()
           </button>
         </div>
         <button
+          v-if="!editingTags && !relatedImages.length"
+          ref="tagsButton"
+          type="button"
+          :class="[styles.exploreButton, styles.tagsHint]"
+          :disabled="savingTags"
+          aria-controls="viewer-tags"
+          @click="exploreTags"
+        >Tags <span aria-hidden="true">↓</span></button>
+        <button
           v-if="!editingTags && relatedImages.length"
           ref="relatedButton"
           type="button"
@@ -348,7 +364,7 @@ syncDraftTags()
       </div>
     </div>
 
-    <div :class="styles.tagsPanel">
+    <div id="viewer-tags" ref="tagsPanel" :class="styles.tagsPanel">
       <div
         v-if="!editingTags"
         :class="styles.tagList"
