@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import styles from './TagExploreGrid.module.css'
+import { interceptLibraryLink, libraryDestination, libraryDestinationUrl } from '../utils/library-navigation'
 type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; src: string } | null }
 const props = defineProps<{
   groups: Group[]
@@ -7,6 +8,7 @@ const props = defineProps<{
   error: boolean
   hasTags: boolean
   dimensions: Record<string, { width: number; height: number }>
+  libraryHref: string
 }>()
 const query = defineModel<string>('query', { default: '' })
 const emit = defineEmits<{
@@ -21,6 +23,9 @@ const loaded = (event: Event, id: string) => {
   emit('dimension', id, image.naturalWidth, image.naturalHeight)
 }
 const imageFailed = (id: string) => { failed.value = new Set([...failed.value, id]) }
+const open = (event: MouseEvent, group: Group) => { if (interceptLibraryLink(event)) emit('open', group) }
+const backToLibrary = (event: MouseEvent) => { if (interceptLibraryLink(event)) emit('library') }
+const subjectHref = (id: string) => libraryDestinationUrl({ ...libraryDestination('subject'), subjectId: id })
 const resetQuery = async () => {
   query.value = ''
   await nextTick()
@@ -45,15 +50,15 @@ const ratio = (group: Group) => {
     </div>
     <div v-else-if="!hasTags" :class="styles.empty">
       <p>Subjects appear when you add tags to saved images.</p>
-      <button type="button" :class="styles.action" @click="$emit('library')">Back to library</button>
+      <a :href="libraryHref" :class="styles.action" @click="backToLibrary">Back to library</a>
     </div>
     <p v-else-if="!groups.length" :class="styles.empty" role="status">No subjects match your search.</p>
     <div v-else :class="styles.grid">
-      <button
-        v-for="group in groups" :key="group.id" type="button"
+      <a
+        v-for="group in groups" :key="group.id" :href="subjectHref(group.id)"
         :class="styles.card" :data-explore-tag-id="group.id"
         :aria-label="`Explore ${group.name}, ${group.imageCount} ${group.imageCount === 1 ? 'image' : 'images'}`"
-        @click="$emit('open', group)"
+        @click="open($event, group)"
       >
         <img
           v-if="group.cover && !failed.has(group.cover.id)" :key="group.cover.id"
@@ -65,7 +70,7 @@ const ratio = (group: Group) => {
           <span :class="styles.name">{{ group.name }}</span>
           <span :class="styles.count" aria-hidden="true">· {{ group.imageCount }}</span>
         </span>
-      </button>
+      </a>
     </div>
   </section>
 </template>

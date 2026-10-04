@@ -13,7 +13,7 @@ A referência discutida é a navegação por pessoas e obras do AZNude. A adapta
 - Galeria masonry, captura local e por URL, prevenção de duplicatas e upload múltiplo.
 - Tags livres e opcionais, pesquisa, filtros exatos e adição de tags em lote.
 - Visualizador com imagens relacionadas de toda a biblioteca e retorno pelo caminho percorrido.
-- Tags com contagem de imagens e data de uso; ainda não existem coleções persistidas ou um diretório visual de assuntos.
+- Tags com contagem de imagens e data de uso, diretório visual de assuntos e capas estáveis persistidas; ainda não existem coleções curadas persistidas.
 
 O upload múltiplo está implementado e validado. Sua entrega deve permanecer separada das próximas features.
 
@@ -34,6 +34,8 @@ Ao escolher um cartão, abrir as imagens daquela tag reutilizando a galeria e o 
 **Avaliação de uso:** verificar se reconhecer a capa ajuda a encontrar referências sem lembrar ou digitar o nome da tag. Caso não ajude, ajustar esta etapa antes de acrescentar controles.
 
 ## Etapa 2 — Consolidar a navegação por assunto
+
+Implementada em 2026-10-04 em [013](specs/013-persistent-subject-navigation/spec.md): endereços por assunto, critérios no endereço, reload, histórico nativo do visualizador e retorno contextual. Validação isolada registrada no plano; avaliação com o acervo real pendente.
 
 **Dependência:** etapa 1 validada. **Esforço relativo:** médio.
 

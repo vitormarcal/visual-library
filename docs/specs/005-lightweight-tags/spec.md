@@ -67,3 +67,8 @@ This spec defines shared tag behavior and individual editing. [Library search](.
 - Use a normal viewer chip to filter the gallery and combine up to three exact tag filters.
 - Reflect edits and deletions in visible images, active filters, and tag suggestions.
 - Keep tags off gallery tiles and preserve calm browsing and keyboard navigation.
+
+
+## Navegação persistente (013)
+
+[013](../013-persistent-subject-navigation/spec.md) implementa endereços para os contextos existentes, busca/filtros no endereço, reload e Voltar/Avançar. Refinamentos substituem a entrada atual; não são buscas salvas. O visualizador mantém uma camada sobre a galeria de origem, e o retorno explícito a Explore usa a origem interna conhecida ou um destino seguro. Mantêm-se a tag base protegida, o limite de três e a aparência de 012.

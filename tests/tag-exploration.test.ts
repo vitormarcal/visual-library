@@ -43,12 +43,15 @@ test('tag covers migrate, persist, survive association replacement, and roll bac
       const legacy = new DatabaseSync('data/library.sqlite');
       legacy.exec("CREATE TABLE tags (id TEXT PRIMARY KEY, name TEXT NOT NULL, normalized_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, last_used_at TEXT NOT NULL)");
       legacy.close();
-      const { ensureDataStore, replaceImageTags, addTagsToImages, deleteImageRecord, listTagSummaries } = await import(${JSON.stringify(moduleUrl)});
+      const { ensureDataStore, replaceImageTags, addTagsToImages, deleteImageRecord, listTagSummaries, findTag } = await import(${JSON.stringify(moduleUrl)});
       const db = await ensureDataStore();
       assert.ok(db.prepare('PRAGMA table_info(tags)').all().some(c => c.name === 'cover_image_id'));
       const insert = id => db.prepare('INSERT INTO images (id, filename, mime_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?)').run(id, id + '.png', 'image/png', 1, id === 'old' ? '2000-01-01' : '2026-10-01');
       for (const id of ['first', 'second', 'old', 'full']) insert(id);
       replaceImageTags('first', ['Topic']);
+      const topicId = listTagSummaries().find(t => t.name === 'Topic').id;
+      assert.equal(findTag(topicId).imageCount, 1);
+      assert.equal(findTag('missing'), null);
       const cover = () => listTagSummaries().find(t => t.name === 'Topic')?.coverImageId;
       assert.equal(cover(), 'first');
       addTagsToImages(['second', 'old'], ['Topic']);
@@ -73,6 +76,8 @@ test('tag covers migrate, persist, survive association replacement, and roll bac
       assert.equal(cover(), nextCover === 'second' ? 'old' : 'second');
       deleteImageRecord(cover());
       assert.equal(cover(), undefined);
+      assert.equal(findTag(topicId).name, 'Topic');
+      assert.equal(findTag(topicId).imageCount, 0);
       assert.equal(db.prepare("SELECT cover_image_id FROM tags WHERE name = 'Topic'").get().cover_image_id, null);
       replaceImageTags('first', ['Topic']);
       assert.equal(cover(), 'first');

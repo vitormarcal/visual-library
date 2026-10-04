@@ -74,3 +74,8 @@ Fora desta entrega: edição manual de capas, tipos obrigatórios de pessoa/obra
 Constituição: reforça redescoberta por associações pessoais, preserva tags opcionais e separa coleções. DESIGN.md: reutiliza cartões fotográficos, identificação sobre imagem e controles discretos. A principal pressão é preservar três contextos de navegação sem transformar a interface em gerenciador de metadados; limitar a entrega ao fluxo descrito.
 
 A implementação e os resultados dos testes estão registrados em plan.md. A validação isolada não estabelece benefício de redescoberta com o acervo real.
+
+
+## Navegação persistente (013)
+
+[013](../013-persistent-subject-navigation/spec.md) implementa endereços para os contextos existentes, busca/filtros no endereço, reload e Voltar/Avançar. Refinamentos substituem a entrada atual; não são buscas salvas. O visualizador mantém uma camada sobre a galeria de origem, e o retorno explícito a Explore usa a origem interna conhecida ou um destino seguro. Mantêm-se a tag base protegida, o limite de três e a aparência de 012.

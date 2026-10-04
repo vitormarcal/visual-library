@@ -185,6 +185,15 @@ export const listTagSummaries = () => {
   }))
 }
 
+export const findTag = (id: string) => {
+  if (!db) return null
+  const row = db.prepare(`SELECT tags.id, tags.name, tags.normalized_name,
+    COUNT(image_tags.image_id) AS image_count FROM tags
+    LEFT JOIN image_tags ON image_tags.tag_id = tags.id WHERE tags.id = ? GROUP BY tags.id`)
+    .get(id) as (ImageTagRow & { image_count: number }) | undefined
+  return row ? { ...toTagResponse(row), imageCount: row.image_count } : null
+}
+
 // Preserve a valid choice; reconcile only after association changes are complete.
 export const reconcileTagCovers = (tagIds?: string[]) => {
   if (!db) return

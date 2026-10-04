@@ -13,6 +13,9 @@
 .empty { margin: 48px 0; color: var(--color-mute); text-align: center; font-size: 14px; }
 .action { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-size: 14px; font-weight: 700; }
 .action:active, .clear:active { background: var(--color-secondary-pressed); }
+.card, a.action { text-decoration: none; }
+a.action { display: inline-flex; align-items: center; }
+.card:focus-visible, a.action:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 2px; }
 @media (max-width: 1180px) { .grid { column-count: 4; } }
 @media (max-width: 900px) { .grid { column-count: 3; } }
 @media (max-width: 640px) { .grid { column-count: 2; } }

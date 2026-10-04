@@ -23,7 +23,13 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 Requested and implemented on 2026-10-04 in [012](docs/specs/012-visual-tag-exploration/spec.md): Explore presents existing tags with a stable persisted cover, name and count. Choosing a subject opens its images with independent refinements; returning preserves directory search, position and focus. The library keeps its previous context.
 
-SQLite migration/persistence tests and isolated browser checks passed, including uploads during navigation, disappearing groups and delayed tag responses. Evaluate recognition of covers and actual rediscovery with the user's collection. Collections, manual cover selection and persistent subject URLs remain separate future work.
+SQLite migration/persistence tests and isolated browser checks passed, including uploads during navigation, disappearing groups and delayed tag responses. Evaluate recognition of covers and actual rediscovery with the user's collection. Collections and manual cover selection remain separate future work. Persistent subject navigation is implemented in 013.
+
+### Returning to an exploration context
+
+Requested and implemented on 2026-10-04 in [013](docs/specs/013-persistent-subject-navigation/spec.md): Library, Explore and subjects have native links; URLs preserve criteria and the current viewer image. Reload and browser Back/Forward restore the destination, with a single viewer layer over its gallery. Directory return uses a known internal origin or an explicit safe fallback.
+
+29 automated tests, production build and isolated browser checks passed, including modified-click new tabs, repeated reload, unavailable destinations, retry, scroll/focus and pending group tagging across native navigation. Evaluate everyday use with the actual collection; physical touch and screen-reader checks remain pending.
 
 ### Saving several local references
 

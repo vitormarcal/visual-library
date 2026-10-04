@@ -43,7 +43,7 @@ This follows CONSTITUTION.md: optional personal memory cues, image-first discove
 - During an excursion, subsequent related choices and successful previous/next transitions can be retraced. Back pops the most recent transition and never creates another entry.
 - Back is separate from `Back to image ↑`, which only scrolls the current image to the top. Use `Back to main image ↑` for the latter to clarify the distinction.
 - Closing discards the excursion. Reopening begins with no Back history. No forward history or persistence across reloads.
-- Escape retains its existing editor/close behavior. The browser's Back button remains unchanged.
+- Escape retains its existing editor/close behavior. [013](../013-persistent-subject-navigation/spec.md) defines native browser Back: it closes the viewer to its gallery, independently of the internal excursion.
 - Opening the same image again does not create a history entry.
 
 ## Gallery Context and Tag Editing
@@ -92,3 +92,8 @@ AI, visual similarity, embeddings, random discovery, infinite feeds, autoplay, t
 - Pending tag saves cannot be bypassed by new navigation controls. Late responses never affect a different image or reopened viewer session.
 - Validate keyboard, pointer, reduced motion, phone portrait/landscape, tablet, and desktop. Long tags and captions cause no horizontal overflow, close/Back overlap, or reduction in the fitted image area.
 - Evaluate actual rediscovery and caption usefulness with the user's collection before expanding the feature.
+
+
+## Persistent navigation (013)
+
+[013](../013-persistent-subject-navigation/spec.md) adds browser-history integration and URLs for the current image over its original gallery. Adjacent and related choices replace that image within one viewer entry. Native Forward or reload restores the current image with an empty internal excursion. These rules supersede the original exclusion of browser-history integration and forward navigation only for native navigation; the temporary internal Back remains unchanged. A missing image in a reopened URL recovers the gallery with notice instead of selecting another image.

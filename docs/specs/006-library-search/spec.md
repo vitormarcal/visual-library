@@ -9,3 +9,8 @@ Show up to six most-used unselected tags when the query is empty, matching tag s
 Search does not perform semantic image analysis, change metadata, introduce dependencies, or create saved searches. It provides the visible results used by bulk tagging; selection and tag application belong to feature 007.
 
 [Visual tag exploration](../012-visual-tag-exploration/spec.md) keeps separate searches for the library, the subject directory, and a subject gallery. Opening a subject begins with all its images and no inherited refinements. Its base tag counts toward the three-tag limit and is preserved by clearing filters; library search/filter context remains available on return. Subject search matches names only.
+
+
+## Navegação persistente (013)
+
+[013](../013-persistent-subject-navigation/spec.md) implementa endereços para os contextos existentes, busca/filtros no endereço, reload e Voltar/Avançar. Refinamentos substituem a entrada atual; não são buscas salvas. O visualizador mantém uma camada sobre a galeria de origem, e o retorno explícito a Explore usa a origem interna conhecida ou um destino seguro. Mantêm-se a tag base protegida, o limite de três e a aparência de 012.
