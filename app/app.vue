@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { matchesImageSearch } from './utils/image-search'
+import { saveImageBatch, type UploadResult } from './utils/image-upload'
 import { findRelatedImages } from './utils/related-images'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from './utils/viewer-history'
 type ImageRecord = {
@@ -34,6 +35,8 @@ type SaveImageResponse = ImageRecord | DuplicateSaveResponse
 const images = ref<ImageRecord[]>([])
 const loading = ref(true)
 const saving = ref(false)
+const uploadProgress = ref<{ current: number; total: number } | null>(null)
+const uploadResult = shallowRef<UploadResult | null>(null)
 const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
 const selectedImageId = ref<string | null>(null)
@@ -87,6 +90,7 @@ const applyBulkTags = async (tags: string[]) => {
 
 const filterNotice = ref('')
 const viewerFilterNotice = ref('')
+let uploadResultTimer: ReturnType<typeof setTimeout> | undefined
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -179,7 +183,9 @@ const loadImages = async () => {
   loading.value = true
 
   try {
-    images.value = await $fetch<ImageRecord[]>('/api/images')
+    const loaded = await $fetch<ImageRecord[]>('/api/images')
+    const loadedIds = new Set(loaded.map((image) => image.id))
+    images.value = [...images.value.filter((image) => !loadedIds.has(image.id)), ...loaded]
     await loadTags()
   } catch {
     showNotice('Could not load the library.', 'error')
@@ -188,39 +194,54 @@ const loadImages = async () => {
   }
 }
 
-const handleSave = async (file: File) => {
-  const formData = new FormData()
-  formData.append('image', file)
+const clearCaptureNotice = () => {
+  if (noticeTimer) clearTimeout(noticeTimer)
+  if (uploadResultTimer) clearTimeout(uploadResultTimer)
+  notice.value = ''
+}
+
+const handleSave = async (files: File[], retry = false) => {
+  if (saving.value || !files.length) return
+  const previous = retry ? uploadResult.value ?? undefined : undefined
   saving.value = true
-
+  clearCaptureNotice()
+  uploadResult.value = null
   try {
-    const saved = await $fetch<SaveImageResponse>('/api/images', {
-      method: 'POST',
-      body: formData,
-    })
-
-    applySaveResponse(saved)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Could not save this image.'
-    showNotice(message, 'error')
+    uploadResult.value = await saveImageBatch(files, async (file) => {
+      const formData = new FormData()
+      formData.append('image', file)
+      const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: formData })
+      if (isDuplicateSaveResponse(saved)) return 'duplicate'
+      images.value = [saved, ...images.value]
+      return 'saved'
+    }, (current, total) => { uploadProgress.value = { current, total } }, previous)
+    if (!uploadResult.value.failures.length) {
+      const result = uploadResult.value
+      uploadResultTimer = setTimeout(() => { if (uploadResult.value === result) uploadResult.value = null }, 3200)
+    }
   } finally {
     saving.value = false
+    uploadProgress.value = null
   }
 }
 
+const retryFailedImages = () => {
+  if (saving.value) return
+  const files = uploadResult.value?.failures.filter((failure) => failure.retryable).map((failure) => failure.file) ?? []
+  void handleSave(files, true)
+}
+
 const handleSaveUrl = async (url: string) => {
+  if (saving.value) return
   saving.value = true
-
+  uploadResult.value = null
+  clearCaptureNotice()
   try {
-    const saved = await $fetch<SaveImageResponse>('/api/images', {
-      method: 'POST',
-      body: { url },
-    })
-
+    const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: { url } })
     applySaveResponse(saved)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'This image URL cannot be saved.'
-    showNotice(message, 'error')
+    const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
+    showNotice(message || 'This image URL cannot be saved.', 'error')
   } finally {
     saving.value = false
   }
@@ -338,6 +359,13 @@ onMounted(() => {
   void loadImages()
 })
 
+onBeforeUnmount(() => {
+  if (uploadResultTimer) clearTimeout(uploadResultTimer)
+  if (noticeTimer) clearTimeout(noticeTimer)
+  if (filterNoticeTimer) clearTimeout(filterNoticeTimer)
+  if (viewerFilterNoticeTimer) clearTimeout(viewerFilterNoticeTimer)
+})
+
 watch(visibleImages, () => {
   const visibleIds = new Set(visibleImages.value.map((image) => image.id))
   selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id))
@@ -364,7 +392,11 @@ watch(images, () => {
       :notice="notice"
       :notice-kind="noticeKind"
       :saving="saving"
+      :progress="uploadProgress"
+      :result="uploadResult"
       @save="handleSave"
+      @retry="retryFailedImages"
+      @dismiss="uploadResult = null"
       @save-url="handleSaveUrl"
       @error="showNotice($event, 'error')"
     />

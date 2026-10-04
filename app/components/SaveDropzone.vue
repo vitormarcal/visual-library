@@ -1,201 +1,171 @@
 <script setup lang="ts">
 import styles from './SaveDropzone.module.css'
+import { acceptImageTypes, filesFromTransfer, isImageFile, uploadSummary, type UploadResult } from '../utils/image-upload'
 
-defineProps<{
+const props = defineProps<{
   notice: string
   noticeKind: 'success' | 'error'
   saving: boolean
+  progress: { current: number; total: number } | null
+  result: UploadResult | null
 }>()
 
 const emit = defineEmits<{
-  save: [file: File]
+  save: [files: File[]]
   saveUrl: [url: string]
   error: [message: string]
+  retry: []
+  dismiss: []
 }>()
 
-const inputId = 'image-upload'
-const dropzone = ref<HTMLElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const pickerButton = ref<HTMLButtonElement | null>(null)
+const failureDetails = ref<HTMLDetailsElement | null>(null)
 const dragging = ref(false)
+const busyAttempt = ref(false)
 let dragDepth = 0
-
-const imageExtensions = ['.avif', '.gif', '.jpeg', '.jpg', '.png', '.webp']
-const imageMimeTypes = ['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp']
-const acceptTypes = [...imageMimeTypes, ...imageExtensions].join(',')
-
-const isImageFile = (file: File) => {
-  if (imageMimeTypes.includes(file.type)) {
-    return true
+let returnFocusToPicker = false
+const hasRetryableFailures = computed(() => props.result?.failures.some((failure) => failure.retryable) ?? false)
+const statusText = computed(() => {
+  if (props.saving) {
+    const progress = props.progress
+    const message = progress && progress.total > 1 ? `Saving ${progress.current} of ${progress.total}…` : 'Saving image…'
+    return busyAttempt.value ? `${message} Please wait before adding more images.` : message
   }
+  if (props.result) return uploadSummary(props.result)
+  if (props.notice) return props.notice
+  return 'Paste an image or image URL, drop files, or choose images'
+})
 
-  const name = file.name.toLowerCase()
-  return imageExtensions.some((extension) => name.endsWith(extension))
+const captureBusy = () => {
+  if (!props.saving) return false
+  busyAttempt.value = true
+  return true
 }
-
-const firstImageFile = (files: FileList | File[]) => {
-  return Array.from(files).find(isImageFile)
+const submitFiles = (files: File[]) => {
+  if (captureBusy()) return
+  if (!files.length) { emit('error', 'Drop local image files or use Choose images.'); return }
+  emit('save', files)
 }
-
-const filesFromTransfer = (transfer: DataTransfer | null) => {
-  if (!transfer) {
-    return []
-  }
-
-  const transferFiles = Array.from(transfer.files ?? [])
-  const itemFiles = Array.from(transfer.items ?? [])
-    .filter((item) => item.kind === 'file')
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
-
-  return [...transferFiles, ...itemFiles]
-}
-
-const preferredFile = (files: FileList | File[]) => {
-  const fileList = Array.from(files)
-  return firstImageFile(fileList) ?? fileList[0]
-}
-
-const looksLikeUrl = (value: string) => {
-  const trimmed = value.trim()
-
-  if (!trimmed || /\s/.test(trimmed)) {
-    return false
-  }
-
-  try {
-    const url = new URL(trimmed)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-const submitFile = (file: File | undefined) => {
-  if (!file) {
-    emit('error', 'Drop a local image file or use Choose image.')
-    return
-  }
-
-  emit('save', file)
-}
-
 const prepareDragEvent = (event: DragEvent) => {
   event.preventDefault()
   event.stopPropagation()
-
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'copy'
-  }
+  if (event.dataTransfer) event.dataTransfer.dropEffect = props.saving ? 'none' : 'copy'
 }
-
 const handleDragEnter = (event: DragEvent) => {
   prepareDragEvent(event)
   dragDepth += 1
-  dragging.value = true
+  dragging.value = !props.saving
 }
-
 const handleDragOver = (event: DragEvent) => {
   prepareDragEvent(event)
-  dragging.value = true
+  dragging.value = !props.saving
 }
-
 const handleDragLeave = (event: DragEvent) => {
   prepareDragEvent(event)
   dragDepth = Math.max(0, dragDepth - 1)
-
-  if (dragDepth === 0) {
-    dragging.value = false
-  }
+  if (!dragDepth) dragging.value = false
 }
-
 const handleDrop = (event: DragEvent) => {
   prepareDragEvent(event)
   dragDepth = 0
   dragging.value = false
-  submitFile(preferredFile(filesFromTransfer(event.dataTransfer)))
+  submitFiles(filesFromTransfer(event.dataTransfer))
 }
-
+const looksLikeUrl = (value: string) => {
+  if (!value || /\s/.test(value)) return false
+  try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:' }
+  catch { return false }
+}
 const handlePaste = (event: ClipboardEvent) => {
-  const file = event.clipboardData?.files ? firstImageFile(event.clipboardData.files) : undefined
-
-  if (file) {
-    event.preventDefault()
-    emit('save', file)
-    return
-  }
-
+  const file = Array.from(event.clipboardData?.files ?? []).find(isImageFile)
   const text = event.clipboardData?.getData('text/plain')?.trim() ?? ''
-
-  if (looksLikeUrl(text)) {
-    event.preventDefault()
-    emit('saveUrl', text)
-  }
+  if (!file && !looksLikeUrl(text)) return
+  event.preventDefault()
+  if (captureBusy()) return
+  if (file) emit('save', [file])
+  else emit('saveUrl', text)
 }
-
 const handleInput = (event: Event) => {
   const input = event.target as HTMLInputElement
-  submitFile(input.files ? preferredFile(input.files) : undefined)
+  const files = Array.from(input.files ?? [])
   input.value = ''
+  if (files.length) submitFiles(files)
 }
-
-onMounted(() => {
-  const element = dropzone.value
-
-  if (!element) {
-    return
+const dismiss = () => {
+  emit('dismiss')
+  pickerButton.value?.focus({ preventScroll: true })
+}
+const retry = async () => {
+  if (props.saving) return
+  returnFocusToPicker = true
+  emit('retry')
+  await nextTick()
+  // The retry control disappears during saving; the focusable capture surface remains.
+  captureSurface.value?.focus({ preventScroll: true })
+}
+const captureSurface = ref<HTMLElement | null>(null)
+watch(() => props.saving, async (saving) => {
+  busyAttempt.value = false
+  if (saving && document.activeElement === pickerButton.value) {
+    returnFocusToPicker = true
+    captureSurface.value?.focus({ preventScroll: true })
   }
-
-  element.addEventListener('dragenter', handleDragEnter, { capture: true })
-  element.addEventListener('dragover', handleDragOver, { capture: true })
-  element.addEventListener('dragleave', handleDragLeave, { capture: true })
-  element.addEventListener('drop', handleDrop, { capture: true })
+  if (!saving) {
+    const restoreFocus = returnFocusToPicker
+    returnFocusToPicker = false
+    await nextTick()
+    if (restoreFocus && document.activeElement === captureSurface.value) pickerButton.value?.focus({ preventScroll: true })
+  }
 })
-
-onBeforeUnmount(() => {
-  const element = dropzone.value
-
-  if (!element) {
-    return
-  }
-
-  element.removeEventListener('dragenter', handleDragEnter, { capture: true })
-  element.removeEventListener('dragover', handleDragOver, { capture: true })
-  element.removeEventListener('dragleave', handleDragLeave, { capture: true })
-  element.removeEventListener('drop', handleDrop, { capture: true })
+watch(() => props.result, (result) => {
+  if (failureDetails.value && result) failureDetails.value.open = false
 })
 </script>
 
 <template>
   <section
-    ref="dropzone"
+    ref="captureSurface"
     :class="[styles.dropzone, dragging && styles.dragging]"
     tabindex="0"
-    aria-label="Drop, paste, or upload an image"
+    aria-label="Drop, paste, or upload images"
     @paste="handlePaste"
+    @dragenter.capture="handleDragEnter"
+    @dragover.capture="handleDragOver"
+    @dragleave.capture="handleDragLeave"
+    @drop.capture="handleDrop"
   >
     <div :class="styles.copy">
-      <strong>{{ saving ? 'Saving image...' : 'Drop or paste an image' }}</strong>
-      <span>Paste, drop, or choose an image</span>
+      <strong>Save images</strong>
+      <span
+        :class="[styles.status, !saving && (result || notice) && styles.result, !saving && !result && notice && noticeKind === 'error' && styles.error]"
+        role="status" aria-live="polite" aria-atomic="true"
+      >{{ statusText }}<span v-if="notice && (saving || result)" :class="noticeKind === 'error' && styles.error"> {{ notice }}</span></span>
     </div>
-
-    <label :class="[styles.uploadButton, saving && styles.disabled]" :for="inputId">
-      Choose image
-    </label>
+    <button
+      ref="pickerButton" :class="styles.uploadButton" type="button"
+      :disabled="saving" @click="fileInput?.click()"
+    >Choose images</button>
     <input
-      :id="inputId"
-      :class="styles.fileInput"
-      type="file"
-      :accept="acceptTypes"
-      :disabled="saving"
+      ref="fileInput" :class="styles.fileInput" type="file" multiple
+      :accept="acceptImageTypes" :disabled="saving" tabindex="-1" aria-hidden="true"
       @change="handleInput"
     >
+  </section>
 
-    <p
-      v-if="notice"
-      :class="[styles.notice, noticeKind === 'error' ? styles.error : styles.success]"
-      role="status"
-      aria-live="polite"
-    >
-      {{ notice }}
-    </p>
+  <section v-if="result?.failures.length && !saving" :class="styles.feedback" aria-label="Save failures">
+    <div :class="styles.actions">
+      <button v-if="hasRetryableFailures" :class="styles.secondary" type="button" @click="retry">Retry failed</button>
+      <button :class="styles.tertiary" type="button" @click="dismiss">Dismiss</button>
+    </div>
+    <details ref="failureDetails" :class="styles.failures">
+      <summary :class="styles.tertiary">View {{ result.failures.length }} {{ result.failures.length === 1 ? 'failure' : 'failures' }}</summary>
+      <ul :class="styles.failureList">
+        <li v-for="(failure, index) in result.failures" :key="index">
+          <span :class="styles.filename">{{ failure.file.name }}</span>
+          <span :class="styles.error">{{ failure.message }}</span>
+        </li>
+      </ul>
+    </details>
   </section>
 </template>

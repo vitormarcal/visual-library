@@ -19,6 +19,12 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Saving several local references
+
+Requested on 2026-10-04 and implemented in [011](docs/specs/011-multiple-image-save/spec.md): choose or drop multiple local images once, see incremental gallery updates and a compact result, and retry recoverable failures. Duplicates and invalid files do not interrupt the remaining images. Failure details remain collapsed by default outside the sticky capture surface.
+
+Isolated native-picker/browser checks and automated batch tests passed. Evaluate physical-device behavior and actual collection sizes before adding upload controls, background processing, or parallel requests.
+
 ### Finding saved images
 
 Visual browsing became less effective for thematic rediscovery at around 150 images.

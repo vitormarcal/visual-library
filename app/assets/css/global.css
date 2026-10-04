@@ -1,6 +1,7 @@
 :root {
   --color-primary: #e60023;
   --color-primary-pressed: #cc001f;
+  --color-error: #9e0a0a;
   --color-canvas: #ffffff;
   --color-surface-soft: #fbfbf9;
   --color-surface-card: #f6f6f3;

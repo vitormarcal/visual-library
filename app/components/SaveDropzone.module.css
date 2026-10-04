@@ -1,3 +1,4 @@
+/* Failure feedback is a sibling of the sticky capture surface, in document flow. */
 .dropzone {
   position: sticky;
   top: 12px;
@@ -6,94 +7,47 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-md);
   align-items: center;
-  min-height: 72px;
+  min-height: 88px;
   margin-bottom: var(--space-xl);
-  padding: 14px 16px;
+  padding: var(--space-lg);
   border: 1px dashed var(--color-hairline);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-surface-card) 82%, var(--color-canvas));
+  background: var(--color-surface-card);
 }
-
-.dropzone.dragging {
-  border-color: var(--color-primary);
-  background: var(--color-surface-soft);
-}
-
-.copy {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  align-items: baseline;
-  min-width: 0;
-}
-
-.copy strong {
-  color: var(--color-ink);
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.copy span {
-  color: var(--color-mute);
-  font-size: 14px;
-}
-
-.uploadButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 6px 14px;
+.dropzone.dragging { border-color: var(--color-mute); background: var(--color-surface-soft); }
+.copy { display: grid; gap: 4px; min-width: 0; }
+.copy strong { color: var(--color-ink); font-size: 16px; font-weight: 600; }
+.status { color: var(--color-mute); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.status.result { color: var(--color-body); }
+.uploadButton, .secondary, .tertiary {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  border: 0;
   border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: #ffffff;
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
 }
-
-.uploadButton:active {
-  background: var(--color-primary-pressed);
-}
-
-.uploadButton.disabled {
-  background: var(--color-secondary-bg);
-  color: var(--color-ash);
-  pointer-events: none;
-}
-
-.fileInput {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.notice {
-  grid-column: 1 / -1;
-  margin: -2px 0 0;
-  font-size: 14px;
-}
-
-.success {
-  color: var(--color-body);
-}
-
-.error {
-  color: #9e0a0a;
-}
-
+.uploadButton { background: var(--color-primary); color: var(--color-canvas); }
+.uploadButton:active { background: var(--color-primary-pressed); }
+.uploadButton:disabled { background: var(--color-surface-card); color: var(--color-ash); cursor: default; }
+.secondary { background: var(--color-secondary-bg); color: var(--color-ink); }
+.secondary:active { background: var(--color-secondary-pressed); }
+.tertiary { background: transparent; color: var(--color-ink); }
+.tertiary:active { background: var(--color-secondary-bg); }
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.feedback { margin-top: calc(-1 * var(--space-md)); margin-bottom: var(--space-xl); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-md); }
+.failures { min-width: 0; }
+.failures summary { width: fit-content; max-width: 100%; cursor: pointer; }
+.failures summary:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 2px; }
+.failureList { display: grid; gap: var(--space-sm); margin: var(--space-md) 0 0; padding: 0 var(--space-lg) 0 var(--space-xl); font-size: 14px; line-height: 1.4; }
+.failureList li { overflow-wrap: anywhere; }
+.filename { display: block; color: var(--color-body); }
+.error, .status.error { color: var(--color-error); }
 @media (max-width: 640px) {
-  .dropzone {
-    position: static;
-    grid-template-columns: 1fr;
-  }
-
-  .uploadButton {
-    width: 100%;
-  }
+  .dropzone { position: static; grid-template-columns: 1fr; }
+  .uploadButton { width: 100%; }
+  .status { min-height: 2.8em; }
 }
