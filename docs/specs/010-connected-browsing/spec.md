@@ -1,6 +1,6 @@
 # Feature: Connected Browsing
 
-Status: proposed for review; not implemented. Requested on 2026-10-04.
+Status: approved for implementation by the user on 2026-10-04 and implemented. Validation is recorded in [plan.md](plan.md).
 
 ## Problem
 
@@ -70,9 +70,9 @@ This follows CONSTITUTION.md: optional personal memory cues, image-first discove
 
 ## Explicit Changes to Existing Boundaries
 
-After approval and implementation, this feature supersedes 008's current-filter restriction, prohibition of history stacks, and prohibition of card metadata only for a one-line connection caption. It supersedes 005's automatic viewer close on leaving results and filter pruning during viewer edits. Gallery deletion pruning remains unchanged.
+This feature supersedes 008's current-filter restriction, prohibition of history stacks, and prohibition of card metadata only for a one-line connection caption. It supersedes 005's automatic viewer close on leaving results and filter pruning during viewer edits. Gallery deletion pruning remains unchanged.
 
-Search matching, tag identity and limits, bulk selection scope, and image fitting retain their existing rules. Existing implemented specs stay authoritative until this proposal is implemented.
+Search matching, tag identity and limits, bulk selection scope, and image fitting retain their existing rules. The linked existing specs now reference these changes.
 
 ## Non-goals
 

@@ -27,13 +27,13 @@ This document covers shared persistence and individual viewer editing. Gallery d
 
 ## Client Behavior
 
-`app/app.vue` owns images, active tag filters, search, and the viewer image ID. Derive `visibleImages` from search and exact tag filters; viewer navigation follows this array.
+`app/app.vue` owns images, active tag filters, search, and the viewer image ID. Derive `visibleImages` from search and exact tag filters; adjacent viewer navigation follows this array. Related exploration follows the full library under [010](../010-connected-browsing/plan.md).
 
-`LightboxViewer.vue` owns its inline editor. Each confirmed addition or removal submits the current list through the replacement endpoint. Show at most five matching existing tags as optional suggestions. Keep errors near the input and disable editing inputs while saving.
+`LightboxViewer.vue` owns its inline editor. Each confirmed addition or removal passes the current list to the app-owned save callback, which calls the replacement endpoint and updates the original image even after viewer close. Pending image IDs prevent concurrent edits when reopening the same image. Show at most five matching existing tags as optional suggestions. Keep errors near the input and disable editing inputs while saving.
 
 Done and Escape close editing without undoing saved changes. Normal viewer chips request gallery filtering. Close the viewer after successful filter selection; retain it with feedback if the three-filter limit prevents selection.
 
-Update image tags from responses and refresh tag summaries. After individual edits or deletion, prune filters whose tags are no longer attached anywhere. Close the viewer when the selected image leaves `visibleImages`.
+Update image tags from responses and refresh tag summaries. Individual edits preserve selected filters and keep the viewer open when the image leaves `visibleImages`, under [010](../010-connected-browsing/spec.md). Deletion still prunes unattached filters.
 
 ## UI and Accessibility
 

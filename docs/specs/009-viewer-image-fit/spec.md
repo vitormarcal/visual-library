@@ -25,7 +25,7 @@ Show the largest clear, uncropped image that fits the available viewing area, wi
 
 ## Layout
 
-1. A compact top row holds close, outside the image area. Keep close reachable while scrolling related content and account for device safe areas.
+1. A compact top row reserves space for close and the optional Back control from [010](../010-connected-browsing/spec.md), outside the image area. Keep close reachable while scrolling related content and account for device safe areas.
 2. The image occupies the remaining central area, centered both vertically and horizontally, at its natural ratio.
 3. A compact bottom row holds previous/next controls and, when matches exist, the separately grouped Explore related shortcut.
 4. Tags and their inline editor follow the viewing area in normal document flow. They remain easy to reach by scrolling but do not compete with the initial fitted image.

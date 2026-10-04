@@ -40,8 +40,8 @@ This spec defines shared tag behavior and individual editing. [Library search](.
 - Clicking a viewer tag adds an exact tag filter and closes the viewer when selection succeeds. At the three-filter limit, keep the viewer open and show quiet feedback.
 - Multiple exact tag filters require every selected tag to be present.
 - Tag changes update local image state and discovery suggestions without reloading the page.
-- Close the viewer if its image no longer matches the current search and filters.
-- Remove active filters whose tag is no longer attached to any image after individual editing or image deletion.
+- Keep the viewer open when edits move its image outside search/filter results, as defined in [010](../010-connected-browsing/spec.md).
+- Preserve selected filters during individual editing, even when they have no matches; users can clear them explicitly. Image deletion still removes filters whose tags are no longer attached anywhere.
 - Tags remain absent from gallery tiles and the capture surface.
 - Viewer navigation, keyboard access, and image proportions remain intact.
 - Follow `DESIGN.md`: compact neutral controls, restrained red, and images as the dominant content.

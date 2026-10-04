@@ -262,11 +262,40 @@
 
 .tagsHint { color: rgba(255, 255, 255, 0.7); font-weight: 400; }
 
+.backButton {
+  position: fixed;
+  z-index: 1;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(24px, env(safe-area-inset-left));
+  background: #262622;
+}
+
+.backButton:disabled { opacity: 0.5; cursor: default; }
+
+@media (max-width: 640px), (max-height: 500px) {
+  .backButton {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
+  }
+}
+
+.connectionCaption {
+  display: block;
+  padding: var(--space-sm) 0;
+  background: #262622;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .relatedSection {
   width: min(960px, calc(100% - 48px));
   margin: var(--space-xl) auto;
   padding: 0;
-  scroll-margin-top: 24px;
+  scroll-margin-top: calc(max(16px, env(safe-area-inset-top)) + 60px);
   color: #ffffff;
 }
 
@@ -296,11 +325,11 @@
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
-  background: var(--color-surface-card);
+  background: transparent;
   break-inside: avoid;
   vertical-align: top;
 }
-.relatedCard img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
+.relatedCard img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); background: var(--color-surface-card); }
 .screenReaderOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @media (max-width: 768px) { .relatedGrid { column-count: 2; } }

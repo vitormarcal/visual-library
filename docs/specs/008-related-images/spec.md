@@ -1,6 +1,6 @@
 # Feature: Related Images
 
-Status: approved and implemented, including the UX refinement in [ux-review.md](ux-review.md). Validation is recorded in [plan.md](plan.md).
+Status: approved and implemented, including the UX refinement in [ux-review.md](ux-review.md). Initial validation is recorded in [plan.md](plan.md). [010](../010-connected-browsing/spec.md) extends matching to the full library, adds temporary Back navigation, and explains connections.
 
 ## Goal and Boundaries
 
@@ -13,14 +13,14 @@ Follow shared personal tags from one saved image to another without losing galle
 1. Open an image in the fullscreen viewer, fitted without cropping.
 2. If matches exist, show `Explore related ↓` in the compact navigation row below the fitted image, separate from previous/next. Tags follow the viewing stage in normal flow as defined in [009](../009-viewer-image-fit/spec.md). Related content is already available below the main viewing area through normal scrolling.
 3. Activate the shortcut to scroll directly to `Related images`. Keyboard activation focuses its heading; pointer activation focuses its container without a decorative focus ring.
-4. Browse up to six images. A quiet `Shared tags · Current view` line explains their relationship and current search/filter boundary.
-5. `Back to image ↑` scrolls to the top and restores focus to the shortcut without removing the related content.
-6. Selecting a related image replaces the main image, resets overlay scroll, announces the new image, and recomputes its related content.
+4. Browse up to six images. A quiet `Shared tags · Entire library` line explains the scope; each card has one short shared-tag caption under 010.
+5. `Back to main image ↑` scrolls to the top and restores focus to the shortcut without removing the related content.
+6. Selecting a related image replaces the main image, resets overlay scroll, announces the new image, and recomputes its related content. Temporary Back navigation retraces these choices under 010.
 7. Previous/next retain current gallery ordering. Closing retains the gallery position and returns focus to the tile that originally opened the viewer without scrolling it.
 
 ## Matching Rules
 
-- Use only current visible gallery results; preserve search and exact tag filters.
+- Use the full saved library for related candidates under 010; preserve gallery search and exact tag filters.
 - Exclude the current image and candidates with no shared normalized tag identity.
 - Rank by number of distinct shared tags, highest first; ties follow gallery order.
 - Return at most six distinct images. No additional accent folding, semantic merging, or filename matching.
@@ -37,7 +37,7 @@ Follow shared personal tags from one saved image to another without losing galle
 - Heading uses `typography.heading-md` (18px/600), `colors.on-dark`; explanatory copy uses `typography.body-sm` and `colors.on-dark-mute`.
 - Align section heading and cards within a maximum 960px width, 24px desktop gutters and 16px phone gutters.
 - Use `spacing.xl` (24px) section separation, `spacing.md` (12px) before cards, and `spacing.sm` (8px) card gutters.
-- Reuse `pin-card`: natural image ratios, zero internal padding, `colors.surface-card` backing, 16px corners, and no shadows, metadata rows, overlays, removal controls, or selection marks.
+- Reuse `pin-card`: natural image ratios, zero internal padding, `colors.surface-card` backing, 16px corners, and no shadows, overlays, removal controls, or selection marks. The one shared-tag caption under 010 is the only card metadata.
 - General masonry uses three columns on desktop, two at 768px and below, and one at 480px and below. A single match uses a single column capped at 320px; two matches use two aligned columns capped at 640px, becoming one column capped at 320px on narrow phones.
 - Load related images lazily. Keep related content secondary to the main view and bounded to six items.
 - Respect reduced motion with immediate scroll navigation and no opening animation. Other shortcut scrolls may use a brief native smooth transition.
@@ -52,11 +52,11 @@ Follow shared personal tags from one saved image to another without losing galle
 
 ## Non-goals
 
-AI, embeddings, visual similarity, external recommendations, results outside current filters, weighted tag systems, scores, statistics, preference settings, infinite feeds, autoplay, history stacks, collections, metadata panels, capture changes, or new dependencies.
+AI, embeddings, visual similarity, external recommendations, weighted tag systems, scores, statistics, preference settings, infinite feeds, autoplay, persistent/visible history lists, collections, metadata panels, capture changes, or new dependencies.
 
 ## Acceptance Criteria
 
-- Correct ranking, exclusions, distinct results, current-view restrictions, and six-image limit.
+- Correct ranking, exclusions, distinct results, full-library scope, and six-image limit.
 - Normal scroll and Explore related reach the same content without toggling visibility.
 - Keyboard and pointer navigation make the destination visible with appropriate focus.
 - Back to image returns without collapsing content; card selection opens the new image at the top.

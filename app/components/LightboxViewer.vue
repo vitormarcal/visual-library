@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import styles from './LightboxViewer.module.css'
+import { sharedTagCaption } from '../utils/related-images'
+import type { ViewerHistoryEntry, ViewerPosition } from '../utils/viewer-history'
 
 type ImageRecord = {
   id: string
@@ -30,15 +32,19 @@ const props = defineProps<{
   hasNext: boolean
   libraryTags: TagSummary[]
   filterNotice: string
+  canGoBack: boolean
+  tagsBusy: boolean
+  saveTags: (id: string, tags: string[]) => Promise<ImageTag[]>
+  restoration: (ViewerHistoryEntry & { token: number }) | null
 }>()
 
 const emit = defineEmits<{
   close: []
-  openRelated: [id: string]
-  previous: []
-  next: []
+  openRelated: [id: string, position: ViewerPosition]
+  previous: [position: ViewerPosition]
+  next: [position: ViewerPosition]
+  back: []
   filterTag: [tag: ImageTag]
-  tagsUpdated: [id: string, tags: ImageTag[]]
 }>()
 
 const viewer = ref<HTMLElement | null>(null)
@@ -51,6 +57,31 @@ const relatedButton = ref<HTMLButtonElement | null>(null)
 const relatedSection = ref<HTMLElement | null>(null)
 const relatedHeading = ref<HTMLHeadingElement | null>(null)
 const announcement = ref('')
+const backButton = ref<HTMLButtonElement | null>(null)
+const imageDimensions = reactive(new Map<string, { width: number; height: number }>())
+let disposed = false
+let restorationVersion = 0
+let stopRestoration: (() => void) | undefined
+const rememberDimensions = (event: Event) => {
+  const image = event.target as HTMLImageElement
+  if (image.naturalWidth && image.naturalHeight) {
+    imageDimensions.set(image.getAttribute('src')!, { width: image.naturalWidth, height: image.naturalHeight })
+  }
+}
+const capturePosition = (focus?: string): ViewerPosition => ({
+  scrollTop: viewer.value?.scrollTop ?? 0,
+  focus: focus ?? (document.activeElement instanceof HTMLElement ? document.activeElement.dataset.viewerFocus ?? null : null),
+})
+const previousImage = () => {
+  if (!savingTags.value && props.hasPrevious) emit('previous', capturePosition())
+}
+const nextImage = () => {
+  if (!savingTags.value && props.hasNext) emit('next', capturePosition())
+}
+const goBack = () => {
+  if (!savingTags.value && props.canGoBack) emit('back')
+}
+
 const scrollBehavior = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' as const : 'smooth' as const
 const exploreTags = async () => {
   await nextTick()
@@ -68,12 +99,13 @@ const returnToImage = () => {
   viewer.value?.scrollTo({ top: 0, behavior: scrollBehavior() })
 }
 const openRelated = (id: string) => {
-  if (!savingTags.value) emit('openRelated', id)
+  if (!savingTags.value) emit('openRelated', id, capturePosition(`related:${id}`))
 }
 const draftTags = ref<ImageTag[]>([])
 const pendingTag = ref('')
 const tagError = ref('')
-const savingTags = ref(false)
+const submittingTags = ref(false)
+const savingTags = computed(() => submittingTags.value || props.tagsBusy)
 let previousBodyOverflow = ''
 
 const normalizeTag = (value: string) => {
@@ -125,12 +157,12 @@ const handleKeydown = (event: KeyboardEvent) => {
 
   if (!shouldKeepNavigationInEditor && event.key === 'ArrowLeft') {
     event.preventDefault()
-    emit('previous')
+    previousImage()
   }
 
   if (!shouldKeepNavigationInEditor && event.key === 'ArrowRight') {
     event.preventDefault()
-    emit('next')
+    nextImage()
   }
 
   if (event.key === 'Tab') {
@@ -175,23 +207,16 @@ const stopEditingTags = () => {
 const saveDraftTags = async () => {
   if (savingTags.value) return
   const imageId = props.image.id
-  savingTags.value = true
+  submittingTags.value = true
 
   try {
-    const response = await $fetch<{ tags: ImageTag[] }>(`/api/images/${imageId}/tags`, {
-      method: 'PUT',
-      body: {
-        tags: draftTags.value.map((tag) => tag.name),
-      },
-    })
-
-    emit('tagsUpdated', imageId, response.tags)
-    if (props.image.id === imageId) {
-      draftTags.value = response.tags
+    const tags = await props.saveTags(imageId, draftTags.value.map((tag) => tag.name))
+    if (!disposed && props.image.id === imageId) {
+      draftTags.value = tags
       tagError.value = ''
     }
   } catch (error) {
-    if (props.image.id !== imageId) return
+    if (disposed || props.image.id !== imageId) return
     const statusMessage = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     tagError.value = statusMessage?.startsWith('Too many tags')
       ? 'Too many tags'
@@ -199,7 +224,7 @@ const saveDraftTags = async () => {
         ? 'Tag is too long'
         : 'Could not save tags'
   } finally {
-    savingTags.value = false
+    submittingTags.value = false
   }
 }
 
@@ -261,17 +286,51 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
+  restorationVersion += 1
+  stopRestoration?.()
   document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('keydown', handleKeydown)
 })
 
-watch(() => props.image.id, async () => {
+watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) => {
+  const version = ++restorationVersion
+  stopRestoration?.()
   editingTags.value = false
   syncDraftTags()
+  const restoration = props.restoration?.imageId === imageId ? props.restoration : null
   await nextTick()
-  viewer.value?.scrollTo({ top: 0 })
+  if (disposed || version !== restorationVersion) return
   announcement.value = `Opened ${props.image.originalName || 'saved image'}`
-  ;(relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+  if (!restoration || !viewer.value) {
+    viewer.value?.scrollTo({ top: 0, behavior: 'instant' })
+    ;(relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+    return
+  }
+
+  const container = viewer.value
+  const restoreScroll = () => {
+    if (!disposed && version === restorationVersion) container.scrollTo({ top: restoration.scrollTop, behavior: 'instant' })
+  }
+  const target = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-viewer-focus]:not(:disabled)'))
+    .find((control) => control.dataset.viewerFocus === restoration.focus)
+  ;(target ?? backButton.value ?? relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+  restoreScroll()
+
+  // Correct lazy-image layout shifts briefly; user input always takes over.
+  const observer = new ResizeObserver(restoreScroll)
+  if (relatedSection.value) observer.observe(relatedSection.value)
+  if (tagsPanel.value) observer.observe(tagsPanel.value)
+  const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+  const finish = () => {
+    observer.disconnect()
+    clearTimeout(timer)
+    for (const event of events) container.removeEventListener(event, finish)
+    if (stopRestoration === finish) stopRestoration = undefined
+  }
+  const timer = setTimeout(finish, 2000)
+  for (const event of events) container.addEventListener(event, finish, { passive: true })
+  stopRestoration = finish
 })
 
 watch(() => props.relatedImages, async (images) => {
@@ -307,10 +366,22 @@ syncDraftTags()
       :class="[styles.control, styles.closeButton]"
       type="button"
       aria-label="Close viewer"
+      data-viewer-focus="close"
       @click="$emit('close')"
     >
       <span aria-hidden="true">×</span>
     </button>
+
+    <button
+      v-if="canGoBack"
+      ref="backButton"
+      :class="[styles.returnButton, styles.backButton]"
+      type="button"
+      aria-label="Back to previous viewed image"
+      data-viewer-focus="back"
+      :disabled="savingTags"
+      @click="goBack"
+    ><span aria-hidden="true">←</span> Back</button>
 
     <div :class="styles.mainView">
       <div :class="styles.viewingHeader" aria-hidden="true" />
@@ -327,8 +398,9 @@ syncDraftTags()
             :class="[styles.control, styles.navButton, styles.previousButton]"
             type="button"
             aria-label="Previous image"
+            data-viewer-focus="previous"
             :disabled="!hasPrevious || savingTags"
-            @click="$emit('previous')"
+            @click="previousImage"
           >
             <span aria-hidden="true">‹</span>
           </button>
@@ -337,8 +409,9 @@ syncDraftTags()
             :class="[styles.control, styles.navButton, styles.nextButton]"
             type="button"
             aria-label="Next image"
+            data-viewer-focus="next"
             :disabled="!hasNext || savingTags"
-            @click="$emit('next')"
+            @click="nextImage"
           >
             <span aria-hidden="true">›</span>
           </button>
@@ -350,6 +423,7 @@ syncDraftTags()
           :class="[styles.exploreButton, styles.tagsHint]"
           :disabled="savingTags"
           aria-controls="viewer-tags"
+          data-viewer-focus="tags"
           @click="exploreTags"
         >Tags <span aria-hidden="true">↓</span></button>
         <button
@@ -359,6 +433,7 @@ syncDraftTags()
           :class="styles.exploreButton"
           :disabled="savingTags"
           aria-controls="related-images"
+          data-viewer-focus="explore"
           @click="exploreRelated"
         >Explore related <span aria-hidden="true">↓</span></button>
       </div>
@@ -483,21 +558,31 @@ syncDraftTags()
       <div :class="styles.relatedHeader">
         <div>
           <h2 id="related-heading" ref="relatedHeading" tabindex="-1">Related images</h2>
-          <p :class="styles.relatedContext">Shared tags · Current view</p>
+          <p :class="styles.relatedContext">Shared tags · Entire library</p>
         </div>
-        <button type="button" :class="styles.returnButton" @click="returnToImage"><span aria-hidden="true">↑</span> Back to image</button>
+        <button type="button" :class="styles.returnButton" data-viewer-focus="main-image" @click="returnToImage"><span aria-hidden="true">↑</span> Back to main image</button>
       </div>
       <div :class="styles.relatedGrid">
         <button
           v-for="related in relatedImages"
           data-related-card
+          :data-viewer-focus="`related:${related.id}`"
           :key="related.id"
           type="button"
           :class="styles.relatedCard"
           :disabled="savingTags"
-          :aria-label="`Open related image ${related.originalName || 'saved image'}`"
+          :aria-label="`Open related image ${related.originalName || 'saved image'}. ${sharedTagCaption(image, related)}`"
           @click="openRelated(related.id)"
-        ><img :src="related.src" :alt="related.originalName || 'Saved image'" loading="lazy"></button>
+        >
+          <img
+            :src="related.src" :alt="related.originalName || 'Saved image'"
+            :width="imageDimensions.get(related.src)?.width"
+            :height="imageDimensions.get(related.src)?.height"
+            :loading="restoration?.imageId === image.id ? 'eager' : 'lazy'"
+            @load="rememberDimensions"
+          >
+          <span :class="styles.connectionCaption">{{ sharedTagCaption(image, related) }}</span>
+        </button>
       </div>
     </section>
     <p :class="styles.screenReaderOnly" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>

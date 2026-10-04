@@ -1,8 +1,8 @@
 # Implementation Plan: Connected Browsing
 
-Status: draft prepared at the user's explicit request to plan the feature; spec is proposed, implementation has not begun.
+Status: implemented following user authorization on 2026-10-04. Validation results are recorded below.
 
-## Current Constraints
+## Starting Constraints
 
 `app.vue` derives the selected image from `visibleImages`, computes related candidates from the same array, and closes the viewer in its visible-results watcher. Merely passing all images to the matcher would still prevent opening an out-of-filter candidate. Viewer state and gallery navigation must be separated together.
 
@@ -37,7 +37,7 @@ Use a small pure helper in `app/utils/viewer-history.ts` only for stack transiti
 - Restore focus by stable card/control descriptors, with `preventScroll`. If a card disappeared after editing, fall back to a surviving control while retaining restored scroll.
 - Keep Back fixed in the existing top reserve opposite close; include it in the keyboard focus loop. Rename the related-section scroll return to `Back to main image ↑`.
 - Block Back alongside existing related/adjacent navigation during tag saves. Route keys and buttons through the same guarded handlers.
-- Ensure a save response from a closed viewer cannot navigate or overwrite a reopened session; preserve the existing captured image ID and associate restoration work with a session/transition token.
+- Keep the tag-save request and confirmed library update in app.vue through a save callback, so completion survives viewer unmount. Track pending image IDs and disable editing/navigation when the same image is reopened before completion. The viewer only updates its local draft if still mounted on the originating image. Restoration uses a transition version, canceled on new navigation/unmount.
 
 ## 4. Explain Connections Quietly
 
@@ -64,6 +64,20 @@ Run `npm test`, `npm run build`, and `git diff --check` after implementation. Do
 
 ## Files and Delivery
 
-Modify `app/app.vue`, `app/components/LightboxViewer.vue`, and its CSS Module. Add the small history helper/tests if needed for the specified transition coverage; extend related tests for connection captions. No server or database changes.
+Modify `app/app.vue`, `app/components/LightboxViewer.vue`, its CSS Module, and the search input focus target in `GalleryTagFilters.vue`. Add the small history helper/tests if needed for the specified transition coverage; extend related tests for connection captions. No server or database changes.
 
 Deliver viewer decoupling, full-library related matching, Back restoration, and connection captions together so users can leave filtered results and safely retrace the choice. After validation, update 005/006/008/009 references for changed boundaries and BACKLOG.md with actual implementation/usage status. Do not mark this proposal implemented or validated before those checks.
+
+
+## Implementation Validation — 2026-10-04
+
+- `npm test`: all 19 tests passed, including full-library connections, exact connection captions, excursion start, adjacent transitions, revisits/branching, same-image no-op, immutable Back, and missing-history skipping.
+- `npm run build`: passed. Existing sourcemap and `node:sqlite` externalization warnings remain.
+- `git diff --check`: passed.
+- Headless Chrome with a temporary isolated SQLite library verified A → B → C outside a search, Back restoring the triggering card and scroll, excursion start after ordinary arrows, revisits/branching, explicit viewer filtering and history reset, three-filter-limit rejection retaining the viewer and excursion, edits leaving search results without closing, fallback focus to search, and gallery scroll preservation.
+- Verified combined exact tag filtering and filename search remain unchanged after an excursion. Real keyboard events verified adjacent arrows, retracing arrow transitions during an excursion, Escape, and the Tab/Shift+Tab focus loop. Untagged images retain the Tags ↓ cue and omit related content.
+- An intercepted delayed tag-save request verified disabled Back/related/arrow navigation, pending state after reopening the same image, and completion updating only the originating image while a different image is open.
+- At 320 × 568, 390 × 844, 844 × 390, 768 × 1024, 1280 × 900, and 1920 × 1080, measured identical main-image dimensions before/after the Back control, no horizontal overflow, and separate controls with targets of at least 44px. Related-section shortcut headings stay below fixed controls. Desktop/mobile synthetic screenshots were visually inspected; mobile heading overlap and pale image-corner artifacts were corrected.
+- Previously loaded related-image dimensions are retained only for the current viewer session to reserve image space on Back. Restoration briefly corrects layout shifts for up to two seconds; pointer, wheel, touch, or keyboard input immediately takes over. Each navigation/unmount cancels previous restoration work.
+- No dependencies, routes, server changes, or database changes. History contains only IDs, scroll offsets, and stable focus descriptors, and is discarded on exit.
+- Physical touch/safe areas, extremely slow uncached images beyond the correction window, and aesthetic evaluation with the real collection remain manual checks. Synthetic browser fixtures do not establish actual-use benefit.

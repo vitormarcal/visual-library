@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { matchesImageSearch } from './utils/image-search'
 import { findRelatedImages } from './utils/related-images'
+import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from './utils/viewer-history'
 type ImageRecord = {
   id: string
   filename: string
@@ -37,7 +38,12 @@ const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
 const selectedImageId = ref<string | null>(null)
 const returnFocusImageId = ref<string | null>(null)
+const viewerHistory = ref<ViewerHistoryEntry[]>([])
+const viewerRestoration = ref<(ViewerHistoryEntry & { token: number }) | null>(null)
+let viewerTransition = 0
+const canGoBack = computed(() => viewerHistory.value.some((entry) => images.value.some((image) => image.id === entry.imageId)))
 const tagSummaries = ref<TagSummary[]>([])
+const pendingTagSaves = ref(new Set<string>())
 const activeTagFilters = ref<ImageTag[]>([])
 const searchQuery = ref('')
 const selecting = ref(false)
@@ -103,15 +109,9 @@ const selectedImageIndex = computed(() => {
   return visibleImages.value.findIndex((image) => image.id === selectedImageId.value)
 })
 
-const selectedImage = computed(() => {
-  if (selectedImageIndex.value === -1) {
-    return null
-  }
+const selectedImage = computed(() => images.value.find((image) => image.id === selectedImageId.value) ?? null)
 
-  return visibleImages.value[selectedImageIndex.value]
-})
-
-const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, visibleImages.value) : [])
+const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, images.value) : [])
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
 const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
@@ -234,10 +234,6 @@ const handleDelete = async (id: string) => {
       return images.value.some((image) => image.tags.some((tag) => tag.normalizedName === filter.normalizedName))
     })
     void loadTags()
-
-    if (selectedImageId.value === id) {
-      selectedImageId.value = null
-    }
   } catch {
     showNotice('Could not remove this image.', 'error')
   }
@@ -269,32 +265,37 @@ const clearTagFilters = () => {
 const handleViewerTagFilter = (tag: ImageTag) => {
   if (addTagFilter(tag)) {
     viewerFilterNotice.value = ''
-    selectedImageId.value = null
-    returnFocusImageId.value = null
+    closeViewer()
   } else {
     showViewerFilterNotice('Too many filters')
   }
 }
 
-const handleImageTagsUpdated = (id: string, tags: ImageTag[]) => {
-  images.value = images.value.map((image) => image.id === id ? { ...image, tags } : image)
-  activeTagFilters.value = activeTagFilters.value.filter((filter) => {
-    return images.value.some((image) => image.tags.some((tag) => tag.normalizedName === filter.normalizedName))
-  })
-  void loadTags()
+const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> => {
+  if (pendingTagSaves.value.has(id)) throw new Error('Tags are already being saved.')
+  pendingTagSaves.value = new Set([...pendingTagSaves.value, id])
+  try {
+    const response = await $fetch<{ tags: ImageTag[] }>(`/api/images/${id}/tags`, {
+      method: 'PUT', body: { tags },
+    })
+    images.value = images.value.map((image) => image.id === id ? { ...image, tags: response.tags } : image)
+    void loadTags()
+    return response.tags
+  } finally {
+    pendingTagSaves.value = new Set([...pendingTagSaves.value].filter((pendingId) => pendingId !== id))
+  }
 }
 
 const focusGalleryTile = async (id: string | null) => {
-  if (!id) {
-    return
-  }
-
   await nextTick()
-  const element = document.querySelector<HTMLElement>(`[data-lightbox-open-id="${id}"]`)
-  element?.focus({ preventScroll: true })
+  const element = id ? document.querySelector<HTMLElement>(`[data-lightbox-open-id="${id}"]`) : null
+  ;(element ?? document.querySelector<HTMLInputElement>('[data-library-search]'))?.focus({ preventScroll: true })
 }
 
 const openViewer = (id: string) => {
+  viewerHistory.value = []
+  viewerRestoration.value = null
+  viewerTransition += 1
   selectedImageId.value = id
   returnFocusImageId.value = id
 }
@@ -303,23 +304,34 @@ const closeViewer = () => {
   const focusId = returnFocusImageId.value
   selectedImageId.value = null
   returnFocusImageId.value = null
+  viewerHistory.value = []
+  viewerRestoration.value = null
+  viewerTransition += 1
   void focusGalleryTile(focusId)
 }
 
-const showPreviousImage = () => {
-  if (!hasPreviousImage.value) {
-    return
-  }
-
-  selectedImageId.value = visibleImages.value[selectedImageIndex.value - 1]?.id ?? selectedImageId.value
+const navigateViewer = (id: string | undefined, position: ViewerPosition, related = false) => {
+  if (!id || !selectedImageId.value || !images.value.some((image) => image.id === id) || id === selectedImageId.value) return
+  viewerHistory.value = recordViewerVisit(viewerHistory.value, selectedImageId.value, id, position, related)
+  viewerRestoration.value = null
+  viewerTransition += 1
+  selectedImageId.value = id
 }
 
-const showNextImage = () => {
-  if (!hasNextImage.value) {
-    return
-  }
-
-  selectedImageId.value = visibleImages.value[selectedImageIndex.value + 1]?.id ?? selectedImageId.value
+const openRelatedImage = (id: string, position: ViewerPosition) => navigateViewer(id, position, true)
+const showPreviousImage = (position: ViewerPosition) => {
+  if (hasPreviousImage.value) navigateViewer(visibleImages.value[selectedImageIndex.value - 1]?.id, position)
+}
+const showNextImage = (position: ViewerPosition) => {
+  if (hasNextImage.value) navigateViewer(visibleImages.value[selectedImageIndex.value + 1]?.id, position)
+}
+const goBackInViewer = () => {
+  const { entry, history } = popViewerVisit(viewerHistory.value, new Set(images.value.map((image) => image.id)))
+  viewerHistory.value = history
+  if (!entry) return false
+  viewerRestoration.value = { ...entry, token: ++viewerTransition }
+  selectedImageId.value = entry.imageId
+  return true
 }
 
 onMounted(() => {
@@ -329,11 +341,14 @@ onMounted(() => {
 watch(visibleImages, () => {
   const visibleIds = new Set(visibleImages.value.map((image) => image.id))
   selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id))
-  if (selectedImageId.value && !visibleImages.value.some((image) => image.id === selectedImageId.value)) {
-    selectedImageId.value = null
-    returnFocusImageId.value = null
-  }
 })
+
+watch(images, () => {
+  if (selectedImageId.value && !images.value.some((image) => image.id === selectedImageId.value)) {
+    if (!goBackInViewer()) closeViewer()
+    showNotice('This image is no longer in the library.', 'error')
+  }
+}, { flush: 'sync' })
 </script>
 
 <template>
@@ -396,16 +411,20 @@ watch(visibleImages, () => {
       v-if="selectedImage"
       :image="selectedImage"
       :related-images="relatedImages"
-      @open-related="selectedImageId = $event"
+      :can-go-back="canGoBack"
+      :restoration="viewerRestoration"
+      @open-related="openRelatedImage"
+      @back="goBackInViewer"
       :has-previous="hasPreviousImage"
       :has-next="hasNextImage"
       :library-tags="tagSummaries"
       :filter-notice="viewerFilterNotice"
+      :tags-busy="pendingTagSaves.has(selectedImage.id)"
+      :save-tags="saveImageTags"
       @close="closeViewer"
       @previous="showPreviousImage"
       @next="showNextImage"
       @filter-tag="handleViewerTagFilter"
-      @tags-updated="handleImageTagsUpdated"
     />
   </main>
 </template>

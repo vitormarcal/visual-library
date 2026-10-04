@@ -44,6 +44,7 @@ const selectTag = (tag: ImageTag) => {
       </svg>
       <input
         v-model="query"
+        data-library-search
         type="search"
         aria-label="Search by tag or filename"
         placeholder="Search by tag or filename"

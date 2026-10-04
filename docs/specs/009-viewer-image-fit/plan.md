@@ -1,6 +1,6 @@
 # Implementation: Viewer Image Fit
 
-Use the existing viewer and CSS Module without dependencies or data changes.
+Use the existing viewer and CSS Module without dependencies or data changes. [010](../010-connected-browsing/plan.md) places its optional Back action in the existing top reserve and preserves this image-fitting layout.
 
 Restructure the main viewing area into a viewport-height grid: a 44px close-control reserve, a flexible image stage, and a compact navigation row. Move previous/next and Explore related into the navigation row. Keep close fixed and align its placement with the reserved top row and safe areas.
 

@@ -1,5 +1,7 @@
 # Implementation: Related Images
 
+Current matching scope, temporary Back state, and connection captions are extended by [010](../010-connected-browsing/plan.md). The original implementation/validation below records feature 008.
+
 ## Data and State
 
 Use `visibleImages` already loaded in `app.vue`. `app/utils/related-images.ts` ranks distinct candidates by shared normalized tags, breaking ties by current gallery order and limiting results to six. No API, schema, or dependency changes.

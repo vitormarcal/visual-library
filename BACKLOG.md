@@ -40,9 +40,15 @@ The implementation exists and automated persistence tests pass. The feature plan
 
 ### Exploring connections between images
 
-Implemented: the viewer can reveal up to six images sharing tags within the current search/filter results. Selecting one continues in the same viewer while preserving gallery context: [008](docs/specs/008-related-images/spec.md).
+Implemented: the viewer can reveal up to six images sharing tags across the full library under [010](docs/specs/010-connected-browsing/spec.md), while preserving the original gallery search/filter context. Selecting one continues in the same viewer while preserving gallery context: [008](docs/specs/008-related-images/spec.md).
 
 This supports exploration of existing personal associations. Untagged images still require useful filenames or visual browsing.
+
+### Following connections beyond a search
+
+Requested on 2026-10-04 and implemented in [010](docs/specs/010-connected-browsing/spec.md): follow shared-tag connections across the saved library, see a quiet explanation of each connection, and retrace choices with temporary Back navigation. Closing retains the original gallery context. Existing previous/next arrows continue to follow gallery results.
+
+Isolated browser interaction checks passed. Evaluate actual rediscovery with the user's collection before adding more exploration controls; no actual-use benefit is claimed yet.
 
 ### Main-image viewing space
 
