@@ -1,6 +1,6 @@
 import { unlink } from 'node:fs/promises'
 import { createError } from 'h3'
-import { ensureDataStore, imageDir, type ImageRow } from '../../db'
+import { deleteImageRecord, ensureDataStore, imageDir, type ImageRow } from '../../db'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -24,8 +24,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(id)
-  db.prepare('DELETE FROM images WHERE id = ?').run(id)
+  deleteImageRecord(id)
   await unlink(`${imageDir}/${row.filename}`).catch(() => {})
 
   return { ok: true }

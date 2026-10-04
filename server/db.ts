@@ -23,6 +23,7 @@ export type ImageTagRow = {
 export type TagSummaryRow = ImageTagRow & {
   image_count: number
   last_used_at: string
+  cover_image_id: string | null
 }
 
 export const maxTagsPerImage = 8
@@ -82,6 +83,12 @@ export const ensureDataStore = async () => {
     if (!columns.some((column) => column.name === 'content_hash')) {
       db.exec('ALTER TABLE images ADD COLUMN content_hash TEXT')
     }
+
+    const tagColumns = db.prepare('PRAGMA table_info(tags)').all() as Array<{ name: string }>
+    if (!tagColumns.some((column) => column.name === 'cover_image_id')) {
+      db.exec('ALTER TABLE tags ADD COLUMN cover_image_id TEXT')
+    }
+    reconcileTagCovers()
 
     db.exec('DROP INDEX IF EXISTS images_content_hash_idx')
     db.exec(`
@@ -160,6 +167,7 @@ export const listTagSummaries = () => {
       tags.name,
       tags.normalized_name,
       tags.last_used_at,
+      tags.cover_image_id,
       COUNT(image_tags.image_id) AS image_count
     FROM tags
     INNER JOIN image_tags ON image_tags.tag_id = tags.id
@@ -173,7 +181,41 @@ export const listTagSummaries = () => {
     normalizedName: row.normalized_name,
     imageCount: row.image_count,
     lastUsedAt: row.last_used_at,
+    coverImageId: row.cover_image_id,
   }))
+}
+
+// Preserve a valid choice; reconcile only after association changes are complete.
+export const reconcileTagCovers = (tagIds?: string[]) => {
+  if (!db) return
+  const rows = tagIds
+    ? [...new Set(tagIds)].map((id) => db!.prepare('SELECT id, cover_image_id FROM tags WHERE id = ?').get(id)).filter(Boolean)
+    : db.prepare('SELECT id, cover_image_id FROM tags').all()
+  for (const row of rows as Array<{ id: string; cover_image_id: string | null }>) {
+    if (row.cover_image_id && db.prepare(`SELECT 1 FROM image_tags
+      INNER JOIN images ON images.id = image_tags.image_id
+      WHERE tag_id = ? AND image_id = ?`).get(row.id, row.cover_image_id)) continue
+    const candidate = db.prepare(`SELECT image_id FROM image_tags
+      INNER JOIN images ON images.id = image_tags.image_id
+      WHERE tag_id = ? ORDER BY image_tags.created_at ASC, images.created_at ASC, images.id ASC LIMIT 1`)
+      .get(row.id) as { image_id: string } | undefined
+    db.prepare('UPDATE tags SET cover_image_id = ? WHERE id = ?').run(candidate?.image_id ?? null, row.id)
+  }
+}
+
+export const deleteImageRecord = (imageId: string) => {
+  if (!db) throw new Error('Data store is not initialized')
+  const affected = getImageTags(imageId).map((tag) => tag.id)
+  db.exec('BEGIN')
+  try {
+    db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(imageId)
+    db.prepare('DELETE FROM images WHERE id = ?').run(imageId)
+    reconcileTagCovers(affected)
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
 }
 
 export const replaceImageTags = (imageId: string, values: string[]) => {
@@ -185,6 +227,7 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
 
   const uniqueTags = normalizeTagValues(values)
   const now = new Date().toISOString()
+  const affectedTags = new Set(getImageTags(imageId).map((tag) => tag.id))
 
   dbInstance.exec('BEGIN')
 
@@ -212,8 +255,10 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
         INSERT INTO image_tags (image_id, tag_id, created_at)
         VALUES (?, ?, ?)
       `).run(imageId, row.id, attachedAt)
+      affectedTags.add(row.id)
     }
 
+    reconcileTagCovers([...affectedTags])
     dbInstance.exec('COMMIT')
   } catch (error) {
     dbInstance.exec('ROLLBACK')
@@ -247,6 +292,7 @@ export const addTagsToImages = (imageIds: string[], values: string[]) => {
       return [id, tags] as const
     }))
     const now = new Date().toISOString()
+    const affectedTags = new Set<string>()
     for (const [index, tag] of additions.entries()) {
       const missing = ids.filter((id) => !current.get(id)!.some((existing) => existing.normalizedName === tag.normalizedName))
       if (!missing.length) continue
@@ -262,7 +308,9 @@ export const addTagsToImages = (imageIds: string[], values: string[]) => {
         dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)')
           .run(id, row.id, new Date(Date.parse(now) + index).toISOString())
       }
+      affectedTags.add(row.id)
     }
+    reconcileTagCovers([...affectedTags])
     const images = ids.map((id) => ({ id, tags: getImageTags(id) }))
     dbInstance.exec('COMMIT')
     return images

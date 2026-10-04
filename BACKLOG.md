@@ -19,6 +19,12 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Recognizing subjects visually
+
+Requested and implemented on 2026-10-04 in [012](docs/specs/012-visual-tag-exploration/spec.md): Explore presents existing tags with a stable persisted cover, name and count. Choosing a subject opens its images with independent refinements; returning preserves directory search, position and focus. The library keeps its previous context.
+
+SQLite migration/persistence tests and isolated browser checks passed, including uploads during navigation, disappearing groups and delayed tag responses. Evaluate recognition of covers and actual rediscovery with the user's collection. Collections, manual cover selection and persistent subject URLs remain separate future work.
+
 ### Saving several local references
 
 Requested on 2026-10-04 and implemented in [011](docs/specs/011-multiple-image-save/spec.md): choose or drop multiple local images once, see incremental gallery updates and a compact result, and retry recoverable failures. Duplicates and invalid files do not interrupt the remaining images. Failure details remain collapsed by default outside the sticky capture surface.

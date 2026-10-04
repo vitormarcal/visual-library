@@ -8,6 +8,8 @@ No descriptive analysis, mood/style vocabulary, categories, or mandatory taxonom
 
 This spec defines shared tag behavior and individual editing. [Library search](../006-library-search/spec.md) defines gallery discovery controls; [bulk tagging](../007-bulk-tagging/spec.md) defines additions to selected groups.
 
+[Visual tag exploration](../012-visual-tag-exploration/spec.md) adds a visual directory of existing tags. In a subject gallery, the base tag counts toward the three-filter limit and remains when refinements are cleared, including when its last image disappears. Tag editing remains optional and freeform.
+
 ## User Flow
 
 1. Save images without being asked for tags.

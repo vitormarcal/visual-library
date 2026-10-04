@@ -1,0 +1,19 @@
+.searchBar { position: relative; margin: var(--space-md) 0 var(--space-lg); }
+.search { width: 100%; height: 48px; border: 1px solid transparent; border-radius: var(--radius-full); padding: 11px 48px 11px 15px; background: var(--color-surface-card); color: var(--color-ink); font-size: 16px; }
+.search:focus { background: var(--color-canvas); border-color: var(--color-ash); }
+.search::-webkit-search-cancel-button { appearance: none; }
+.clear { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--color-ink); font-size: 22px; }
+.grid { column-count: 5; column-gap: var(--space-sm); }
+.card { position: relative; display: inline-grid; vertical-align: top; width: 100%; min-height: 116px; margin: 0 0 var(--space-sm); padding: 0; border: 0; border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); break-inside: avoid; text-align: left; }
+.card img { grid-area: 1 / 1; display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
+.label { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--space-sm); max-width: calc(100% - 16px); grid-area: 1 / 1; align-self: end; justify-self: start; margin: 8px; padding: 6px 12px; border-radius: var(--radius-full); background: var(--color-canvas); color: var(--color-ink); font-size: 12px; font-weight: 700; line-height: 1; overflow-wrap: anywhere; }
+.name { min-width: 0; line-height: 1.25; }
+.count { flex-shrink: 0; color: var(--color-mute); font-weight: 500; white-space: nowrap; }
+.placeholder { grid-area: 1 / 1; display: flex; align-items: center; justify-content: center; min-height: 180px; padding: 16px; color: var(--color-mute); font-size: 14px; }
+.empty { margin: 48px 0; color: var(--color-mute); text-align: center; font-size: 14px; }
+.action { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.action:active, .clear:active { background: var(--color-secondary-pressed); }
+@media (max-width: 1180px) { .grid { column-count: 4; } }
+@media (max-width: 900px) { .grid { column-count: 3; } }
+@media (max-width: 640px) { .grid { column-count: 2; } }
+@media (max-width: 420px) { .grid { column-count: 1; } }

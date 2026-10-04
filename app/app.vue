@@ -2,6 +2,7 @@
 import { matchesImageSearch } from './utils/image-search'
 import { saveImageBatch, type UploadResult } from './utils/image-upload'
 import { findRelatedImages } from './utils/related-images'
+import { groupImagesByTag } from './utils/tag-exploration'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from './utils/viewer-history'
 type ImageRecord = {
   id: string
@@ -23,6 +24,7 @@ type ImageTag = {
 type TagSummary = ImageTag & {
   imageCount: number
   lastUsedAt: string
+  coverImageId: string | null
 }
 
 type DuplicateSaveResponse = {
@@ -49,6 +51,34 @@ const tagSummaries = ref<TagSummary[]>([])
 const pendingTagSaves = ref(new Set<string>())
 const activeTagFilters = ref<ImageTag[]>([])
 const searchQuery = ref('')
+const screen = ref<'library' | 'explore' | 'subject'>('library')
+const subjectTag = ref<ImageTag | null>(null)
+const subjectQuery = ref('')
+const subjectFilters = ref<ImageTag[]>([])
+const exploreQuery = ref('')
+const coverDimensions = ref<Record<string, { width: number; height: number }>>({})
+const tagsLoading = ref(false)
+const tagsError = ref(false)
+const libraryError = ref(false)
+let tagsRequest = 0
+const galleryQuery = computed({
+  get: () => screen.value === 'subject' ? subjectQuery.value : searchQuery.value,
+  set: (value: string) => { if (screen.value === 'subject') subjectQuery.value = value; else searchQuery.value = value },
+})
+const galleryFilters = computed({
+  get: () => screen.value === 'subject' ? subjectFilters.value : activeTagFilters.value,
+  set: (value: ImageTag[]) => { if (screen.value === 'subject') subjectFilters.value = value; else activeTagFilters.value = value },
+})
+const baseTag = computed(() => screen.value === 'subject' ? subjectTag.value : null)
+const effectiveFilters = computed(() => baseTag.value ? [baseTag.value, ...galleryFilters.value] : galleryFilters.value)
+const subjectImages = computed(() => subjectTag.value ? images.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
+const allSubjects = computed(() => groupImagesByTag(images.value, tagSummaries.value))
+const subjects = computed(() => groupImagesByTag(images.value, tagSummaries.value, exploreQuery.value))
+type PagePosition = { scrollTop: number; focusId: string | null }
+let libraryPosition: PagePosition = { scrollTop: 0, focusId: null }
+let explorePosition: PagePosition = { scrollTop: 0, focusId: null }
+let pageTransition = 0
+let cancelPageRestoration = () => {}
 const selecting = ref(false)
 const selectedIds = ref<string[]>([])
 const applyingTags = ref(false)
@@ -98,8 +128,8 @@ let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 const visibleImages = computed(() => {
   return images.value.filter((image) => {
     const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
-    return matchesImageSearch(image, searchQuery.value)
-      && activeTagFilters.value.every((filter) => imageTags.has(filter.normalizedName))
+    return matchesImageSearch(image, galleryQuery.value)
+      && effectiveFilters.value.every((filter) => imageTags.has(filter.normalizedName))
   })
 })
 
@@ -172,15 +202,23 @@ const showViewerFilterNotice = (message: string) => {
 }
 
 const loadTags = async () => {
+  const request = ++tagsRequest
+  tagsLoading.value = true
   try {
-    tagSummaries.value = await $fetch<TagSummary[]>('/api/tags')
+    const tags = await $fetch<TagSummary[]>('/api/tags')
+    if (request !== tagsRequest) return
+    tagSummaries.value = tags
+    tagsError.value = false
   } catch {
-    tagSummaries.value = []
+    if (request === tagsRequest) tagsError.value = true
+  } finally {
+    if (request === tagsRequest) tagsLoading.value = false
   }
 }
 
 const loadImages = async () => {
   loading.value = true
+  libraryError.value = false
 
   try {
     const loaded = await $fetch<ImageRecord[]>('/api/images')
@@ -188,6 +226,7 @@ const loadImages = async () => {
     images.value = [...images.value.filter((image) => !loadedIds.has(image.id)), ...loaded]
     await loadTags()
   } catch {
+    libraryError.value = true
     showNotice('Could not load the library.', 'error')
   } finally {
     loading.value = false
@@ -254,6 +293,7 @@ const handleDelete = async (id: string) => {
     activeTagFilters.value = activeTagFilters.value.filter((filter) => {
       return images.value.some((image) => image.tags.some((tag) => tag.normalizedName === filter.normalizedName))
     })
+    subjectFilters.value = subjectFilters.value.filter((filter) => images.value.some((image) => image.tags.some((tag) => tag.id === filter.id)))
     void loadTags()
   } catch {
     showNotice('Could not remove this image.', 'error')
@@ -261,26 +301,26 @@ const handleDelete = async (id: string) => {
 }
 
 const addTagFilter = (tag: ImageTag) => {
-  if (activeTagFilters.value.some((filter) => filter.normalizedName === tag.normalizedName)) {
+  if (effectiveFilters.value.some((filter) => filter.normalizedName === tag.normalizedName)) {
     return true
   }
 
-  if (activeTagFilters.value.length >= 3) {
+  if (effectiveFilters.value.length >= 3) {
     showFilterNotice('Too many filters')
     return false
   }
 
-  activeTagFilters.value = [...activeTagFilters.value, tag]
+  galleryFilters.value = [...galleryFilters.value, tag]
   return true
 }
 
 const removeTagFilter = (normalizedName: string) => {
-  activeTagFilters.value = activeTagFilters.value.filter((filter) => filter.normalizedName !== normalizedName)
+  galleryFilters.value = galleryFilters.value.filter((filter) => filter.normalizedName !== normalizedName)
 }
 
 const clearTagFilters = () => {
-  searchQuery.value = ''
-  activeTagFilters.value = []
+  galleryQuery.value = ''
+  galleryFilters.value = []
 }
 
 const handleViewerTagFilter = (tag: ImageTag) => {
@@ -308,12 +348,98 @@ const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> =>
 }
 
 const focusGalleryTile = async (id: string | null) => {
+  const transition = pageTransition
   await nextTick()
+  if (transition !== pageTransition || screen.value === 'explore') return
   const element = id ? document.querySelector<HTMLElement>(`[data-lightbox-open-id="${id}"]`) : null
   ;(element ?? document.querySelector<HTMLInputElement>('[data-library-search]'))?.focus({ preventScroll: true })
 }
 
+const rememberPosition = (): PagePosition => ({
+  scrollTop: window.scrollY,
+  focusId: (document.activeElement as HTMLElement | null)?.dataset.lightboxOpenId ?? null,
+})
+
+const restorePage = async (position: PagePosition, selector: string, transition: number) => {
+  await nextTick()
+  if (transition !== pageTransition) return
+  const fallback = screen.value === 'explore' ? '[data-explore-search]' : '[data-library-search]'
+  const origin = document.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(fallback)
+  origin?.focus({ preventScroll: true })
+  const correctScroll = () => window.scrollTo({ top: Math.min(position.scrollTop, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'instant' })
+  correctScroll()
+  const observer = new ResizeObserver(correctScroll)
+  observer.observe(document.querySelector('main')!)
+  const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+  const cancel = () => {
+    observer.disconnect()
+    clearTimeout(timeout)
+    for (const event of events) window.removeEventListener(event, cancel, true)
+  }
+  const timeout = setTimeout(cancel, 2000)
+  for (const event of events) window.addEventListener(event, cancel, { capture: true, passive: true })
+  cancelPageRestoration = cancel
+}
+
+const preparePageChange = () => {
+  if (applyingTags.value) return false
+  cancelPageRestoration()
+  pageTransition += 1
+  exitSelection()
+  selectedImageId.value = null
+  returnFocusImageId.value = null
+  viewerHistory.value = []
+  viewerRestoration.value = null
+  viewerTransition += 1
+  filterNotice.value = ''
+  viewerFilterNotice.value = ''
+  return true
+}
+
+const showExplore = () => {
+  if (screen.value === 'explore') return
+  const previous = screen.value
+  const position = rememberPosition()
+  if (!preparePageChange()) return
+  if (previous === 'library') libraryPosition = position
+  screen.value = 'explore'
+  const origin = explorePosition.focusId ? `[data-explore-tag-id="${explorePosition.focusId}"]` : '[data-explore-search]'
+  void restorePage(explorePosition, origin, pageTransition)
+}
+
+const showLibrary = () => {
+  if (screen.value === 'library') return
+  const previous = screen.value
+  const position = rememberPosition()
+  if (!preparePageChange()) return
+  if (previous === 'explore') explorePosition = { ...position, focusId: null }
+  screen.value = 'library'
+  const origin = libraryPosition.focusId ? `[data-lightbox-open-id="${libraryPosition.focusId}"]` : '[data-library-search]'
+  void restorePage(libraryPosition, origin, pageTransition)
+}
+
+const openSubject = async (tag: ImageTag) => {
+  const position = { scrollTop: window.scrollY, focusId: tag.id }
+  if (!preparePageChange()) return
+  explorePosition = position
+  subjectTag.value = { id: tag.id, name: tag.name, normalizedName: tag.normalizedName }
+  subjectQuery.value = ''
+  subjectFilters.value = []
+  screen.value = 'subject'
+  const transition = pageTransition
+  await nextTick()
+  if (transition !== pageTransition) return
+  window.scrollTo({ top: 0, behavior: 'instant' })
+  document.querySelector<HTMLElement>('[data-subject-heading]')?.focus({ preventScroll: true })
+}
+
+const retrySubjects = () => { if (libraryError.value) void loadImages(); else void loadTags() }
+const rememberCoverDimensions = (id: string, width: number, height: number) => {
+  if (width && height) coverDimensions.value[id] = { width, height }
+}
+
 const openViewer = (id: string) => {
+  cancelPageRestoration()
   viewerHistory.value = []
   viewerRestoration.value = null
   viewerTransition += 1
@@ -360,6 +486,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  cancelPageRestoration()
+  pageTransition += 1
+  tagsRequest += 1
   if (uploadResultTimer) clearTimeout(uploadResultTimer)
   if (noticeTimer) clearTimeout(noticeTimer)
   if (filterNoticeTimer) clearTimeout(filterNoticeTimer)
@@ -384,9 +513,15 @@ watch(images, () => {
     <header class="topbar">
       <div>
         <p class="eyebrow">Visual Library</p>
-        <h1>Saved visuals</h1>
+        <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ subjectTag?.name }}</h1>
+        <h1 v-else>{{ screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
       </div>
     </header>
+
+    <nav class="libraryNav" aria-label="Library navigation">
+      <button type="button" :aria-current="screen !== 'library' ? 'page' : undefined" :disabled="applyingTags" @click="showExplore">Explore</button>
+      <button type="button" :aria-current="screen === 'library' ? 'page' : undefined" :disabled="applyingTags" @click="showLibrary">Library</button>
+    </nav>
 
     <SaveDropzone
       :notice="notice"
@@ -401,43 +536,66 @@ watch(images, () => {
       @error="showNotice($event, 'error')"
     />
 
-    <fieldset :disabled="applyingTags" :inert="applyingTags" class="filterFieldset">
-      <GalleryTagFilters
-        v-model:query="searchQuery"
-        :active-filters="activeTagFilters"
+    <TagExploreGrid
+      v-if="screen === 'explore'"
+      v-model:query="exploreQuery" :groups="subjects" :has-tags="allSubjects.length > 0"
+      :loading="loading || (tagsLoading && !tagSummaries.length)"
+      :error="libraryError || (tagsError && !tagSummaries.length)"
+      :dimensions="coverDimensions"
+      @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
+    />
+    <template v-else>
+      <div v-if="screen === 'subject'" class="subjectContext">
+        <button type="button" :disabled="applyingTags" @click="showExplore">Back to Explore</button>
+        <p>{{ galleryQuery.trim() || galleryFilters.length ? `${visibleImages.length} of ${subjectImages.length}` : subjectImages.length }} {{ subjectImages.length === 1 ? 'image' : 'images' }}</p>
+      </div>
+      <fieldset :disabled="applyingTags" :inert="applyingTags" class="filterFieldset">
+        <GalleryTagFilters
+          v-model:query="galleryQuery"
+          :active-filters="galleryFilters"
+          :base-tag="baseTag"
+          :tags="tagSummaries"
+          :has-library-tags="hasLibraryTags"
+          :notice="filterNotice"
+          @select="addTagFilter"
+          @remove="removeTagFilter"
+          @clear="clearTagFilters"
+        />
+
+      </fieldset>
+
+      <GalleryBulkTags
+        :selecting="selecting"
+        :count="selectedIds.length"
+        :busy="applyingTags"
+        :notice="bulkNotice"
         :tags="tagSummaries"
-        :has-library-tags="hasLibraryTags"
-        :notice="filterNotice"
-        @select="addTagFilter"
-        @remove="removeTagFilter"
-        @clear="clearTagFilters"
+        @enter="selecting = true; bulkNotice = ''"
+        @exit="exitSelection"
+        @select-all="selectedIds = visibleImages.map((image) => image.id)"
+        @apply="applyBulkTags"
       />
 
-    </fieldset>
+      <div v-if="libraryError" class="loadError" role="status">
+        <p>Could not load the library.</p>
+        <button type="button" @click="loadImages">Try again</button>
+      </div>
+      <GalleryGrid v-else
+        :images="visibleImages"
+        :selecting="selecting"
+        :selected-ids="selectedIds"
+        :busy="applyingTags"
+        @toggle="toggleSelection"
+        :loading="loading"
+        :empty-text="screen === 'subject' && !subjectImages.length ? 'This subject has no images now. You can return to Explore.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
+        @open="openViewer"
+        @delete="handleDelete"
+      />
+    </template>
 
-    <GalleryBulkTags
-      :selecting="selecting"
-      :count="selectedIds.length"
-      :busy="applyingTags"
-      :notice="bulkNotice"
-      :tags="tagSummaries"
-      @enter="selecting = true; bulkNotice = ''"
-      @exit="exitSelection"
-      @select-all="selectedIds = visibleImages.map((image) => image.id)"
-      @apply="applyBulkTags"
-    />
-
-    <GalleryGrid
-      :images="visibleImages"
-      :selecting="selecting"
-      :selected-ids="selectedIds"
-      :busy="applyingTags"
-      @toggle="toggleSelection"
-      :loading="loading"
-      :empty-text="activeTagFilters.length > 0 || searchQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
-      @open="openViewer"
-      @delete="handleDelete"
-    />
+    <p v-if="tagsError && tagSummaries.length" class="tagsWarning" role="status">
+      Could not refresh subjects. <button type="button" @click="loadTags">Try again</button>
+    </p>
 
     <LightboxViewer
       v-if="selectedImage"
@@ -463,6 +621,16 @@ watch(images, () => {
 
 <style>
 .filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.libraryNav { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+.libraryNav button, .subjectContext button, .loadError button, .tagsWarning button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.libraryNav button { position: relative; }
+.libraryNav button[aria-current] { background: var(--color-surface-card); }
+.libraryNav button[aria-current]::after { content: ""; position: absolute; bottom: 0; left: 12px; right: 12px; height: 2px; background: var(--color-primary); }
+.libraryNav button:active, .subjectContext button:active, .loadError button:active, .tagsWarning button:active { background: var(--color-secondary-pressed); }
+.libraryNav button:disabled, .subjectContext button:disabled { color: var(--color-ash); cursor: default; }
+.subjectContext { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; }
+.subjectContext p, .tagsWarning, .loadError { color: var(--color-mute); font-size: 14px; line-height: 1.4; }
+.loadError { text-align: center; margin: 48px 0; }
 .page {
   width: min(100%, 1280px);
   margin: 0 auto;
@@ -491,6 +659,7 @@ h1 {
   font-weight: 700;
   letter-spacing: -0.8px;
   line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {

@@ -19,6 +19,8 @@ O upload múltiplo está implementado e validado. Sua entrega deve permanecer se
 
 ## Etapa 1 — Explorar visualmente as tags
 
+Implementada em 2026-10-04 em [012](specs/012-visual-tag-exploration/spec.md), com capas persistidas, retorno de contexto e validação isolada. Avaliação com o acervo real permanece pendente.
+
 **Prioridade:** primeira entrega. **Esforço relativo:** pequeno a médio.
 
 Adicionar uma entrada discreta “Explorar”, mantendo a biblioteca como entrada padrão. Mostrar cada tag utilizada como cartão com imagem representativa, nome e quantidade de imagens. Buscar tags pelo nome e começar com uma ordenação alfabética previsível.

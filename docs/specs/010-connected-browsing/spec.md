@@ -74,6 +74,8 @@ This feature supersedes 008's current-filter restriction, prohibition of history
 
 Search matching, tag identity and limits, bulk selection scope, and image fitting retain their existing rules. The linked existing specs now reference these changes.
 
+[Visual tag exploration](../012-visual-tag-exploration/spec.md) also supplies subject galleries as viewer origins. Related candidates still use the full library; ordinary close retains the subject and its refinements. Explicit viewer tag filtering refines that gallery, counting its protected base tag toward the existing three-tag limit.
+
 ## Non-goals
 
 AI, visual similarity, embeddings, random discovery, infinite feeds, autoplay, tag taxonomies, collections, visited badges, breadcrumbs, visible history lists, browser-history integration, forward navigation, settings, zoom, swipe gestures, new routes, API endpoints, database changes, or dependencies.

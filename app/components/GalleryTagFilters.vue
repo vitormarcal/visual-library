@@ -10,6 +10,7 @@ const props = defineProps<{
   tags: TagSummary[]
   hasLibraryTags: boolean
   notice: string
+  baseTag?: ImageTag | null
 }>()
 const query = defineModel<string>('query', { default: '' })
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>()
 const availableTags = computed(() => {
   const active = new Set(props.activeFilters.map((tag) => tag.normalizedName))
+  if (props.baseTag) active.add(props.baseTag.normalizedName)
   return props.tags.filter((tag) => !active.has(tag.normalizedName))
     .sort((a, b) => b.imageCount - a.imageCount || a.name.localeCompare(b.name))
 })
@@ -30,7 +32,7 @@ const suggestedTags = computed(() => {
 })
 const selectTag = (tag: ImageTag) => {
   // Keep the query if the existing three-filter limit prevents selection.
-  if (props.activeFilters.length < 3) query.value = ''
+  if (props.activeFilters.length + (props.baseTag ? 1 : 0) < 3) query.value = ''
   emit('select', tag)
 }
 </script>
