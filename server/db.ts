@@ -102,6 +102,15 @@ export const ensureDataStore = async () => {
     try {
       if (!columns.some((column) => column.name === 'source')) db.exec("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'visual-library'")
       if (!columns.some((column) => column.name === 'hidden_from_gallery')) db.exec('ALTER TABLE images ADD COLUMN hidden_from_gallery INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_gallery IN (0, 1))')
+      const imageTagColumns = db.prepare('PRAGMA table_info(image_tags)').all() as Array<{ name: string }>
+      if (!imageTagColumns.some(column => column.name === 'personal')) {
+        db.exec('ALTER TABLE image_tags ADD COLUMN personal INTEGER NOT NULL DEFAULT 1 CHECK (personal IN (0, 1))')
+      }
+      db.exec(`CREATE TABLE IF NOT EXISTS asset_reference_tag_groups (
+        asset_id TEXT NOT NULL, application TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+        group_name TEXT NOT NULL, tags_json TEXT NOT NULL, revision INTEGER NOT NULL,
+        PRIMARY KEY (asset_id, application, entity_type, entity_id, group_name)
+      )`)
       db.exec('COMMIT')
     } catch (error) { db.exec('ROLLBACK'); db.close(); db = undefined; throw error }
 
@@ -240,6 +249,7 @@ export const deleteImageRecord = (imageId: string) => {
   const affected = getImageTags(imageId).map((tag) => tag.id)
   db.exec('BEGIN')
   try {
+    db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_references WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM images WHERE id = ?').run(imageId)
@@ -260,6 +270,8 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
 
   const uniqueTags = normalizeTagValues(values)
   const now = new Date().toISOString()
+  const personalFlags = new Map((dbInstance.prepare('SELECT tag_id, personal FROM image_tags WHERE image_id = ?')
+    .all(imageId) as Array<{ tag_id: string; personal: number }>).map(row => [row.tag_id, row.personal]))
   const affectedTags = new Set(getImageTags(imageId).map((tag) => tag.id))
 
   dbInstance.exec('BEGIN')
@@ -285,9 +297,9 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
       }
 
       dbInstance.prepare(`
-        INSERT INTO image_tags (image_id, tag_id, created_at)
-        VALUES (?, ?, ?)
-      `).run(imageId, row.id, attachedAt)
+        INSERT INTO image_tags (image_id, tag_id, created_at, personal)
+        VALUES (?, ?, ?, ?)
+      `).run(imageId, row.id, attachedAt, personalFlags.get(row.id) ?? 1)
       affectedTags.add(row.id)
     }
 
@@ -307,7 +319,7 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
 }
 
 // Caller owns the transaction, so upload and bulk tagging can share atomic additions.
-export const addImageTagsWithinTransaction = (imageIds: string[], additions: ReturnType<typeof normalizeTagValues>) => {
+export const addImageTagsWithinTransaction = (imageIds: string[], additions: ReturnType<typeof normalizeTagValues>, personal = true) => {
   if (!db) throw new Error('Data store is not initialized')
   const dbInstance = db
   const ids = [...new Set(imageIds)]
@@ -322,6 +334,9 @@ export const addImageTagsWithinTransaction = (imageIds: string[], additions: Ret
   const now = new Date().toISOString()
   const affectedTags = new Set<string>()
   for (const [index, tag] of additions.entries()) {
+    if (personal) for (const id of ids) dbInstance.prepare(`UPDATE image_tags SET personal = 1
+      WHERE image_id = ? AND tag_id IN (SELECT id FROM tags WHERE normalized_name = ?)`)
+      .run(id, tag.normalizedName)
     const missing = ids.filter((id) => !current.get(id)!.some((existing) => existing.normalizedName === tag.normalizedName))
     if (!missing.length) continue
     let row = dbInstance.prepare('SELECT id FROM tags WHERE normalized_name = ?').get(tag.normalizedName) as { id: string } | undefined
@@ -333,8 +348,8 @@ export const addImageTagsWithinTransaction = (imageIds: string[], additions: Ret
       dbInstance.prepare('UPDATE tags SET last_used_at = ? WHERE id = ?').run(now, row.id)
     }
     for (const id of missing) {
-      dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)')
-        .run(id, row.id, new Date(Date.parse(now) + index).toISOString())
+      dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at, personal) VALUES (?, ?, ?, ?)')
+        .run(id, row.id, new Date(Date.parse(now) + index).toISOString(), Number(personal))
     }
     affectedTags.add(row.id)
   }
@@ -356,7 +371,12 @@ export const addTagsToImages = (imageIds: string[], values: string[]) => {
 }
 
 export type SourceReference = { entityType: string; entityId: string; url?: string }
-export type AssetEnrichment = { tags: string[]; sourceReference?: SourceReference }
+export type ManagedTagGroup = { tags: string[]; revision: number }
+export type AssetEnrichment = { tags: string[]; sourceReference?: SourceReference; managedTags?: Record<string, ManagedTagGroup> }
+export class ManagedTagConflict extends Error {
+  code: string
+  constructor(message: string, code: string) { super(message); this.code = code }
+}
 
 export const getAssetReferences = (assetId: string) => {
   if (!db) return []
@@ -365,21 +385,30 @@ export const getAssetReferences = (assetId: string) => {
       application: string; entity_type: string; entity_id: string; url: string | null; created_at: string
     }>
   return rows.map(row => ({ application: row.application, entityType: row.entity_type,
-    entityId: row.entity_id, url: row.url, createdAt: row.created_at }))
+    entityId: row.entity_id, url: row.url, createdAt: row.created_at,
+    managedTags: Object.fromEntries((db!.prepare(`SELECT group_name, tags_json, revision FROM asset_reference_tag_groups
+      WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ?`).all(assetId, row.application, row.entity_type, row.entity_id) as
+      Array<{ group_name: string; tags_json: string; revision: number }>).map(group =>
+      [group.group_name, { tags: JSON.parse(group.tags_json), revision: group.revision }])) }))
 }
 
 export const enrichImageWithinTransaction = (assetId: string, application: string, enrichment?: AssetEnrichment) => {
   if (!db) throw new Error('Data store is not initialized')
   if (!enrichment) return
   const reference = enrichment.sourceReference
-  if (reference && db.prepare(`SELECT 1 FROM asset_references
+  const exists = reference && db.prepare(`SELECT 1 FROM asset_references
     WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ?`)
-    .get(assetId, application, reference.entityType, reference.entityId)) return
-  const tags = normalizeTagValues(enrichment.tags)
-  addImageTagsWithinTransaction([assetId], tags)
-  if (reference) db.prepare(`INSERT INTO asset_references
-    (asset_id, application, entity_type, entity_id, url, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-    .run(assetId, application, reference.entityType, reference.entityId, reference.url ?? null, new Date().toISOString())
+    .get(assetId, application, reference.entityType, reference.entityId)
+  if (!exists) {
+    const tags = normalizeTagValues(enrichment.tags)
+    addImageTagsWithinTransaction([assetId], tags)
+    if (reference) db.prepare(`INSERT INTO asset_references
+      (asset_id, application, entity_type, entity_id, url, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(assetId, application, reference.entityType, reference.entityId, reference.url ?? null, new Date().toISOString())
+  }
+  if (reference) for (const [group, value] of Object.entries(enrichment.managedTags ?? {})) {
+    replaceReferenceTagGroupWithinTransaction(assetId, application, reference, group, value)
+  }
 }
 
 export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => ({
@@ -411,5 +440,65 @@ export const setImageVisibility = (id: string, hidden: boolean) => {
     const row = db.prepare('SELECT * FROM images WHERE id = ?').get(id) as ImageRow
     db.exec('COMMIT')
     return row
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+// The caller owns the transaction; tags and the reference revision commit together.
+const replaceReferenceTagGroupWithinTransaction = (
+  assetId: string, application: string, reference: SourceReference, group: string, value: ManagedTagGroup,
+) => {
+  if (!db) throw new Error('Data store is not initialized')
+  let additions: ReturnType<typeof normalizeTagValues>
+  try { additions = normalizeTagValues(value.tags) }
+  catch (error) { throw new ManagedTagConflict((error as Error).message, 'TAG_LIMIT') }
+  const key = [assetId, application, reference.entityType, reference.entityId, group]
+  const previous = db.prepare(`SELECT tags_json, revision FROM asset_reference_tag_groups
+    WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ? AND group_name = ?`).get(...key) as
+    { tags_json: string; revision: number } | undefined
+  const oldNames = new Set<string>(previous ? JSON.parse(previous.tags_json).map((tag: string) => normalizeTagName(tag).normalizedName) : [])
+  const names = new Set(additions.map(tag => tag.normalizedName))
+  if (previous && value.revision < previous.revision) throw new ManagedTagConflict('Stale classification revision.', 'STALE_REVISION')
+  if (previous && value.revision === previous.revision) {
+    if (oldNames.size !== names.size || [...names].some(name => !oldNames.has(name))) {
+      throw new ManagedTagConflict('Classification revision already has different tags.', 'REVISION_CONFLICT')
+    }
+    return { preservedTags: [] as string[], legacyTagsPreserved: false }
+  }
+  const current = db.prepare(`SELECT t.id, t.name, t.normalized_name, it.personal FROM image_tags it
+    JOIN tags t ON t.id = it.tag_id WHERE it.image_id = ?`).all(assetId) as
+    Array<ImageTagRow & { personal: number }>
+  const other = db.prepare(`SELECT tags_json FROM asset_reference_tag_groups WHERE asset_id = ?
+    AND NOT (application = ? AND entity_type = ? AND entity_id = ? AND group_name = ?)`).all(...key) as Array<{ tags_json: string }>
+  const otherNames = new Set<string>(other.flatMap(row => JSON.parse(row.tags_json).map((tag: string) => normalizeTagName(tag).normalizedName)))
+  const removable = current.filter(tag => oldNames.has(tag.normalized_name) && !names.has(tag.normalized_name) && !tag.personal && !otherNames.has(tag.normalized_name))
+  const removed = new Set(removable.map(tag => tag.id))
+  // An unchanged absent term was removed manually; do not restore it on the next correction.
+  const newTags = additions.filter(tag => !oldNames.has(tag.normalizedName))
+  try { normalizeTagValues([...current.filter(tag => !removed.has(tag.id)).map(tag => tag.name), ...newTags.map(tag => tag.name)]) }
+  catch (error) { throw new ManagedTagConflict((error as Error).message, 'TAG_LIMIT') }
+  for (const tag of removable) db.prepare('DELETE FROM image_tags WHERE image_id = ? AND tag_id = ?').run(assetId, tag.id)
+  addImageTagsWithinTransaction([assetId], newTags, false)
+  db.prepare(`INSERT INTO asset_reference_tag_groups (asset_id, application, entity_type, entity_id, group_name, tags_json, revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(asset_id, application, entity_type, entity_id, group_name)
+    DO UPDATE SET tags_json = excluded.tags_json, revision = excluded.revision`)
+    .run(...key, JSON.stringify(additions.map(tag => tag.name)), value.revision)
+  reconcileTagCovers(removable.map(tag => tag.id))
+  return {
+    preservedTags: current.filter(tag => oldNames.has(tag.normalized_name) && !names.has(tag.normalized_name) && !removed.has(tag.id)).map(tag => tag.name),
+    legacyTagsPreserved: !previous && current.length > 0,
+  }
+}
+
+export const replaceAssetReferenceTagGroup = (
+  assetId: string, application: string, reference: SourceReference, group: string, value: ManagedTagGroup,
+) => {
+  if (!db) throw new Error('Data store is not initialized')
+  if (!db.prepare('SELECT 1 FROM images WHERE id = ?').get(assetId) || !db.prepare(`SELECT 1 FROM asset_references
+    WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ?`).get(assetId, application, reference.entityType, reference.entityId)) return null
+  db.exec('BEGIN')
+  try {
+    const result = replaceReferenceTagGroupWithinTransaction(assetId, application, reference, group, value)
+    db.exec('COMMIT')
+    return result
   } catch (error) { db.exec('ROLLBACK'); throw error }
 }

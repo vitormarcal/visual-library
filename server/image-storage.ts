@@ -1,3 +1,4 @@
+import { ManagedTagConflict } from './db.ts'
 import { randomUUID } from 'node:crypto'
 import { open, unlink } from 'node:fs/promises'
 import { createError } from 'h3'
@@ -40,7 +41,8 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
       return { row, created: true }
     } catch (error) {
       db.exec('ROLLBACK')
-      if (error instanceof Error && error.message.includes('UNIQUE constraint failed: images.content_hash')) {
+      if (error instanceof ManagedTagConflict) throw createError({ statusCode: 409, statusMessage: error.message, data: { code: error.code } })
+    if (error instanceof Error && error.message.includes('UNIQUE constraint failed: images.content_hash')) {
         await unlink(path); owned = false
         const winner = find()
         if (winner) return reuse(winner.id)
@@ -52,6 +54,7 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
     if (owned && path) {
       try { await unlink(path) } catch (cleanupError) { cleanupFailed = true; console.error('Image upload cleanup failed', cleanupError) }
     }
+    if (!cleanupFailed && error instanceof ManagedTagConflict) throw createError({ statusCode: 409, statusMessage: error.message, data: { code: error.code } })
     if (!cleanupFailed && error instanceof Error && ['Too many tags', 'Tag is too long'].includes(error.message)) {
       throw createError({ statusCode: 400, statusMessage: error.message })
     }

@@ -12,7 +12,7 @@ Não há autenticação nesta entrega, por decisão do usuário. Todas as rotas 
 | `GET /api/assets/{id}` | Metadados; 404 se o registro não existe. |
 | `GET /api/assets/{id}/content` | Original por streaming; 404 se o registro ou arquivo não existe. |
 
-Não há listagem externa, exclusão externa, importação por URL externa ou miniaturas. A interface continua usando os endpoints existentes de imagens e tags e a rota `/images/{filename}`.
+Há também `PUT /api/assets/{id}/references/tags` para atualizar um grupo de classificação de uma referência existente. Não há listagem externa, exclusão externa, importação por URL externa ou miniaturas. A interface continua usando os endpoints existentes de imagens e tags e a rota `/images/{filename}`.
 
 ## Upload
 
@@ -138,3 +138,30 @@ Erros seguem o envelope HTTP do H3/Nitro, com `statusCode` e `statusMessage`. De
 - Falhas tratáveis de escrita/insert são compensadas. Interrupção abrupta do processo ou recusa do filesystem em limpar podem deixar órfãos; falhas de compensação são registradas. A exclusão mantém sua limitação anterior: erro de unlink é ignorado.
 - Registros antigos sem hash continuam fora da deduplicação. Uma duplicata não repara automaticamente arquivo ausente.
 - Sem dimensões persistidas, miniaturas, transformações, perfis, metadados genéricos, atualização de referências, sincronização de tags/coleções, controle por origem em lote ou atualização automática da galeria quando outro serviço envia imagens. Reload carrega alterações externas.
+
+## Grupos de classificação vinculados a referências
+
+Esta extensão foi aprovada para correções automáticas de movimentos de obras no Media Pulse. Sem alteração de interface ou novas dependências. Referências agora incluem `managedTags`, um objeto de grupos `{ tags: string[], revision: number }`. Upload pode enviar o campo multipart textual `managedTags`, por exemplo `{"movements":{"tags":["Art Nouveau","Simbolismo"],"revision":1}}`; exige `sourceReference`. Até quatro grupos, identificadores simples de até 64 caracteres, JSON até 8 KiB, 32 entradas brutas por grupo e revisão inteira segura não negativa. A união visível continua limitada a oito tags, com 48 caracteres por tag. Erros de grupo/união são 409 e revertem upload/enriquecimento; não descartar termos silenciosamente. Upload genérico sem esse campo continua igual.
+
+`PUT /api/assets/{id}/references/tags` recebe JSON até 16 KiB:
+
+```json
+{
+  "application": "media-pulse",
+  "entityType": "artwork",
+  "entityId": "123",
+  "group": "movements",
+  "tags": ["Secessão Vienense", "Simbolismo"],
+  "revision": 2
+}
+```
+
+Requer asset e referência existentes. `[]` limpa o grupo. Retorna `{ preservedTags: string[], legacyTagsPreserved: boolean }`, com no-store. Erros: 400 formato/identidade/revisão inválidos, 404 asset/referência ausentes, 409 limite de tags ou revisão conflitante/antiga, 413 tamanho, 500 persistência. Conflitos incluem `data.code` (`TAG_LIMIT`, `STALE_REVISION`, `REVISION_CONFLICT`). Revisões iguais e conjuntos iguais são idempotentes; menor revisão não sobrescreve maior. URL e data da referência continuam preservadas.
+
+Cada grupo registra sua procedência em `asset_reference_tag_groups`; associações visíveis têm flag `image_tags.personal`. Inicialização adiciona coluna com default 1, protegendo todo o legado sem adivinhar sua origem. Exclusão da imagem também remove grupos. Não há backfill de procedência.
+
+Ao corrigir, remover um termo antigo apenas quando ele não é pessoal nem pertence a outro grupo/referência. Preservar datas e nomes das tags existentes. Adições/removidas, revisão e capas são confirmadas conjuntamente. A edição individual preserva a procedência de termos inalterados e marca novos termos como pessoais; remover e acrescentar um termo ou adicioná-lo explicitamente em lote permite assumi-lo na curadoria pessoal. Adição em lote protege também termos já presentes. Um termo inalterado que foi removido manualmente não é restaurado por uma correção ou retry; uma nova classificação pode adicioná-lo novamente.
+
+**Legado:** tags anteriores à procedência são preservadas. A primeira adoção informa `legacyTagsPreserved`; remoções de termos pessoais/compartilhados informam `preservedTags`. A classificação da referência é corrigida, mas essas tags globais não são apagadas automaticamente.
+
+Reenvio de upload conserva sugestões genéricas quando a referência já existe; grupos vinculados são atualizados sob suas regras de revisão. O Visual Library continua sem autenticação: aplicação e referência são declarações do cliente, não permissões. Sem fila, sincronização de metadados gerais ou controle de retenção.

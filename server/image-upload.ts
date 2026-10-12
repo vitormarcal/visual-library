@@ -1,6 +1,6 @@
 import { createError, getRequestHeader, type H3Event } from 'h3'
 import { sizeError, type SaveImageInput } from './image-url.ts'
-import { normalizeTagValues, type AssetEnrichment, type SourceReference } from './db.ts'
+import { normalizeTagValues, type AssetEnrichment, type SourceReference, type ManagedTagGroup } from './db.ts'
 import { validateImageFormat } from './image-format.ts'
 
 export const defaultImageSizeBytes = 15 * 1024 * 1024
@@ -64,7 +64,15 @@ const readEnrichment = (form: FormData): AssetEnrichment => {
       sourceReference.url = reference.url
     }
   }
-  return { tags, sourceReference }
+  let managedTags: Record<string, ManagedTagGroup> | undefined
+  if (form.has('managedTags')) {
+    if (!sourceReference) throw badForm()
+    const value = parseJsonField(form.get('managedTags'), 8192)
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 4) throw badForm()
+    managedTags = {}
+    for (const [group, input] of Object.entries(value)) managedTags[group] = validateManagedTagGroup(group, input)
+  }
+  return { tags, sourceReference, managedTags }
 }
 
 export const readImageForm = async (event: H3Event, external = false) => {
@@ -82,7 +90,7 @@ export const readImageForm = async (event: H3Event, external = false) => {
   if (image.name.length > 1024) throw badForm()
   let source = 'visual-library', hiddenFromGallery = false
   if (external) {
-    for (const key of form.keys()) if (!['image', 'source', 'hiddenFromGallery', 'tags', 'sourceReference'].includes(key) || form.getAll(key).length !== 1) throw badForm()
+    for (const key of form.keys()) if (!['image', 'source', 'hiddenFromGallery', 'tags', 'sourceReference', 'managedTags'].includes(key) || form.getAll(key).length !== 1) throw badForm()
     const suppliedSource = form.get('source')
     if (suppliedSource !== null) {
       if (typeof suppliedSource !== 'string') throw badForm()
@@ -98,4 +106,13 @@ export const readImageForm = async (event: H3Event, external = false) => {
   const format = validateImageFormat(data)
   const input: SaveImageInput = { data, originalName: image.name || null, mimeType: format.mimeType, sourceUrl: null }
   return { input, source, hiddenFromGallery, enrichment }
+}
+
+export const validateManagedTagGroup = (group: unknown, input: unknown): ManagedTagGroup => {
+  if (typeof group !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(group) || !input || typeof input !== 'object' || Array.isArray(input)) throw badForm()
+  const value = input as Record<string, unknown>
+  if (Object.keys(value).some(key => !['tags', 'revision'].includes(key)) || !Array.isArray(value.tags)
+    || value.tags.length > 32 || value.tags.some(tag => typeof tag !== 'string')
+    || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw badForm()
+  return { tags: value.tags as string[], revision: Number(value.revision) }
 }

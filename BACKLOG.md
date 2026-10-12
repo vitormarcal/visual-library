@@ -103,3 +103,7 @@ Implementada a pedido do usuário em 2026-10-12 em [014](docs/specs/014-assets-a
 ### Enriquecer imagens enviadas por outros serviços
 
 Implementado a pedido do usuário em 2026-10-12 em [015](docs/specs/015-asset-upload-enrichment/spec.md): upload externo aceita tags opcionais e referências independentes às entidades de origem, reutilizando busca e organização existentes. Tags pessoais são preservadas; retry da mesma associação não restaura tags removidas. Uma entidade pode ter várias imagens. Sem metadados genéricos, propriedade de tags ou sincronização automática. Testes e browser isolado estão no plano; avaliar uso real antes de ampliar o fluxo.
+
+### Corrigir movimentos enviados pelo Media Pulse
+
+Escopo de 015 estendido por aprovação do usuário em [016](docs/specs/016-managed-movement-tags/spec.md): grupos de tags com revisão e procedência permitem corrigir movimentos de obras sem apagar tags pessoais ou necessárias a outras referências. O Media Pulse faz a atualização após salvar e mantém pendência para retry em caso de falha. Sem nova interface no Visual Library, filas ou sincronização genérica de metadados. Tags antigas sem procedência continuam preservadas. Testes, build e integração com os serviços reais validados no plano de 016.
