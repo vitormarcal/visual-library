@@ -93,3 +93,8 @@ Showing tags shared by selected images is deferred until usage demonstrates a ne
 This remains speculative, not a selected next feature. Atmospheric suggestions have not been requested. Evaluate existing manual entry, search, and group additions before introducing assistance.
 
 Any future exploration should preserve personally meaningful tags and explicit user choice. Avoid automatic tagging, background processing, embeddings/vector search, similarity search, provider-management systems, and automatic organization.
+
+
+## API de assets e visibilidade do acervo
+
+Implementada a pedido do usuário em 2026-10-12 em [014](docs/specs/014-assets-api/spec.md): serviços pessoais podem enviar imagens e obter ID/bytes usando o acervo existente. Origem declarada e ocultação individual permitem manter assets externos sem apresentá-los na descoberta padrão. Ocultos podem ser recuperados na Library; não há perfis, autenticação ou integração com Media Pulse. Contrato e limitações em [assets-api.md](docs/assets-api.md). Validação técnica está no plano; uso cotidiano e controles por origem em lote permanecem fora desta entrega.

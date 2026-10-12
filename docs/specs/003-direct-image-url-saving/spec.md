@@ -141,3 +141,8 @@ The feature should reduce web image saving friction while preserving the current
 - URL saves enforce the same 15 MB limit as local uploads.
 - The feature assumes one local user and provides no multi-user, sharing, collaboration, or platform import behavior.
 - The UI follows the visual direction in `DESIGN.md`.
+
+
+## API de assets e visibilidade (014)
+
+[014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.

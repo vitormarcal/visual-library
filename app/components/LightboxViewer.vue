@@ -12,6 +12,8 @@ type ImageRecord = {
   createdAt: string
   src: string
   tags: ImageTag[]
+  source: string
+  hiddenFromGallery: boolean
 }
 
 type ImageTag = {
@@ -33,12 +35,15 @@ const props = defineProps<{
   libraryTags: TagSummary[]
   filterNotice: string
   canGoBack: boolean
+  visibilityBusy: boolean
+  visibilityNotice: string
   tagsBusy: boolean
   saveTags: (id: string, tags: string[]) => Promise<ImageTag[]>
   restoration: (ViewerHistoryEntry & { token: number }) | null
 }>()
 
 const emit = defineEmits<{
+  visibility: [id: string, hidden: boolean]
   close: []
   openRelated: [id: string, position: ViewerPosition]
   previous: [position: ViewerPosition]
@@ -105,7 +110,7 @@ const draftTags = ref<ImageTag[]>([])
 const pendingTag = ref('')
 const tagError = ref('')
 const submittingTags = ref(false)
-const savingTags = computed(() => submittingTags.value || props.tagsBusy)
+const savingTags = computed(() => submittingTags.value || props.tagsBusy || props.visibilityBusy)
 let previousBodyOverflow = ''
 
 const normalizeTag = (value: string) => {
@@ -440,6 +445,11 @@ syncDraftTags()
     </div>
 
     <div id="viewer-tags" ref="tagsPanel" :class="styles.tagsPanel">
+      <div :class="styles.assetDetails">
+        <span>Source: {{ image.source }}</span>
+        <button type="button" :class="styles.exploreButton" :disabled="savingTags" @click="$emit('visibility', image.id, !image.hiddenFromGallery)">{{ image.hiddenFromGallery ? 'Show in gallery' : 'Hide from gallery' }}</button>
+        <p v-if="visibilityNotice" role="status">{{ visibilityNotice }}</p>
+      </div>
       <div
         v-if="!editingTags"
         :class="styles.tagList"

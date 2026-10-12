@@ -356,3 +356,6 @@
 /* Pointer navigation focuses this container; keyboard navigation focuses its heading. */
 .relatedSection:focus-visible { outline: none; }
 @media (max-width: 1100px) { .relatedHeader { padding-right: 56px; } }
+
+.assetDetails { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; font-size: 14px; color: rgba(255, 255, 255, 0.7); overflow-wrap: anywhere; }
+.assetDetails p { flex-basis: 100%; text-align: center; }

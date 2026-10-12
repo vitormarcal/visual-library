@@ -12,6 +12,8 @@ export type ImageRow = {
   created_at: string
   source_url: string | null
   content_hash: string | null
+  source: string
+  hidden_from_gallery: number
 }
 
 export type ImageTagRow = {
@@ -83,6 +85,13 @@ export const ensureDataStore = async () => {
     if (!columns.some((column) => column.name === 'content_hash')) {
       db.exec('ALTER TABLE images ADD COLUMN content_hash TEXT')
     }
+
+    db.exec('BEGIN')
+    try {
+      if (!columns.some((column) => column.name === 'source')) db.exec("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'visual-library'")
+      if (!columns.some((column) => column.name === 'hidden_from_gallery')) db.exec('ALTER TABLE images ADD COLUMN hidden_from_gallery INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_gallery IN (0, 1))')
+      db.exec('COMMIT')
+    } catch (error) { db.exec('ROLLBACK'); db.close(); db = undefined; throw error }
 
     const tagColumns = db.prepare('PRAGMA table_info(tags)').all() as Array<{ name: string }>
     if (!tagColumns.some((column) => column.name === 'cover_image_id')) {
@@ -171,6 +180,7 @@ export const listTagSummaries = () => {
       COUNT(image_tags.image_id) AS image_count
     FROM tags
     INNER JOIN image_tags ON image_tags.tag_id = tags.id
+    INNER JOIN images ON images.id = image_tags.image_id AND images.hidden_from_gallery = 0
     GROUP BY tags.id
     ORDER BY tags.last_used_at DESC, image_count DESC, tags.name ASC
   `).all() as TagSummaryRow[]
@@ -188,8 +198,9 @@ export const listTagSummaries = () => {
 export const findTag = (id: string) => {
   if (!db) return null
   const row = db.prepare(`SELECT tags.id, tags.name, tags.normalized_name,
-    COUNT(image_tags.image_id) AS image_count FROM tags
-    LEFT JOIN image_tags ON image_tags.tag_id = tags.id WHERE tags.id = ? GROUP BY tags.id`)
+    COUNT(images.id) AS image_count FROM tags
+    LEFT JOIN image_tags ON image_tags.tag_id = tags.id
+    LEFT JOIN images ON images.id = image_tags.image_id AND images.hidden_from_gallery = 0 WHERE tags.id = ? GROUP BY tags.id`)
     .get(id) as (ImageTagRow & { image_count: number }) | undefined
   return row ? { ...toTagResponse(row), imageCount: row.image_count } : null
 }
@@ -203,10 +214,10 @@ export const reconcileTagCovers = (tagIds?: string[]) => {
   for (const row of rows as Array<{ id: string; cover_image_id: string | null }>) {
     if (row.cover_image_id && db.prepare(`SELECT 1 FROM image_tags
       INNER JOIN images ON images.id = image_tags.image_id
-      WHERE tag_id = ? AND image_id = ?`).get(row.id, row.cover_image_id)) continue
+      WHERE tag_id = ? AND image_id = ? AND images.hidden_from_gallery = 0`).get(row.id, row.cover_image_id)) continue
     const candidate = db.prepare(`SELECT image_id FROM image_tags
       INNER JOIN images ON images.id = image_tags.image_id
-      WHERE tag_id = ? ORDER BY image_tags.created_at ASC, images.created_at ASC, images.id ASC LIMIT 1`)
+      WHERE tag_id = ? AND images.hidden_from_gallery = 0 ORDER BY image_tags.created_at ASC, images.created_at ASC, images.id ASC LIMIT 1`)
       .get(row.id) as { image_id: string } | undefined
     db.prepare('UPDATE tags SET cover_image_id = ? WHERE id = ?').run(candidate?.image_id ?? null, row.id)
   }
@@ -338,4 +349,24 @@ export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => (
   createdAt: row.created_at,
   src: `/images/${encodeURIComponent(row.filename)}`,
   tags,
+  source: row.source,
+  hiddenFromGallery: Boolean(row.hidden_from_gallery),
 })
+
+export const toAssetResponse = (row: ImageRow) => ({
+  id: row.id, mimeType: row.mime_type, sizeBytes: row.size_bytes,
+  createdAt: row.created_at, source: row.source, hiddenFromGallery: Boolean(row.hidden_from_gallery),
+})
+
+export const setImageVisibility = (id: string, hidden: boolean) => {
+  if (!db) throw new Error('Data store is not initialized')
+  if (!db.prepare('SELECT id FROM images WHERE id = ?').get(id)) return null
+  db.exec('BEGIN')
+  try {
+    db.prepare('UPDATE images SET hidden_from_gallery = ? WHERE id = ?').run(Number(hidden), id)
+    reconcileTagCovers(getImageTags(id).map(tag => tag.id))
+    const row = db.prepare('SELECT * FROM images WHERE id = ?').get(id) as ImageRow
+    db.exec('COMMIT')
+    return row
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}

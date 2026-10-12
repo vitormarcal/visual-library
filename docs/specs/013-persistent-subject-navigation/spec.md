@@ -88,3 +88,8 @@ Implementação concluída. A validação isolada está registrada no plano; a a
 ## Ajuste da entrada inicial
 
 A pedido do usuário, `/` abre Explore, acompanhando a ordem Explore → Library dos links. Library possui endereço explícito `/?view=library`. Endereços antigos com busca, filtros ou imagem e sem view continuam abrindo Library; a busca de Explore mantém view=explore explícito. Esta decisão substitui a entrada padrão Library definida anteriormente em 012 e no roadmap.
+
+
+## API de assets e visibilidade (014)
+
+[014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.

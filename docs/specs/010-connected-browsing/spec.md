@@ -97,3 +97,8 @@ AI, visual similarity, embeddings, random discovery, infinite feeds, autoplay, t
 ## Persistent navigation (013)
 
 [013](../013-persistent-subject-navigation/spec.md) adds browser-history integration and URLs for the current image over its original gallery. Adjacent and related choices replace that image within one viewer entry. Native Forward or reload restores the current image with an empty internal excursion. These rules supersede the original exclusion of browser-history integration and forward navigation only for native navigation; the temporary internal Back remains unchanged. A missing image in a reopened URL recovers the gallery with notice instead of selecting another image.
+
+
+## API de assets e visibilidade (014)
+
+[014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.

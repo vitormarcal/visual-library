@@ -10,18 +10,18 @@ export type UploadResult<T = File> = { saved: number; duplicates: number; failur
 export const isImageFile = (file: Pick<File, 'name' | 'type'>) => imageMimeTypes.includes(file.type)
   || imageExtensions.some((extension) => file.name.toLowerCase().endsWith(extension))
 
-export const localImageError = (file: LocalFile) => {
+export const localImageError = (file: LocalFile, limit = maxImageSizeBytes) => {
   if (!isImageFile(file)) return 'Unsupported file type. Use JPEG, PNG, WebP, GIF, or AVIF.'
   if (!file.size) return 'This file is empty. Choose another image.'
-  if (file.size > maxImageSizeBytes) return 'Image is too large. Maximum size is 15 MB.'
+  if (file.size > limit) return `Image is too large. Maximum size is ${limit / (1024 * 1024)} MB.`
   return null
 }
 
-export const uploadError = (error: unknown) => {
+export const uploadError = (error: unknown, limit = maxImageSizeBytes) => {
   const response = error as { statusCode?: number; status?: number; data?: { statusCode?: number; statusMessage?: string } } | null
   const status = response?.statusCode ?? response?.status ?? response?.data?.statusCode
   const retryable = !status || status >= 500 || status === 408 || status === 429
-  const message = status === 413 ? 'Image is too large. Maximum size is 15 MB.'
+  const message = status === 413 ? `Image is too large. Maximum size is ${limit / (1024 * 1024)} MB.`
     : status === 400 || status === 415 ? 'This image cannot be saved. Choose a supported image.'
       : retryable ? 'Could not save this image. Try again.' : 'This image cannot be saved.'
   return { message, retryable }
@@ -40,6 +40,7 @@ export const saveImageBatch = async <T extends LocalFile>(
   files: T[], save: (file: T) => Promise<'saved' | 'duplicate'>,
   progress: (current: number, total: number) => void,
   previous?: UploadResult<T>,
+  limit = maxImageSizeBytes,
 ): Promise<UploadResult<T>> => {
   const result: UploadResult<T> = {
     saved: previous?.saved ?? 0, duplicates: previous?.duplicates ?? 0,
@@ -47,13 +48,13 @@ export const saveImageBatch = async <T extends LocalFile>(
   }
   for (const [index, file] of files.entries()) {
     progress(index + 1, files.length)
-    const invalid = localImageError(file)
+    const invalid = localImageError(file, limit)
     if (invalid) { result.failures.push({ file, message: invalid, retryable: false }); continue }
     try {
       if (await save(file) === 'duplicate') result.duplicates += 1
       else result.saved += 1
     } catch (error) {
-      result.failures.push({ file, ...uploadError(error) })
+      result.failures.push({ file, ...uploadError(error, limit) })
     }
   }
   return result

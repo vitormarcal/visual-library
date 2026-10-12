@@ -14,3 +14,8 @@ Search does not perform semantic image analysis, change metadata, introduce depe
 ## Navegação persistente (013)
 
 [013](../013-persistent-subject-navigation/spec.md) implementa endereços para os contextos existentes, busca/filtros no endereço, reload e Voltar/Avançar. Refinamentos substituem a entrada atual; não são buscas salvas. O visualizador mantém uma camada sobre a galeria de origem, e o retorno explícito a Explore usa a origem interna conhecida ou um destino seguro. Mantêm-se a tag base protegida, o limite de três e a aparência de 012.
+
+
+## API de assets e visibilidade (014)
+
+[014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.

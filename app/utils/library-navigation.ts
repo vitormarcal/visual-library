@@ -4,11 +4,12 @@ export type LibraryDestination = {
   query: string
   tagIds: string[]
   imageId: string | null
+  hidden: boolean
   problem: string | null
 }
 
 export const libraryDestination = (screen: LibraryDestination['screen'] = 'library'): LibraryDestination => ({
-  screen, subjectId: null, query: '', tagIds: [], imageId: null, problem: null,
+  screen, subjectId: null, query: '', tagIds: [], imageId: null, hidden: false, problem: null,
 })
 
 export const parseLibraryDestination = (url: URL): LibraryDestination => {
@@ -21,8 +22,10 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
   destination.query = params.get('q') ?? ''
   destination.tagIds = [...new Set(params.getAll('tag'))].filter((id) => id !== destination.subjectId)
   destination.imageId = params.get('image')
-  if (!['library', 'explore', 'subject'].includes(view)
-    || ['view', 'subject', 'q', 'image'].some((key) => params.getAll(key).length > 1)
+  destination.hidden = params.get('visibility') === 'hidden'
+  if ((params.has('visibility') && (params.get('visibility') !== 'hidden' || destination.screen !== 'library'))
+    || !['library', 'explore', 'subject'].includes(view)
+    || ['view', 'subject', 'q', 'image', 'visibility'].some((key) => params.getAll(key).length > 1)
     || (destination.screen === 'subject' ? !destination.subjectId : destination.subjectId !== null)
     || destination.tagIds.some((id) => !id)
     || (params.has('image') && !destination.imageId)
@@ -36,12 +39,13 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
 
 export const libraryDestinationUrl = (destination: LibraryDestination, source = '/'): string => {
   const url = new URL(source, 'http://library.local')
-  for (const key of ['view', 'subject', 'q', 'tag', 'image']) url.searchParams.delete(key)
+  for (const key of ['view', 'subject', 'q', 'tag', 'image', 'visibility']) url.searchParams.delete(key)
   // Explore searches need an explicit view to distinguish older Library links.
   if (destination.screen !== 'explore' || destination.query) url.searchParams.set('view', destination.screen)
   if (destination.screen === 'subject' && destination.subjectId) url.searchParams.set('subject', destination.subjectId)
   if (destination.query) url.searchParams.set('q', destination.query)
   for (const id of [...new Set(destination.tagIds)].filter((id) => id !== destination.subjectId)) url.searchParams.append('tag', id)
+  if (destination.hidden) url.searchParams.set('visibility', 'hidden')
   if (destination.imageId) url.searchParams.set('image', destination.imageId)
   return `${url.pathname}${url.search}${url.hash}`
 }

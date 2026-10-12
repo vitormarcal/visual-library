@@ -63,3 +63,8 @@ AI, embeddings, visual similarity, external recommendations, weighted tag system
 - One, two, and six matches have balanced widths; phone layout does not overflow horizontally.
 - Main images are not cropped, controls remain legible, and close stays reachable.
 - Navigation, pending tag saves, no-match states, and returning to the gallery retain their documented context.
+
+
+## API de assets e visibilidade (014)
+
+[014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.

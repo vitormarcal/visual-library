@@ -1,6 +1,7 @@
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { createError } from 'h3'
+import { validateImageFormat } from './image-format.ts'
 
 export const maxImageSizeBytes = 15 * 1024 * 1024
 export const remoteFetchTimeoutMs = 5000
@@ -19,9 +20,9 @@ export const publicUrlError = (statusCode = 400) => createError({
   statusMessage: 'This image URL cannot be saved.',
 })
 
-export const sizeError = () => createError({
+export const sizeError = (limit = maxImageSizeBytes) => createError({
   statusCode: 413,
-  statusMessage: 'Image is too large. Maximum size is 15 MB.',
+  statusMessage: `Image is too large. Maximum size is ${limit / (1024 * 1024)} MB.`,
 })
 
 const isExpectedUrlSaveError = (error: unknown) => {
@@ -32,7 +33,7 @@ const isExpectedUrlSaveError = (error: unknown) => {
 const isSizeError = (error: unknown) => {
   const statusCode = (error as { statusCode?: unknown }).statusCode
   const statusMessage = (error as { statusMessage?: unknown }).statusMessage
-  return statusCode === 413 && statusMessage === 'Image is too large. Maximum size is 15 MB.'
+  return statusCode === 413 && typeof statusMessage === 'string' && statusMessage.startsWith('Image is too large.')
 }
 
 export const normalizeUrlSaveError = (error: unknown) => {
@@ -158,11 +159,7 @@ export const assertPublicRemoteTarget = async (url: URL) => {
   }
 }
 
-const contentTypeMime = (contentType: string | null) => {
-  return contentType?.split(';')[0]?.trim().toLowerCase() ?? ''
-}
-
-const readLimitedBody = async (response: Response) => {
+const readLimitedBody = async (response: Response, limit: number) => {
   if (!response.body) {
     throw publicUrlError(502)
   }
@@ -184,9 +181,9 @@ const readLimitedBody = async (response: Response) => {
 
     size += value.byteLength
 
-    if (size > maxImageSizeBytes) {
+    if (size > limit) {
       await reader.cancel().catch(() => {})
-      throw sizeError()
+      throw sizeError(limit)
     }
 
     chunks.push(value)
@@ -195,7 +192,7 @@ const readLimitedBody = async (response: Response) => {
   return Buffer.concat(chunks, size)
 }
 
-export const fetchRemoteImage = async (sourceUrl: string): Promise<SaveImageInput> => {
+export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBytes): Promise<SaveImageInput> => {
   let currentUrl = parseRemoteUrl(sourceUrl)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), remoteFetchTimeoutMs)
@@ -226,20 +223,14 @@ export const fetchRemoteImage = async (sourceUrl: string): Promise<SaveImageInpu
 
       await assertPublicRemoteTarget(currentUrl)
 
-      const mimeType = contentTypeMime(response.headers.get('content-type'))
-
-      if (!imageMimeTypes.includes(mimeType)) {
-        throw publicUrlError()
-      }
-
       const contentLength = response.headers.get('content-length')
       const declaredSize = contentLength ? Number.parseInt(contentLength, 10) : 0
 
-      if (declaredSize > maxImageSizeBytes) {
-        throw sizeError()
+      if (declaredSize > limit) {
+        throw sizeError(limit)
       }
 
-      const data = await readLimitedBody(response)
+      const data = await readLimitedBody(response, limit)
 
       if (!data.length) {
         throw publicUrlError()
@@ -248,7 +239,7 @@ export const fetchRemoteImage = async (sourceUrl: string): Promise<SaveImageInpu
       return {
         data,
         originalName: currentUrl.pathname.split('/').pop() || null,
-        mimeType,
+        mimeType: validateImageFormat(data).mimeType,
         sourceUrl,
       }
     }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { discoveryImages } from './utils/image-visibility'
 import { matchesImageSearch } from './utils/image-search'
 import { saveImageBatch, type UploadResult } from './utils/image-upload'
 import { findRelatedImages } from './utils/related-images'
@@ -14,6 +15,8 @@ type ImageRecord = {
   createdAt: string
   src: string
   tags: ImageTag[]
+  source: string
+  hiddenFromGallery: boolean
 }
 
 type ImageTag = {
@@ -35,7 +38,10 @@ type DuplicateSaveResponse = {
 
 type SaveImageResponse = ImageRecord | DuplicateSaveResponse
 
+const uploadLimit = Number(useRuntimeConfig().public.maxImageSizeBytes)
 const images = ref<ImageRecord[]>([])
+const publicImages = computed(() => discoveryImages(images.value))
+const eligibleImages = computed(() => discoveryImages(images.value, destination.value.hidden))
 const loading = ref(true)
 const saving = ref(false)
 const uploadProgress = ref<{ current: number; total: number } | null>(null)
@@ -49,7 +55,7 @@ const returnFocusImageId = ref<string | null>(null)
 const viewerHistory = ref<ViewerHistoryEntry[]>([])
 const viewerRestoration = ref<(ViewerHistoryEntry & { token: number }) | null>(null)
 let viewerTransition = 0
-const canGoBack = computed(() => viewerHistory.value.some((entry) => images.value.some((image) => image.id === entry.imageId)))
+const canGoBack = computed(() => viewerHistory.value.some((entry) => eligibleImages.value.some((image) => image.id === entry.imageId)))
 const tagSummaries = ref<TagSummary[]>([])
 const pendingTagSaves = ref(new Set<string>())
 const screen = computed(() => destination.value.screen)
@@ -80,9 +86,9 @@ useHead(() => ({ title: `${title.value} · Visual Library` }))
 const navigationHref = (target: 'library' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
 const linkAction = (event: MouseEvent, action: () => void) => { if (interceptLibraryLink(event) && !applyingTags.value) action() }
-const subjectImages = computed(() => subjectTag.value ? images.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
-const allSubjects = computed(() => groupImagesByTag(images.value, tagSummaries.value))
-const subjects = computed(() => groupImagesByTag(images.value, tagSummaries.value, exploreQuery.value))
+const subjectImages = computed(() => subjectTag.value ? publicImages.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
+const allSubjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value))
+const subjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value, exploreQuery.value))
 type PagePosition = { scrollTop: number; focusId: string | null }
 let pageTransition = 0
 let cancelPageRestoration = () => {}
@@ -140,14 +146,14 @@ let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 
 const visibleImages = computed(() => {
-  return images.value.filter((image) => {
+  return eligibleImages.value.filter((image) => {
     const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
     return !destinationBlocked.value && matchesImageSearch(image, galleryQuery.value)
       && effectiveFilters.value.every((filter) => imageTags.has(filter.normalizedName))
   })
 })
 
-const hasLibraryTags = computed(() => tagSummaries.value.length > 0)
+const hasLibraryTags = computed(() => galleryTagSummaries.value.length > 0)
 
 const selectedImageIndex = computed(() => {
   if (!selectedImageId.value) {
@@ -157,9 +163,56 @@ const selectedImageIndex = computed(() => {
   return visibleImages.value.findIndex((image) => image.id === selectedImageId.value)
 })
 
-const selectedImage = computed(() => !loading.value && !destinationBlocked.value ? images.value.find((image) => image.id === selectedImageId.value) ?? null : null)
+const selectedImage = computed(() => !loading.value && !destinationBlocked.value ? eligibleImages.value.find((image) => image.id === selectedImageId.value) ?? null : null)
 
-const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, images.value) : [])
+const hiddenLinkedImage = computed(() => !loading.value && !destination.value.hidden
+  ? images.value.find(image => image.id === destination.value.imageId && image.hiddenFromGallery) ?? null : null)
+const openHiddenLink = () => {
+  const id = hiddenLinkedImage.value?.id
+  if (!id) return
+  navigation.push({ ...libraryDestination(), hidden: true })
+  openViewer(id)
+}
+const toggleHiddenMode = () => {
+  if (!applyingTags.value) navigation.push({ ...destination.value, hidden: !destination.value.hidden, imageId: null })
+}
+const visibilityBusy = ref(new Set<string>())
+const visibilityNotice = ref('')
+const changeVisibility = async (id: string, hiddenFromGallery: boolean) => {
+  if (visibilityBusy.value.has(id) || pendingTagSaves.value.has(id)) return
+  const key = navigation.entry.value?.key
+  visibilityBusy.value = new Set([...visibilityBusy.value, id])
+  visibilityNotice.value = ''
+  try {
+    const response = await $fetch<ImageRecord>(`/api/images/${encodeURIComponent(id)}/visibility`, {
+      method: 'PATCH', body: { hiddenFromGallery },
+    })
+    // Close before updating eligibility so the missing-image watcher cannot remove the parent.
+    if (key === navigation.entry.value?.key && selectedImageId.value === id) {
+      navigation.closeViewer()
+      viewerHistory.value = []
+      viewerRestoration.value = null
+    }
+    images.value = images.value.map(image => image.id === id ? { ...image, hiddenFromGallery: response.hiddenFromGallery } : image)
+    showNotice(hiddenFromGallery ? 'Image hidden from gallery.' : 'Image shown in gallery.', 'success')
+    await loadTags()
+  } catch {
+    if (key === navigation.entry.value?.key) visibilityNotice.value = 'Could not change visibility. Try again.'
+    else showNotice('Could not change visibility. Try again.', 'error')
+  } finally { visibilityBusy.value = new Set([...visibilityBusy.value].filter(value => value !== id)) }
+}
+const galleryTagSummaries = computed(() => {
+  if (!destination.value.hidden) return tagSummaries.value
+  const tags = new Map<string, TagSummary>()
+  for (const image of eligibleImages.value) for (const tag of image.tags) {
+    const summary = tags.get(tag.id) ?? { ...tag, imageCount: 0, lastUsedAt: image.createdAt, coverImageId: null }
+    summary.imageCount++
+    tags.set(tag.id, summary)
+  }
+  return [...tags.values()]
+})
+
+const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, eligibleImages.value) : [])
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
 const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
@@ -269,7 +322,7 @@ const handleSave = async (files: File[], retry = false) => {
       if (isDuplicateSaveResponse(saved)) return 'duplicate'
       images.value = [saved, ...images.value]
       return 'saved'
-    }, (current, total) => { uploadProgress.value = { current, total } }, previous)
+    }, (current, total) => { uploadProgress.value = { current, total } }, previous, uploadLimit)
     if (!uploadResult.value.failures.length) {
       const result = uploadResult.value
       uploadResultTimer = setTimeout(() => { if (uploadResult.value === result) uploadResult.value = null }, 3200)
@@ -461,9 +514,9 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked], async ([
   }
 })
 watch([selectedImage, loading, destinationBlocked], () => {
-  if (loading.value || destinationBlocked.value || libraryError.value) return
+  if (loading.value || destinationBlocked.value || libraryError.value || (destination.value.imageId && visibilityBusy.value.has(destination.value.imageId))) return
   if (selectedImage.value) navigation.ensureViewerParent()
-  else if (destination.value.imageId) {
+  else if (destination.value.imageId && !hiddenLinkedImage.value) {
     navigation.replace({ ...destination.value, imageId: null })
     showNotice('This image is no longer in the library.', 'error')
   }
@@ -475,6 +528,7 @@ const rememberCoverDimensions = (id: string, width: number, height: number) => {
 }
 
 const openViewer = (id: string) => {
+  visibilityNotice.value = ''
   cancelPageRestoration()
   viewerHistory.value = []
   viewerRestoration.value = null
@@ -486,7 +540,7 @@ const openViewer = (id: string) => {
 const closeViewer = () => navigation.closeViewer()
 
 const navigateViewer = (id: string | undefined, position: ViewerPosition, related = false) => {
-  if (!id || !selectedImageId.value || !images.value.some((image) => image.id === id) || id === selectedImageId.value) return
+  if (!id || !selectedImageId.value || !eligibleImages.value.some((image) => image.id === id) || id === selectedImageId.value) return
   viewerHistory.value = recordViewerVisit(viewerHistory.value, selectedImageId.value, id, position, related)
   viewerRestoration.value = null
   viewerTransition += 1
@@ -501,7 +555,7 @@ const showNextImage = (position: ViewerPosition) => {
   if (hasNextImage.value) navigateViewer(visibleImages.value[selectedImageIndex.value + 1]?.id, position)
 }
 const goBackInViewer = () => {
-  const { entry, history } = popViewerVisit(viewerHistory.value, new Set(images.value.map((image) => image.id)))
+  const { entry, history } = popViewerVisit(viewerHistory.value, new Set(eligibleImages.value.map((image) => image.id)))
   viewerHistory.value = history
   if (!entry) return false
   viewerRestoration.value = { ...entry, token: ++viewerTransition }
@@ -560,6 +614,11 @@ watch(visibleImages, () => {
       @error="showNotice($event, 'error')"
     />
 
+    <section v-if="hiddenLinkedImage && !destinationBlocked" class="destinationProblem" role="status">
+      <p>This image is hidden from the gallery.</p>
+      <button type="button" @click="openHiddenLink">Open hidden image</button>
+    </section>
+
     <section v-if="destinationUnavailable" class="destinationProblem" role="status">
       <p>{{ destinationUnavailable }}</p>
       <button v-if="destination.problem && screen !== 'explore'" type="button" @click="clearAddressRefinements">Open without refinements</button>
@@ -575,6 +634,10 @@ watch(visibleImages, () => {
       @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
     />
     <template v-else>
+      <div v-if="screen === 'library'" class="visibilityMode">
+        <button type="button" :aria-pressed="destination.hidden" :disabled="applyingTags" @click="toggleHiddenMode">{{ destination.hidden ? 'Show gallery' : 'Hidden images' }}</button>
+        <span v-if="destination.hidden" role="status">Hidden images</span>
+      </div>
       <div v-if="screen === 'subject'" class="subjectContext">
         <a :href="navigationHref('explore')" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Back to Explore</a>
         <p>{{ galleryQuery.trim() || galleryFilters.length ? `${visibleImages.length} of ${subjectImages.length}` : subjectImages.length }} {{ subjectImages.length === 1 ? 'image' : 'images' }}</p>
@@ -584,7 +647,7 @@ watch(visibleImages, () => {
           v-model:query="galleryQuery"
           :active-filters="galleryFilters"
           :base-tag="baseTag"
-          :tags="tagSummaries"
+          :tags="galleryTagSummaries"
           :has-library-tags="hasLibraryTags"
           :notice="filterNotice"
           @select="addTagFilter"
@@ -599,7 +662,7 @@ watch(visibleImages, () => {
         :count="selectedIds.length"
         :busy="applyingTags"
         :notice="bulkNotice"
-        :tags="tagSummaries"
+        :tags="galleryTagSummaries"
         @enter="selecting = true; bulkNotice = ''"
         @exit="exitSelection"
         @select-all="selectedIds = visibleImages.map((image) => image.id)"
@@ -647,10 +710,13 @@ watch(visibleImages, () => {
       @back="goBackInViewer"
       :has-previous="hasPreviousImage"
       :has-next="hasNextImage"
-      :library-tags="tagSummaries"
+      :library-tags="galleryTagSummaries"
       :filter-notice="viewerFilterNotice"
       :tags-busy="pendingTagSaves.has(selectedImage.id)"
       :save-tags="saveImageTags"
+      :visibility-busy="visibilityBusy.has(selectedImage.id)"
+      :visibility-notice="visibilityNotice"
+      @visibility="changeVisibility"
       @close="closeViewer"
       @previous="showPreviousImage"
       @next="showNextImage"
@@ -660,6 +726,8 @@ watch(visibleImages, () => {
 </template>
 
 <style>
+.visibilityMode { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: var(--color-mute); font-size: 14px; }
+.visibilityMode button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 16px; background: var(--color-surface-card); color: var(--color-ink); font-weight: 600; }
 .filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .libraryNav { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
 .libraryNav a, .subjectContext a, .loadError button, .tagsWarning button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 14px; font-weight: 700; }
