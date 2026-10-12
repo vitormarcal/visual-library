@@ -77,3 +77,8 @@ This spec defines shared tag behavior and individual editing. [Library search](.
 ## API de assets e visibilidade (014)
 
 [014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.
+
+
+## Enriquecimento externo no upload (015)
+
+[015](../015-asset-upload-enrichment/spec.md) amplia o upload externo com tags opcionais aditivas e referências de entidades independentes das tags. Reutiliza as regras e organização existentes; captura manual permanece sem classificação obrigatória. Retry da mesma referência/asset preserva remoções pessoais, e uma entidade pode ter várias imagens. Sem procedência por tag, metadados genéricos ou sincronização automática. Resultados da validação estão no plano de 015.

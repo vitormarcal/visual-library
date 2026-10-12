@@ -23,6 +23,8 @@ Enviar `multipart/form-data` com exatamente um arquivo no campo `image`:
 | `image` | Sim | Imagem não vazia: JPEG, PNG, GIF, WebP ou AVIF. SVG não é aceito. |
 | `source` | Não | Padrão `visual-library`; 1–64 caracteres após trim, letras ASCII minúsculas, números, `.`, `-`, `_`; primeiro caractere deve ser letra ou número. |
 | `hiddenFromGallery` | Não | String `true` ou `false`; padrão `false`. |
+| `tags` | Não | Texto JSON com array de strings; omitido ou `[]` não remove tags. |
+| `sourceReference` | Não | Texto JSON `{ entityType, entityId, url? }`; a aplicação vem de `source`. |
 
 Campos desconhecidos/repetidos e arquivos adicionais são rejeitados. O formato é identificado pelos bytes com verificação estrutural; MIME e extensão do cliente não determinam formato ou nome de armazenamento. Uma imagem legítima com MIME incorreto é aceita.
 
@@ -43,11 +45,41 @@ Exemplo de resposta (201 e `Location: /api/assets/{id}`):
   "sizeBytes": 245000,
   "createdAt": "2026-10-12T12:00:00.000Z",
   "source": "media-pulse",
-  "hiddenFromGallery": true
+  "hiddenFromGallery": true,
+  "tags": [],
+  "sourceReferences": []
 }
 ```
 
-Enviar novamente os mesmos bytes retorna 200 com o registro original, inclusive ID, data, origem e visibilidade originais. O segundo envio não altera esses campos. A origem representa o primeiro envio; não há histórico ou propriedade por consumidor.
+Enviar novamente os mesmos bytes retorna 200 com o ID, data, origem e visibilidade originais. Esses campos não são sobrescritos. Tags e referências podem ser enriquecidas conforme as regras abaixo. A origem do asset representa o primeiro envio; não há histórico de uploads ou propriedade por consumidor.
+
+## Tags e referências de origem no upload
+
+```bash
+curl -i \
+  -F 'image=@capa.jpg' \
+  -F 'source=media-pulse' \
+  -F 'tags=["Legião Urbana","Dois","álbum","rock brasileiro"]' \
+  -F 'sourceReference={"entityType":"album","entityId":"123","url":"https://media-pulse.marcal.dev/albums/123"}' \
+  http://visual-library:3000/api/assets
+```
+
+Tags são aditivas: a união com as atuais deve caber nas oito tags por imagem, com 48 caracteres por tag após limpeza de espaços. Comparação ignora caixa e reutiliza o nome de exibição existente. O JSON aceita até 32 entradas brutas e 4 KiB UTF-8; após normalização, até oito tags distintas. Não há conversão automática de tipos, títulos ou metadados em tags.
+
+A referência permite identificar a entidade sem usar tags. `entityType` usa identificador simples de até 64 caracteres (como source); `entityId` é string opaca de 1–256 caracteres, sem controles/espaços externos. `url` é opcional, HTTP(S) absoluta, até 2048 caracteres e sem credenciais. O objeto aceita apenas esses campos e seu JSON tem limite de 8 KiB. IDs numéricos devem ser enviados como string; `"00123"` e `"123"` continuam distintos. A URL é armazenada sem ser acessada.
+
+POST e GET de asset incluem arrays `tags` e `sourceReferences`, além dos campos anteriores. Tags usam `{ id, name, normalizedName }`; referências usam `{ application, entityType, entityId, url, createdAt }`. Ausência de URL é null. Cada consulta mostra o estado atual completo, sem filenames ou paths internos.
+
+Uma entidade pode ter várias imagens, e uma imagem pode ter referências a várias entidades/aplicações. Enviar outra imagem para a mesma entidade acrescenta uma associação; não substitui a anterior. O source original do asset é preservado, mesmo quando outra aplicação acrescenta sua referência.
+
+Regras de reenvio:
+
+- A associação é identificada por asset + aplicação + tipo + ID externo. Reenviar a mesma associação não reaplica tags nem altera URL/data da referência, preservando remoções pessoais.
+- Uma primeira associação sem tags ou sem URL não é preenchida posteriormente pelo retry; atualização de referência fica fora desta API.
+- Sem referência, cada envio com tags acrescenta sugestões explicitamente. Uma tag removida manualmente pode voltar se reenviada dessa forma.
+- Uma nova referência ao mesmo asset também pode acrescentar novamente uma sugestão removida em outro contexto. Não existe procedência ou histórico de remoções por tag.
+
+Arquivo novo, tags e referência são confirmados conjuntamente. Erro de limite ou persistência reverte o enriquecimento; compensação nunca apaga o arquivo reutilizado. Exclusão pela interface remove referências locais junto com o registro. Não há sincronização automática ou chamada ao Media Pulse.
 
 ## Referenciar e exibir
 
@@ -85,7 +117,7 @@ A inicialização do banco aplica migração aditiva e idempotente:
 - `images.source TEXT NOT NULL DEFAULT 'visual-library'`.
 - `images.hidden_from_gallery INTEGER NOT NULL DEFAULT 0 CHECK (...)`.
 
-Imagens antigas continuam visíveis, com seus IDs, datas, nomes, bytes e tags preservados. Não há comando manual de migração, backfill de hashes ou alteração do diretório/volume. Arquivos legados têm MIME corrigido, quando identificável, a partir de um prefixo de até 64 KiB durante a entrega; não são renomeados.
+Imagens antigas continuam visíveis, com seus IDs, datas, nomes, bytes e tags preservados. A extensão de enriquecimento também cria automaticamente a tabela `asset_references`, inicialmente vazia, com chave composta por asset/aplicação/tipo/ID. Não há comando manual de migração, backfill de hashes ou alteração do diretório/volume. Arquivos legados têm MIME corrigido, quando identificável, a partir de um prefixo de até 64 KiB durante a entrega; não são renomeados.
 
 ## Erros
 
@@ -105,4 +137,4 @@ Erros seguem o envelope HTTP do H3/Nitro, com `statusCode` e `statusMessage`. De
 - Validação estrutural não decodifica pixels, verifica todos os checksums ou identifica toda corrupção. Legados são identificados somente pelo prefixo; formato não reconhecido retorna 415 sem apagar o arquivo.
 - Falhas tratáveis de escrita/insert são compensadas. Interrupção abrupta do processo ou recusa do filesystem em limpar podem deixar órfãos; falhas de compensação são registradas. A exclusão mantém sua limitação anterior: erro de unlink é ignorado.
 - Registros antigos sem hash continuam fora da deduplicação. Uma duplicata não repara automaticamente arquivo ausente.
-- Sem dimensões persistidas, miniaturas, transformações, perfis, sincronização de tags/coleções, controle por origem em lote ou atualização automática da galeria quando outro serviço envia imagens. Reload carrega alterações externas.
+- Sem dimensões persistidas, miniaturas, transformações, perfis, metadados genéricos, atualização de referências, sincronização de tags/coleções, controle por origem em lote ou atualização automática da galeria quando outro serviço envia imagens. Reload carrega alterações externas.

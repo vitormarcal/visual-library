@@ -108,3 +108,8 @@ Preservar navegação, visualizador e histórico existentes. Os únicos acrésci
 ## Próxima etapa
 
 O plano técnico está em [plan.md](plan.md), incluindo migração aditiva, contrato dos campos multipart, tratamento de falhas e controles mínimos de visibilidade. Resultados da implementação e validação estão registrados no plano; uso e limitações em [assets-api.md](../../assets-api.md).
+
+
+## Enriquecimento externo no upload (015)
+
+[015](../015-asset-upload-enrichment/spec.md) amplia o upload externo com tags opcionais aditivas e referências de entidades independentes das tags. Reutiliza as regras e organização existentes; captura manual permanece sem classificação obrigatória. Retry da mesma referência/asset preserva remoções pessoais, e uma entidade pode ter várias imagens. Sem procedência por tag, metadados genéricos ou sincronização automática. Resultados da validação estão no plano de 015.

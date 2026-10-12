@@ -76,6 +76,18 @@ export const ensureDataStore = async () => {
       )
     `)
 
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS asset_references (
+        asset_id TEXT NOT NULL,
+        application TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        url TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (asset_id, application, entity_type, entity_id)
+      )
+    `)
+
     const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>
 
     if (!columns.some((column) => column.name === 'source_url')) {
@@ -228,6 +240,7 @@ export const deleteImageRecord = (imageId: string) => {
   const affected = getImageTags(imageId).map((tag) => tag.id)
   db.exec('BEGIN')
   try {
+    db.prepare('DELETE FROM asset_references WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM images WHERE id = ?').run(imageId)
     reconcileTagCovers(affected)
@@ -293,51 +306,80 @@ export const replaceImageTags = (imageId: string, values: string[]) => {
     .map(toTagResponse)
 }
 
-// One transaction keeps a group's additions all-or-nothing.
-export const addTagsToImages = (imageIds: string[], values: string[]) => {
+// Caller owns the transaction, so upload and bulk tagging can share atomic additions.
+export const addImageTagsWithinTransaction = (imageIds: string[], additions: ReturnType<typeof normalizeTagValues>) => {
   if (!db) throw new Error('Data store is not initialized')
   const dbInstance = db
   const ids = [...new Set(imageIds)]
-  const additions = normalizeTagValues(values)
-  if (!ids.length || !additions.length) throw new Error('Select images and add tags')
-
-  dbInstance.exec('BEGIN')
-  try {
-    const current = new Map(ids.map((id) => {
-      if (!dbInstance.prepare('SELECT id FROM images WHERE id = ?').get(id)) {
-        throw new Error('Image not found')
-      }
-      const tags = getImageTags(id)
-      normalizeTagValues([...tags.map((tag) => tag.name), ...additions.map((tag) => tag.name)])
-      return [id, tags] as const
-    }))
-    const now = new Date().toISOString()
-    const affectedTags = new Set<string>()
-    for (const [index, tag] of additions.entries()) {
-      const missing = ids.filter((id) => !current.get(id)!.some((existing) => existing.normalizedName === tag.normalizedName))
-      if (!missing.length) continue
-      let row = dbInstance.prepare('SELECT id FROM tags WHERE normalized_name = ?').get(tag.normalizedName) as { id: string } | undefined
-      if (!row) {
-        row = { id: randomUUID() }
-        dbInstance.prepare('INSERT INTO tags (id, name, normalized_name, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)')
-          .run(row.id, tag.name, tag.normalizedName, now, now)
-      } else {
-        dbInstance.prepare('UPDATE tags SET last_used_at = ? WHERE id = ?').run(now, row.id)
-      }
-      for (const id of missing) {
-        dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)')
-          .run(id, row.id, new Date(Date.parse(now) + index).toISOString())
-      }
-      affectedTags.add(row.id)
+  const current = new Map(ids.map((id) => {
+    if (!dbInstance.prepare('SELECT id FROM images WHERE id = ?').get(id)) {
+      throw new Error('Image not found')
     }
-    reconcileTagCovers([...affectedTags])
-    const images = ids.map((id) => ({ id, tags: getImageTags(id) }))
-    dbInstance.exec('COMMIT')
-    return images
-  } catch (error) {
-    dbInstance.exec('ROLLBACK')
-    throw error
+    const tags = getImageTags(id)
+    normalizeTagValues([...tags.map((tag) => tag.name), ...additions.map((tag) => tag.name)])
+    return [id, tags] as const
+  }))
+  const now = new Date().toISOString()
+  const affectedTags = new Set<string>()
+  for (const [index, tag] of additions.entries()) {
+    const missing = ids.filter((id) => !current.get(id)!.some((existing) => existing.normalizedName === tag.normalizedName))
+    if (!missing.length) continue
+    let row = dbInstance.prepare('SELECT id FROM tags WHERE normalized_name = ?').get(tag.normalizedName) as { id: string } | undefined
+    if (!row) {
+      row = { id: randomUUID() }
+      dbInstance.prepare('INSERT INTO tags (id, name, normalized_name, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)')
+        .run(row.id, tag.name, tag.normalizedName, now, now)
+    } else {
+      dbInstance.prepare('UPDATE tags SET last_used_at = ? WHERE id = ?').run(now, row.id)
+    }
+    for (const id of missing) {
+      dbInstance.prepare('INSERT INTO image_tags (image_id, tag_id, created_at) VALUES (?, ?, ?)')
+        .run(id, row.id, new Date(Date.parse(now) + index).toISOString())
+    }
+    affectedTags.add(row.id)
   }
+  reconcileTagCovers([...affectedTags])
+  return ids.map((id) => ({ id, tags: getImageTags(id) }))
+}
+
+// One transaction keeps a group's additions all-or-nothing.
+export const addTagsToImages = (imageIds: string[], values: string[]) => {
+  if (!db) throw new Error('Data store is not initialized')
+  const additions = normalizeTagValues(values)
+  if (!imageIds.length || !additions.length) throw new Error('Select images and add tags')
+  db.exec('BEGIN')
+  try {
+    const images = addImageTagsWithinTransaction(imageIds, additions)
+    db.exec('COMMIT')
+    return images
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+export type SourceReference = { entityType: string; entityId: string; url?: string }
+export type AssetEnrichment = { tags: string[]; sourceReference?: SourceReference }
+
+export const getAssetReferences = (assetId: string) => {
+  if (!db) return []
+  const rows = db.prepare(`SELECT application, entity_type, entity_id, url, created_at
+    FROM asset_references WHERE asset_id = ? ORDER BY created_at, application, entity_type, entity_id`).all(assetId) as Array<{
+      application: string; entity_type: string; entity_id: string; url: string | null; created_at: string
+    }>
+  return rows.map(row => ({ application: row.application, entityType: row.entity_type,
+    entityId: row.entity_id, url: row.url, createdAt: row.created_at }))
+}
+
+export const enrichImageWithinTransaction = (assetId: string, application: string, enrichment?: AssetEnrichment) => {
+  if (!db) throw new Error('Data store is not initialized')
+  if (!enrichment) return
+  const reference = enrichment.sourceReference
+  if (reference && db.prepare(`SELECT 1 FROM asset_references
+    WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ?`)
+    .get(assetId, application, reference.entityType, reference.entityId)) return
+  const tags = normalizeTagValues(enrichment.tags)
+  addImageTagsWithinTransaction([assetId], tags)
+  if (reference) db.prepare(`INSERT INTO asset_references
+    (asset_id, application, entity_type, entity_id, url, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(assetId, application, reference.entityType, reference.entityId, reference.url ?? null, new Date().toISOString())
 }
 
 export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => ({
@@ -356,6 +398,7 @@ export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => (
 export const toAssetResponse = (row: ImageRow) => ({
   id: row.id, mimeType: row.mime_type, sizeBytes: row.size_bytes,
   createdAt: row.created_at, source: row.source, hiddenFromGallery: Boolean(row.hidden_from_gallery),
+  tags: getImageTags(row.id), sourceReferences: getAssetReferences(row.id),
 })
 
 export const setImageVisibility = (id: string, hidden: boolean) => {

@@ -98,3 +98,8 @@ Any future exploration should preserve personally meaningful tags and explicit u
 ## API de assets e visibilidade do acervo
 
 Implementada a pedido do usuário em 2026-10-12 em [014](docs/specs/014-assets-api/spec.md): serviços pessoais podem enviar imagens e obter ID/bytes usando o acervo existente. Origem declarada e ocultação individual permitem manter assets externos sem apresentá-los na descoberta padrão. Ocultos podem ser recuperados na Library; não há perfis, autenticação ou integração com Media Pulse. Contrato e limitações em [assets-api.md](docs/assets-api.md). Validação técnica está no plano; uso cotidiano e controles por origem em lote permanecem fora desta entrega.
+
+
+### Enriquecer imagens enviadas por outros serviços
+
+Implementado a pedido do usuário em 2026-10-12 em [015](docs/specs/015-asset-upload-enrichment/spec.md): upload externo aceita tags opcionais e referências independentes às entidades de origem, reutilizando busca e organização existentes. Tags pessoais são preservadas; retry da mesma associação não restaura tags removidas. Uma entidade pode ter várias imagens. Sem metadados genéricos, propriedade de tags ou sincronização automática. Testes e browser isolado estão no plano; avaliar uso real antes de ampliar o fluxo.

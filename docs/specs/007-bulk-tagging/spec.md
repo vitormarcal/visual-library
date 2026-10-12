@@ -66,3 +66,8 @@ Select saved images in the gallery and add the same tags to all of them in one a
 [005](../005-lightweight-tags/spec.md) defines shared tag rules and individual editing. [006](../006-library-search/spec.md) defines search and gallery discovery. This feature adds tags to explicitly selected images only; removal and replacement remain individual viewer actions.
 
 Showing tags shared by the selected images is deferred until observed usage demonstrates a need. Existing gallery suggestions of frequently used tags remain available.
+
+
+## Enriquecimento externo no upload (015)
+
+[015](../015-asset-upload-enrichment/spec.md) amplia o upload externo com tags opcionais aditivas e referências de entidades independentes das tags. Reutiliza as regras e organização existentes; captura manual permanece sem classificação obrigatória. Retry da mesma referência/asset preserva remoções pessoais, e uma entidade pode ter várias imagens. Sem procedência por tag, metadados genéricos ou sincronização automática. Resultados da validação estão no plano de 015.

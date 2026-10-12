@@ -47,7 +47,7 @@ try {
   const response = await send(png, { source: 'media-pulse', hiddenFromGallery: 'true' })
   assert.equal(response.status, 201)
   const asset = await response.json()
-  assert.deepEqual(Object.keys(asset).sort(), ['id', 'mimeType', 'sizeBytes', 'createdAt', 'source', 'hiddenFromGallery'].sort())
+  assert.deepEqual(Object.keys(asset).sort(), ['id', 'mimeType', 'sizeBytes', 'createdAt', 'source', 'hiddenFromGallery', 'tags', 'sourceReferences'].sort())
   assert.equal(asset.mimeType, 'image/png'); assert.equal(asset.sizeBytes, png.length)
   assert.equal(asset.source, 'media-pulse'); assert.equal(asset.hiddenFromGallery, true)
   assert.equal(response.headers.get('location'), `/api/assets/${asset.id}`)

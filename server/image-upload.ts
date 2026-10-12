@@ -1,5 +1,6 @@
 import { createError, getRequestHeader, type H3Event } from 'h3'
 import { sizeError, type SaveImageInput } from './image-url.ts'
+import { normalizeTagValues, type AssetEnrichment, type SourceReference } from './db.ts'
 import { validateImageFormat } from './image-format.ts'
 
 export const defaultImageSizeBytes = 15 * 1024 * 1024
@@ -32,6 +33,40 @@ export const readLimitedRequest = async (event: H3Event, limit: number) => {
   })
 }
 
+const parseJsonField = (value: FormDataEntryValue | null, maxBytes: number): unknown => {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > maxBytes) throw badForm()
+  try { return JSON.parse(value) } catch { throw badForm() }
+}
+
+const readEnrichment = (form: FormData): AssetEnrichment => {
+  let tags: string[] = []
+  if (form.has('tags')) {
+    const value = parseJsonField(form.get('tags'), 4096)
+    if (!Array.isArray(value) || value.length > 32 || value.some(tag => typeof tag !== 'string')) throw badForm()
+    try { tags = normalizeTagValues(value).map(tag => tag.name) }
+    catch (error) { throw createError({ statusCode: 400, statusMessage: (error as Error).message }) }
+  }
+  let sourceReference: SourceReference | undefined
+  if (form.has('sourceReference')) {
+    const value = parseJsonField(form.get('sourceReference'), 8192)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw badForm()
+    const reference = value as Record<string, unknown>
+    if (Object.keys(reference).some(key => !['entityType', 'entityId', 'url'].includes(key))
+      || typeof reference.entityType !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(reference.entityType)
+      || typeof reference.entityId !== 'string' || !reference.entityId.length || reference.entityId.length > 256
+      || reference.entityId !== reference.entityId.trim() || /[\u0000-\u001f\u007f-\u009f]/.test(reference.entityId)) throw badForm()
+    sourceReference = { entityType: reference.entityType, entityId: reference.entityId }
+    if ('url' in reference) {
+      if (typeof reference.url !== 'string' || reference.url.length > 2048 || reference.url !== reference.url.trim()) throw badForm()
+      let url: URL
+      try { url = new URL(reference.url) } catch { throw badForm() }
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw badForm()
+      sourceReference.url = reference.url
+    }
+  }
+  return { tags, sourceReference }
+}
+
 export const readImageForm = async (event: H3Event, external = false) => {
   const limit = imageSizeLimit(event)
   const contentType = getRequestHeader(event, 'content-type') ?? ''
@@ -47,7 +82,7 @@ export const readImageForm = async (event: H3Event, external = false) => {
   if (image.name.length > 1024) throw badForm()
   let source = 'visual-library', hiddenFromGallery = false
   if (external) {
-    for (const key of form.keys()) if (!['image', 'source', 'hiddenFromGallery'].includes(key) || form.getAll(key).length !== 1) throw badForm()
+    for (const key of form.keys()) if (!['image', 'source', 'hiddenFromGallery', 'tags', 'sourceReference'].includes(key) || form.getAll(key).length !== 1) throw badForm()
     const suppliedSource = form.get('source')
     if (suppliedSource !== null) {
       if (typeof suppliedSource !== 'string') throw badForm()
@@ -58,8 +93,9 @@ export const readImageForm = async (event: H3Event, external = false) => {
     if (hidden !== null && hidden !== 'true' && hidden !== 'false') throw badForm()
     hiddenFromGallery = hidden === 'true'
   }
+  const enrichment = external ? readEnrichment(form) : undefined
   const data = Buffer.from(await image.arrayBuffer())
   const format = validateImageFormat(data)
   const input: SaveImageInput = { data, originalName: image.name || null, mimeType: format.mimeType, sourceUrl: null }
-  return { input, source, hiddenFromGallery }
+  return { input, source, hiddenFromGallery, enrichment }
 }
