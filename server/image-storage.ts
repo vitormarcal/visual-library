@@ -1,3 +1,4 @@
+import { readImageDimensions } from './image-dimensions.ts'
 import { ManagedTagConflict } from './db.ts'
 import { randomUUID } from 'node:crypto'
 import { open, unlink } from 'node:fs/promises'
@@ -25,6 +26,7 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
     }
     const existing = find()
     if (existing) return reuse(existing.id)
+    const dimensions = readImageDimensions(input.data)
     const id = randomUUID(), filename = `${id}${format.extension}`
     path = `${imageDir}/${filename}`
     const file = await open(path, 'wx')
@@ -32,8 +34,8 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
     try { await file.writeFile(input.data) } finally { await file.close() }
     db.exec('BEGIN')
     try {
-      db.prepare(`INSERT INTO images (id, filename, original_name, mime_type, size_bytes, created_at, source_url, content_hash, source, hidden_from_gallery)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, filename, input.originalName, format.mimeType, input.data.length, new Date().toISOString(), input.sourceUrl, hash, source, Number(hiddenFromGallery))
+      db.prepare(`INSERT INTO images (id, filename, original_name, mime_type, size_bytes, created_at, source_url, content_hash, source, hidden_from_gallery, width, height, dimensions_checked)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`).run(id, filename, input.originalName, format.mimeType, input.data.length, new Date().toISOString(), input.sourceUrl, hash, source, Number(hiddenFromGallery), dimensions.width, dimensions.height)
       enrichImageWithinTransaction(id, source, enrichment)
       const row = db.prepare('SELECT * FROM images WHERE id = ?').get(id) as ImageRow
       db.exec('COMMIT')

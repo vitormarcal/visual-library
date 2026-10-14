@@ -11,6 +11,8 @@ type ImageRecord = {
   sizeBytes: number
   createdAt: string
   src: string
+  width: number | null
+  height: number | null
   tags: ImageTag[]
   source: string
   hiddenFromGallery: boolean
@@ -395,6 +397,8 @@ syncDraftTags()
           :class="styles.image"
           :src="image.src"
           :alt="image.originalName || 'Saved image'"
+          :width="image.width || undefined" :height="image.height || undefined"
+          decoding="async"
         >
       </div>
       <div :class="styles.viewingFooter">
@@ -584,13 +588,12 @@ syncDraftTags()
           :aria-label="`Open related image ${related.originalName || 'saved image'}. ${sharedTagCaption(image, related)}`"
           @click="openRelated(related.id)"
         >
-          <img
+          <ProgressiveImage
             :src="related.src" :alt="related.originalName || 'Saved image'"
-            :width="imageDimensions.get(related.src)?.width"
-            :height="imageDimensions.get(related.src)?.height"
-            :loading="restoration?.imageId === image.id ? 'eager' : 'lazy'"
+            :width="related.width || imageDimensions.get(related.src)?.width"
+            :height="related.height || imageDimensions.get(related.src)?.height"
             @load="rememberDimensions"
-          >
+          />
           <span :class="styles.connectionCaption">{{ sharedTagCaption(image, related) }}</span>
         </button>
       </div>

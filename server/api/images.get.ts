@@ -1,10 +1,12 @@
-import { ensureDataStore, toImageResponse, toTagResponse, type ImageRow, type ImageTagRow } from '../db'
+import { ensureImageDimensions } from '../image-dimensions.ts'
+import { ensureDataStore, toImageResponse, toTagResponse, type ImageRow, type ImageTagRow } from '../db.ts'
 
 export default defineEventHandler(async () => {
   const db = await ensureDataStore()
   const rows = db
     .prepare('SELECT * FROM images ORDER BY created_at DESC')
     .all() as ImageRow[]
+  await ensureImageDimensions(rows)
   const tagRows = db.prepare(`
     SELECT image_tags.image_id, tags.id, tags.name, tags.normalized_name
     FROM image_tags

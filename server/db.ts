@@ -14,6 +14,9 @@ export type ImageRow = {
   content_hash: string | null
   source: string
   hidden_from_gallery: number
+  width: number | null
+  height: number | null
+  dimensions_checked: number
 }
 
 export type ImageTagRow = {
@@ -100,6 +103,9 @@ export const ensureDataStore = async () => {
 
     db.exec('BEGIN')
     try {
+      if (!columns.some(column => column.name === 'width')) db.exec('ALTER TABLE images ADD COLUMN width INTEGER')
+      if (!columns.some(column => column.name === 'height')) db.exec('ALTER TABLE images ADD COLUMN height INTEGER')
+      if (!columns.some(column => column.name === 'dimensions_checked')) db.exec('ALTER TABLE images ADD COLUMN dimensions_checked INTEGER NOT NULL DEFAULT 0')
       if (!columns.some((column) => column.name === 'source')) db.exec("ALTER TABLE images ADD COLUMN source TEXT NOT NULL DEFAULT 'visual-library'")
       if (!columns.some((column) => column.name === 'hidden_from_gallery')) db.exec('ALTER TABLE images ADD COLUMN hidden_from_gallery INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_gallery IN (0, 1))')
       const imageTagColumns = db.prepare('PRAGMA table_info(image_tags)').all() as Array<{ name: string }>
@@ -419,6 +425,8 @@ export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => (
   sizeBytes: row.size_bytes,
   createdAt: row.created_at,
   src: `/images/${encodeURIComponent(row.filename)}`,
+  width: row.width ?? null,
+  height: row.height ?? null,
   tags,
   source: row.source,
   hiddenFromGallery: Boolean(row.hidden_from_gallery),

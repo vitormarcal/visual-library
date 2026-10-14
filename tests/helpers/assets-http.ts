@@ -24,6 +24,7 @@ for (const [method, path, file] of [
   ['post', '/api/assets', '../../server/api/assets.post.ts'],
   ['get', '/api/assets/:id', '../../server/api/assets/[id].get.ts'],
   ['get', '/api/assets/:id/content', '../../server/api/assets/[id]/content.get.ts'],
+  ['get', '/api/images', '../../server/api/images.get.ts'],
   ['post', '/api/images', '../../server/api/images.post.ts'],
   ['patch', '/api/images/:id/visibility', '../../server/api/images/[id]/visibility.patch.ts'],
   ['get', '/images/:filename', '../../server/routes/images/[filename].get.ts'],
@@ -49,6 +50,8 @@ try {
   const asset = await response.json()
   assert.deepEqual(Object.keys(asset).sort(), ['id', 'mimeType', 'sizeBytes', 'createdAt', 'source', 'hiddenFromGallery', 'tags', 'sourceReferences'].sort())
   assert.equal(asset.mimeType, 'image/png'); assert.equal(asset.sizeBytes, png.length)
+  const storedDimensions = db.prepare('SELECT width, height, dimensions_checked FROM images WHERE id = ?').get(asset.id)!
+  assert.equal(storedDimensions.width, 2); assert.equal(storedDimensions.height, 2); assert.equal(storedDimensions.dimensions_checked, 1)
   assert.equal(asset.source, 'media-pulse'); assert.equal(asset.hiddenFromGallery, true)
   assert.equal(response.headers.get('location'), `/api/assets/${asset.id}`)
   const duplicate = await send(png, { source: 'other', hiddenFromGallery: 'false' })
@@ -60,11 +63,40 @@ try {
   assert.equal((await fetch(`${base}/api/assets/missing/content`)).status, 404)
   const content = await fetch(`${base}/api/assets/${asset.id}/content`)
   assert.equal(content.headers.get('content-type'), 'image/png')
-  assert.equal(content.headers.get('cache-control'), 'private, max-age=3600')
+  assert.equal(content.headers.get('cache-control'), 'private, max-age=31536000, immutable')
   assert.deepEqual(Buffer.from(await content.arrayBuffer()), png)
   assert.equal((await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-none-match': content.headers.get('etag')! } })).status, 304)
   assert.equal((await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-modified-since': content.headers.get('last-modified')! } })).status, 304)
   assert.equal((await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-none-match': '"different"', 'if-modified-since': 'Wed, 01 Jan 2099 00:00:00 GMT' } })).status, 200)
+  // Short reads must not permanently mark a legacy image as missing dimensions.
+  const dimensionFs = (await import('node:fs')).default
+  const { syncBuiltinESMExports: syncDimensionBindings } = await import('node:module')
+  const dimensionOpen = dimensionFs.promises.open
+  let dimensionReads = 0
+  dimensionFs.promises.open = (async (...args: Parameters<typeof dimensionOpen>) => {
+    const file = await dimensionOpen(...args)
+    if (args[1] === 'r') {
+      const read = file.read.bind(file)
+      file.read = (async (buffer: Buffer, offset: number, length: number, position: number) => {
+        dimensionReads++
+        return read(buffer, offset, Math.min(length, 7), position)
+      }) as typeof file.read
+    }
+    return file
+  }) as typeof dimensionOpen
+  syncDimensionBindings()
+  let listed
+  try {
+    listed = await (await fetch(base + '/api/images')).json()
+    assert.ok(dimensionReads > 1)
+    const previousReads = dimensionReads
+    assert.deepEqual(await (await fetch(base + '/api/images')).json(), listed)
+    assert.equal(dimensionReads, previousReads, 'persisted dimensions avoid repeated file reads')
+  } finally { dimensionFs.promises.open = dimensionOpen; syncDimensionBindings() }
+  const oldImage = listed.find((image: { id: string }) => image.id === 'legacy')
+  assert.equal(oldImage.width, 2); assert.equal(oldImage.height, 2)
+  assert.equal(db.prepare('SELECT dimensions_checked FROM images WHERE id = ?').get('legacy')!.dimensions_checked, 1)
+  assert.deepEqual(await (await fetch(base + '/api/images')).json(), listed)
   const oldContent = await fetch(`${base}/images/legacy.png`)
   assert.equal(oldContent.headers.get('content-type'), 'image/png'); await oldContent.arrayBuffer()
   assert.equal(db.prepare('SELECT mime_type FROM images WHERE id = ?').get('legacy')!.mime_type, 'image/png')
@@ -111,6 +143,17 @@ try {
   const fs = (await import('node:fs')).default
   const { syncBuiltinESMExports } = await import('node:module')
   const originalOpen = fs.promises.open
+  fs.promises.open = (async (...args: Parameters<typeof originalOpen>) => {
+    const file = await originalOpen(...args)
+    if (args[1] === 'r') file.read = (async () => { throw new Error('304 must not read image bytes') }) as typeof file.read
+    return file
+  }) as typeof originalOpen
+  syncBuiltinESMExports()
+  try {
+    const cached = await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-none-match': content.headers.get('etag')! } })
+    assert.equal(cached.status, 304); assert.equal(await cached.text(), '')
+    assert.equal(cached.headers.get('cache-control'), 'private, max-age=31536000, immutable')
+  } finally { fs.promises.open = originalOpen; syncBuiltinESMExports() }
   fs.promises.open = (async (...args: Parameters<typeof originalOpen>) => {
     const file = await originalOpen(...args)
     if (args[1] === 'wx') {

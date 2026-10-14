@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import styles from './TagExploreGrid.module.css'
 import { interceptLibraryLink, libraryDestination, libraryDestinationUrl } from '../utils/library-navigation'
-type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; src: string } | null }
+type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; src: string; width?: number | null; height?: number | null } | null }
 const props = defineProps<{
   groups: Group[]
   loading: boolean
@@ -31,10 +31,6 @@ const resetQuery = async () => {
   await nextTick()
   document.querySelector<HTMLInputElement>('[data-explore-search]')?.focus({ preventScroll: true })
 }
-const ratio = (group: Group) => {
-  const dimension = group.cover && props.dimensions[group.cover.id]
-  return dimension ? `${dimension.width} / ${dimension.height}` : undefined
-}
 </script>
 
 <template>
@@ -60,11 +56,13 @@ const ratio = (group: Group) => {
         :aria-label="`Explore ${group.name}, ${group.imageCount} ${group.imageCount === 1 ? 'image' : 'images'}`"
         @click="open($event, group)"
       >
-        <img
+        <ProgressiveImage
           v-if="group.cover && !failed.has(group.cover.id)" :key="group.cover.id"
-          :src="group.cover.src" alt="" loading="lazy" :style="{ aspectRatio: ratio(group) }"
+          :src="group.cover.src" alt=""
+          :width="group.cover.width || dimensions[group.cover.id]?.width"
+          :height="group.cover.height || dimensions[group.cover.id]?.height"
           @load="loaded($event, group.cover.id)" @error="imageFailed(group.cover.id)"
-        >
+        />
         <span v-else :class="styles.placeholder" aria-hidden="true">{{ group.cover ? 'Image unavailable' : 'Cover unavailable' }}</span>
         <span :class="styles.label">
           <span :class="styles.name">{{ group.name }}</span>

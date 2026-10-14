@@ -96,7 +96,7 @@ curl -o original.jpg http://visual-library:3000/api/assets/ASSET_ID/content
 
 O hostname `visual-library` da rede Docker normalmente só é resolvido pelos containers. O navegador precisa de endereço alcançável, por exemplo o domínio usado para acessar a biblioteca ou um endereço da rede local. Nenhuma alteração no Media Pulse faz parte desta implementação.
 
-O ID independe do filename registrado. A entrega usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=3600`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
+O ID independe do filename registrado. A entrega usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=31536000, immutable`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
 
 ## Origem e visibilidade na interface
 
@@ -133,7 +133,7 @@ Erros seguem o envelope HTTP do H3/Nitro, com `statusCode` e `statusMessage`. De
 
 ## Limitações
 
-- Excluir pela interface remove o registro e quebra referências externas. ID estável não garante retenção; o browser pode continuar mostrando conteúdo já armazenado em cache por até uma hora.
+- Excluir pela interface remove o registro e quebra referências externas. ID estável não garante retenção; o browser pode continuar mostrando conteúdo já armazenado em cache durante o período de validade de até um ano.
 - Validação estrutural não decodifica pixels, verifica todos os checksums ou identifica toda corrupção. Legados são identificados somente pelo prefixo; formato não reconhecido retorna 415 sem apagar o arquivo.
 - Falhas tratáveis de escrita/insert são compensadas. Interrupção abrupta do processo ou recusa do filesystem em limpar podem deixar órfãos; falhas de compensação são registradas. A exclusão mantém sua limitação anterior: erro de unlink é ignorado.
 - Registros antigos sem hash continuam fora da deduplicação. Uma duplicata não repara automaticamente arquivo ausente.

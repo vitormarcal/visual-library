@@ -9,8 +9,8 @@
     "preview": "nuxt preview"
   },
   "dependencies": {
+    "image-meta": "0.2.2",
     "nuxt": "^4.4.6"
   },
-  "devDependencies": {},
-  "version": "0.7.0"
+  "version": "0.8.0"
 }

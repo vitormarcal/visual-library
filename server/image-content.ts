@@ -14,6 +14,17 @@ export const sendImageContent = async (event: H3Event, row: ImageRow) => {
   try {
     const stat = await file.stat()
     if (!stat.isFile()) throw createError({ statusCode: 404, statusMessage: 'Image file not found.' })
+    const etag = `W/"${row.id}-${stat.size}-${stat.mtimeMs}"`
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
+    setHeader(event, 'Cache-Control', 'private, max-age=31536000, immutable')
+    setHeader(event, 'ETag', etag)
+    setHeader(event, 'Last-Modified', stat.mtime.toUTCString())
+    const match = getRequestHeader(event, 'if-none-match')
+    const since = getRequestHeader(event, 'if-modified-since')
+    const unchanged = match !== undefined
+      ? match === '*' || match.split(',').some(value => value.trim().replace(/^W\//, '') === etag.replace(/^W\//, ''))
+      : since !== undefined && Math.floor(stat.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)
+    if (unchanged) { setResponseStatus(event, 304); return '' }
     // Legacy MIME came from the client. Sniff only a bounded prefix on delivery.
     const prefix = Buffer.alloc(Math.min(stat.size, 64 * 1024))
     let read = 0
@@ -23,22 +34,11 @@ export const sendImageContent = async (event: H3Event, row: ImageRow) => {
       read += bytesRead
     }
     const mime = detectImageFormat(prefix.subarray(0, read)).mimeType
+    setHeader(event, 'Content-Type', mime)
     if (mime !== row.mime_type) {
       const db = await ensureDataStore()
       db.prepare('UPDATE images SET mime_type = ? WHERE id = ?').run(mime, row.id)
     }
-    const etag = `W/"${row.id}-${stat.size}-${stat.mtimeMs}"`
-    setHeader(event, 'Content-Type', mime)
-    setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    setHeader(event, 'Cache-Control', 'private, max-age=3600')
-    setHeader(event, 'ETag', etag)
-    setHeader(event, 'Last-Modified', stat.mtime.toUTCString())
-    const match = getRequestHeader(event, 'if-none-match')
-    const since = getRequestHeader(event, 'if-modified-since')
-    const unchanged = match !== undefined
-      ? match === '*' || match.split(',').some(value => value.trim().replace(/^W\//, '') === etag.replace(/^W\//, ''))
-      : since !== undefined && Math.floor(stat.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)
-    if (unchanged) { setResponseStatus(event, 304); return '' }
     setHeader(event, 'Content-Length', stat.size)
     const stream = file.createReadStream({ start: 0, autoClose: true })
     // sendStream in H3 does not close a node stream when the client disconnects.
@@ -58,6 +58,7 @@ export const sendImageContent = async (event: H3Event, row: ImageRow) => {
     event.node.res.removeHeader('Content-Type')
     event.node.res.removeHeader('ETag')
     event.node.res.removeHeader('Last-Modified')
+    event.node.res.removeHeader('Cache-Control')
     if ((error as { statusCode?: number }).statusCode) throw error
     throw createError({ statusCode: 500, statusMessage: 'Could not read image.' })
   } finally { if (!streaming) await file.close() }

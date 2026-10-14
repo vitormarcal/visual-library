@@ -10,6 +10,8 @@ type ImageRecord = {
   sizeBytes: number
   createdAt: string
   src: string
+  width?: number | null
+  height?: number | null
 }
 
 const props = defineProps<{
@@ -56,11 +58,11 @@ const open = (event: MouseEvent, id: string) => {
           :data-lightbox-open-id="image.id"
           @click="open($event, image.id)"
         >
-          <img
+          <ProgressiveImage
             :src="image.src"
             :alt="image.originalName || 'Saved image'"
-            loading="lazy"
-          >
+            :width="image.width" :height="image.height"
+          />
         </component>
         <span v-if="selecting" :class="styles.selectionMark" aria-hidden="true">{{ selectedIds?.includes(image.id) ? '✓' : '○' }}</span>
         <button

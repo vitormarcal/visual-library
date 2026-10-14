@@ -14,6 +14,8 @@ type ImageRecord = {
   sizeBytes: number
   createdAt: string
   src: string
+  width: number | null
+  height: number | null
   tags: ImageTag[]
   source: string
   hiddenFromGallery: boolean
@@ -289,11 +291,10 @@ const loadImages = async () => {
   libraryError.value = false
 
   try {
-    const loaded = await $fetch<ImageRecord[]>('/api/images')
+    const [loaded] = await Promise.all([$fetch<ImageRecord[]>('/api/images'), loadTags()])
     const loadedIds = new Set(loaded.map((image) => image.id))
     images.value = [...images.value.filter((image) => !loadedIds.has(image.id)), ...loaded]
     for (const image of images.value) for (const tag of image.tags) tagMetadata.value[tag.id] = tag
-    await loadTags()
   } catch {
     libraryError.value = true
     showNotice('Could not load the library.', 'error')

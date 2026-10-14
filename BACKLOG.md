@@ -19,6 +19,12 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Carregamento repetido e excessivo de imagens
+
+Solicitado e implementado em 2026-10-14 em [017](docs/specs/017-progressive-image-loading/spec.md): arquivos imutáveis com cache de longa duração, proporções reservadas e downloads por proximidade da tela. Galeria, capas e relacionadas compartilham ativação durante a sessão. Dimensões do legado são preenchidas com leituras limitadas e persistidas. Metadados de imagens e tags chegam em paralelo; respostas 304 dispensam leitura de conteúdo.
+
+Miniaturas e paginação permanecem para avaliação posterior: a interface ainda usa originais e mantém todos os metadados/cartões no cliente.
+
 ### Recognizing subjects visually
 
 Requested and implemented on 2026-10-04 in [012](docs/specs/012-visual-tag-exploration/spec.md): Explore presents existing tags with a stable persisted cover, name and count. Choosing a subject opens its images with independent refinements; returning preserves directory search, position and focus. The library keeps its previous context.
