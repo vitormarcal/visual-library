@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { groupImagesByTag } from '../app/utils/tag-exploration.ts'
+import { groupImagesByTag, orderExploreGroups } from '../app/utils/tag-exploration.ts'
 
 test('visual subjects keep exact identities, count unique images, and search names independently', () => {
   const a = { id: 'a', name: 'Été', normalizedName: 'été' }
@@ -24,7 +24,27 @@ test('visual subjects keep exact identities, count unique images, and search nam
   assert.equal(result.find((group) => group.id === 'b')?.cover, null)
   assert.equal(groupImagesByTag(images, covers, '/1').length, 0)
   assert.equal(groupImagesByTag(images, covers, 'MANARA')[0]?.id, 'c')
-  assert.deepEqual(groupImagesByTag(images, covers).map((group) => group.id), ['b', 'a', 'c'])
+  assert.deepEqual(groupImagesByTag(images, covers).map((group) => group.id), ['a', 'b', 'c'])
+})
+
+test('Explore varies by day, preserves every subject, and favors larger subjects', () => {
+  const groups = Array.from({ length: 100 }, (_, index) => ({ id: `tag-${index}`, imageCount: index < 50 ? 1 : 25 }))
+  const ordered = orderExploreGroups(groups, '2026-10-17')
+  assert.deepEqual(ordered, orderExploreGroups(groups, '2026-10-17'))
+  assert.deepEqual(ordered, orderExploreGroups([...groups].reverse(), '2026-10-17'))
+  assert.notDeepEqual(ordered, orderExploreGroups(groups, '2026-10-18'))
+  assert.equal(new Set(ordered.map(group => group.id)).size, groups.length)
+  assert.equal(groups[0]?.id, 'tag-0')
+  let large = 0
+  let small = 0
+  for (let day = 1; day <= 100; day++) {
+    for (const group of orderExploreGroups(groups, `day-${day}`).slice(0, 20)) {
+      if (group.imageCount > 1) large++
+      else small++
+    }
+  }
+  assert.ok(large > small * 2, 'larger subjects should appear near the start more often')
+  assert.ok(small > 0, 'small subjects should also appear near the start')
 })
 
 test('tag covers migrate, persist, survive association replacement, and roll back with group changes', () => {

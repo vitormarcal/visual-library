@@ -20,3 +20,5 @@ a.action { display: inline-flex; align-items: center; }
 @media (max-width: 900px) { .grid { column-count: 3; } }
 @media (max-width: 640px) { .grid { column-count: 2; } }
 @media (max-width: 420px) { .grid { column-count: 1; } }
+
+.more { margin: var(--space-lg) 0; text-align: center; }
