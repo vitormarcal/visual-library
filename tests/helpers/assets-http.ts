@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer, request } from 'node:http'
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
+import { withSefMetadata } from './sef-jpeg.ts'
 import { createApp, createRouter, defineEventHandler, getRouterParam, toNodeListener } from 'h3'
 
 // Build a pre-feature database to verify migration against real old rows.
@@ -292,6 +293,26 @@ try {
   assert.deepEqual(remoteImage.tags.map((tag: { name: string }) => tag.name).sort(), ['Assunto', 'Refinamento'])
   assert.deepEqual(getImageTags(remoteImage.id).map(tag => tag.name).sort(), ['Assunto', 'Refinamento'])
   globalThis.fetch = originalFetch
+  // JPEG metadata after EOI survives upload, deduplication and content delivery.
+  limit = 4096
+  const jpeg = await fixture('jpg')
+  const jpegWithMetadata = withSefMetadata(jpeg)
+  const jpegResponse = await send(jpegWithMetadata, {
+    source: 'media-pulse',
+    sourceReference: JSON.stringify({ entityType: 'book', entityId: '100' }),
+  }, '/api/assets', 'cover.jpg', 'image/jpeg')
+  assert.equal(jpegResponse.status, 201)
+  const jpegAsset = await jpegResponse.json()
+  assert.equal(jpegAsset.mimeType, 'image/jpeg')
+  assert.equal(jpegAsset.sizeBytes, jpegWithMetadata.length)
+  assert.equal((await send(jpegWithMetadata)).status, 200)
+  assert.deepEqual(Buffer.from(await (await fetch(`${base}/api/assets/${jpegAsset.id}/content`)).arrayBuffer()), jpegWithMetadata)
+  const plainJpegResponse = await send(jpeg)
+  assert.ok([200, 201].includes(plainJpegResponse.status))
+  assert.notEqual((await plainJpegResponse.json()).id, jpegAsset.id, 'hash includes original metadata bytes')
+  assert.equal((await send(Buffer.concat([jpeg, Buffer.from('arbitrary trailer')]))).status, 415)
+  const incompleteJpeg = await send(withSefMetadata(jpeg.subarray(0, -2)))
+  assert.equal(incompleteJpeg.status, 415)
   console.log('All isolated asset HTTP and database assertions passed')
 } finally {
   server.closeAllConnections()

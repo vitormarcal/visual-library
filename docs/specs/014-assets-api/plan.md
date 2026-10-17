@@ -216,3 +216,14 @@ Corrigido o tratamento de erro de IO durante streaming: quando parte da imagem j
 A revisão também regenerou a fixture WebP com frames de cores distintas e conferiu ANMF/avis nos fixtures animados, evitando que otimização do encoder transformasse o teste em imagem estática.
 
 Validação nesta revisão: 41 testes passaram, build de produção 0.5.0 concluído e git diff --check sem erros. package.json e as duas referências de versão do package-lock.json estão sincronizados. Permanecem somente as limitações já documentadas; não foi identificada pendência que impeça o commit desta entrega.
+
+
+## Correção de compatibilidade JPEG/SEF — 0.10.1 — 2026-10-17
+
+Sintoma observado na migração do Media Pulse: HTTP 415 em JPEGs que o ImageIO decodifica. A análise de cópias de três arquivos confirmou trailers SEF depois do marcador EOI, com 219 bytes em um arquivo e 140 bytes em dois arquivos idênticos. Remover apenas o trailer em memória fazia o validador anterior aceitar os três, sem alterar dimensões ou pixels decodificados. Os originais de produção não foram modificados.
+
+A correção fica em `server/image-format.ts`: após validar frame, scan e EOI do JPEG, aceitar somente o trailer SEF estruturalmente consistente (`SEFH`/`SEFT`, tamanho do diretório, contagem e tipos de registros, nomes limitados, offsets, tamanhos, cobertura contígua e ausência de sobreposição). JPEGs sem trailer seguem inalterados. Não aceitar bytes arbitrários após EOI nem usar a presença isolada de `SEFT` como validação. Não transformar imagens, extrair metadados para o banco, acrescentar dependências ou modificar a interface/schema.
+
+Fixtures sintéticas em `tests/helpers/sef-jpeg.ts` reproduzem os dois tamanhos observados sem incluir imagens ou metadados pessoais no repositório. Testes de formato cobrem aceitação sem mutação, truncamento, JPEG incompleto, trailer arbitrário e diretórios forjados. O teste HTTP verifica upload, tamanho, hash/deduplicação e download do arquivo completo. As três cópias reais também passam no validador corrigido.
+
+Validação final: `npm test` passou com 51 testes, sem skips; `npm run build` concluiu. Permanecem os avisos conhecidos de sourcemap do Nuxt e externalização de `node:sqlite`. Um servidor H3/SQLite isolado recebeu as três cópias reais por HTTP (201, 201, 200), preservou todos os bytes no download e produziu dois assets pela deduplicação das duas cópias idênticas. Nenhum arquivo ou banco de produção foi alterado; publicação da correção é uma etapa separada.

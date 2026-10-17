@@ -27,6 +27,35 @@ export const detectImageFormat = (b: Buffer): ImageFormat => {
   throw invalid()
 }
 
+// Some JPEGs carry SEF metadata after EOI. Validate that directory rather than
+// accepting arbitrary appended bytes; storage and hashing keep the full original.
+const validJpegEnd = (b: Buffer, imageEnd: number): boolean => {
+  if (imageEnd === b.length) return true
+  if (b.length - imageEnd < 32 || b.toString('latin1', b.length - 4) !== 'SEFT') return false
+  const directorySize = b.readUInt32LE(b.length - 8)
+  const directory = b.length - 8 - directorySize
+  if (directorySize < 24 || directory < imageEnd || b.toString('latin1', directory, directory + 4) !== 'SEFH') return false
+  const count = b.readUInt32LE(directory + 8)
+  if (!count || directorySize !== 12 + count * 12) return false
+  const records: { start: number; end: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const entry = directory + 12 + i * 12
+    const start = directory - b.readUInt32LE(entry + 4), size = b.readUInt32LE(entry + 8)
+    if (size < 8 || start < imageEnd || start + size > directory) return false
+    if (b.readUInt32LE(start) !== b.readUInt32LE(entry)) return false
+    const nameSize = b.readUInt32LE(start + 4)
+    if (!nameSize || nameSize > size - 8) return false
+    records.push({ start, end: start + size })
+  }
+  records.sort((a, c) => a.start - c.start)
+  let end = imageEnd
+  for (const record of records) {
+    if (record.start !== end) return false
+    end = record.end
+  }
+  return end === directory
+}
+
 export const validateImageFormat = (b: Buffer): ImageFormat => {
   const format = detectImageFormat(b)
   let valid = false
@@ -47,7 +76,7 @@ export const validateImageFormat = (b: Buffer): ImageFormat => {
       if (b[offset++] !== 255) break
       while (offset < b.length && b[offset] === 255) offset++
       const marker = b[offset++]
-      if (marker === 217) { end = offset === b.length; break }
+      if (marker === 217) { end = validJpegEnd(b, offset); break }
       if (marker === 0 || marker === undefined || marker === 216) break
       if (marker === 1 || (marker >= 208 && marker <= 215)) continue
       if (offset + 2 > b.length) break

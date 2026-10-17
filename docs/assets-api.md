@@ -26,7 +26,7 @@ Enviar `multipart/form-data` com exatamente um arquivo no campo `image`:
 | `tags` | Não | Texto JSON com array de strings; omitido ou `[]` não remove tags. |
 | `sourceReference` | Não | Texto JSON `{ entityType, entityId, url? }`; a aplicação vem de `source`. |
 
-Campos desconhecidos/repetidos e arquivos adicionais são rejeitados. O formato é identificado pelos bytes com verificação estrutural; MIME e extensão do cliente não determinam formato ou nome de armazenamento. Uma imagem legítima com MIME incorreto é aceita.
+Campos desconhecidos/repetidos e arquivos adicionais são rejeitados. O formato é identificado pelos bytes com verificação estrutural; MIME e extensão do cliente não determinam formato ou nome de armazenamento. Uma imagem legítima com MIME incorreto é aceita. JPEGs completos com metadados SEF após o marcador final (`FF D9`) também são aceitos: o trailer precisa ter cabeçalho `SEFH`, rodapé `SEFT`, diretório consistente e registros contíguos dentro dos limites do arquivo, sem sobreposição ou lacunas. Ter apenas a assinatura final não basta. Bytes extras arbitrários, trailers inconsistentes e JPEG sem marcador final continuam retornando 415. A validação não remove o trailer nem recomprime a imagem; tamanho, SHA-256, armazenamento e conteúdo retornado consideram o arquivo completo.
 
 ```bash
 curl -i \
