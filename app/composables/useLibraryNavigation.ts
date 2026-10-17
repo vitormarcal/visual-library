@@ -7,6 +7,7 @@ type NavigationEntry = Snapshot & {
   library: Snapshot | null
   explore: Snapshot | null
   parent: Snapshot | null
+  origin: Snapshot | null
 }
 
 export const useLibraryNavigation = () => {
@@ -55,7 +56,7 @@ export const useLibraryNavigation = () => {
   const makeEntry = (url: string, previous?: NavigationEntry | null): NavigationEntry => ({
     version: 1, key: crypto.randomUUID(), index: previous ? previous.index + 1 : 0,
     url, scrollTop: 0, focusId: null, library: previous?.library ?? null,
-    explore: previous?.explore ?? null, parent: null,
+    explore: previous?.explore ?? null, parent: null, origin: previous?.origin ?? null,
   })
   const replace = (next: LibraryDestination) => {
     if (!entry.value || closing || next.problem) return
@@ -75,6 +76,8 @@ export const useLibraryNavigation = () => {
     remember(focusId)
     const value = makeEntry(url, entry.value)
     if (next.imageId) value.parent = snapshot(entry.value!)
+    if (next.screen === 'similar' && !next.imageId) value.origin = snapshot(entry.value!)
+    if (next.screen !== 'similar') value.origin = null
     mode.value = 'push'
     destination.value = next
     write(value, true)
@@ -109,6 +112,16 @@ export const useLibraryNavigation = () => {
       closing = true
       history.go(origin.index - entry.value!.index)
     } else push(libraryDestination('explore'))
+  }
+  const similarOriginUrl = () => entry.value?.origin?.url ?? libraryDestinationUrl(libraryDestination())
+  const returnFromSimilar = () => {
+    const origin = entry.value?.origin
+    if (!entry.value || closing) return
+    if (origin && origin.index < entry.value.index) {
+      remember()
+      closing = true
+      history.go(origin.index - entry.value.index)
+    } else push(libraryDestination())
   }
   const onPop = (event: PopStateEvent) => {
     closing = false
@@ -157,5 +170,5 @@ export const useLibraryNavigation = () => {
     window.removeEventListener('pagehide', rememberOnExit)
     history.scrollRestoration = previousScrollRestoration
   }
-  return { destination, entry, mode, start, stop, push, replace, remember, ensureViewerParent, closeViewer, savedDestination, returnToExplore }
+  return { destination, entry, mode, start, stop, push, replace, remember, ensureViewerParent, closeViewer, savedDestination, returnToExplore, similarOriginUrl, returnFromSimilar }
 }

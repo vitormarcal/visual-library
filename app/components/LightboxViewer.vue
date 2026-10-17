@@ -2,6 +2,7 @@
 import styles from './LightboxViewer.module.css'
 import { sharedTagCaption } from '../utils/related-images'
 import type { ViewerHistoryEntry, ViewerPosition } from '../utils/viewer-history'
+import { interceptLibraryLink } from '../utils/library-navigation'
 
 type ImageRecord = {
   id: string
@@ -31,6 +32,7 @@ type TagSummary = ImageTag & {
 
 const props = defineProps<{
   image: ImageRecord
+  similarHref?: string | null
   relatedImages: ImageRecord[]
   hasPrevious: boolean
   hasNext: boolean
@@ -52,6 +54,7 @@ const emit = defineEmits<{
   next: [position: ViewerPosition]
   back: []
   filterTag: [tag: ImageTag]
+  similar: [id: string]
 }>()
 
 const viewer = ref<HTMLElement | null>(null)
@@ -139,7 +142,7 @@ const focusableControls = () => {
     return []
   }
 
-  return Array.from(viewer.value.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)'))
+  return Array.from(viewer.value.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]:not([aria-disabled="true"])'))
 }
 
 const isTagEditorTarget = (target: EventTarget | null) => {
@@ -445,6 +448,10 @@ syncDraftTags()
           data-viewer-focus="explore"
           @click="exploreRelated"
         >Explore related <span aria-hidden="true">↓</span></button>
+        <a v-if="!editingTags && similarHref" :href="similarHref" :class="styles.exploreButton"
+          :aria-disabled="savingTags || undefined" data-viewer-focus="similar"
+          @click="savingTags ? $event.preventDefault() : interceptLibraryLink($event) && emit('similar', image.id)"
+        >See similar</a>
       </div>
     </div>
 

@@ -47,3 +47,13 @@ test('closing the viewer retains gallery criteria and clean card entries remain 
   assert.equal(parseLibraryDestination(new URL(libraryDestinationUrl(card), 'http://library.local')).query, '')
   assert.deepEqual(card.tagIds, [])
 })
+
+test('similar galleries preserve reference independently of the opened image and reject inherited filters', () => {
+  const destination = { ...libraryDestination('similar'), referenceId: 'reference & one', imageId: 'other-image' }
+  const address = libraryDestinationUrl(destination)
+  assert.deepEqual(parseLibraryDestination(new URL(address, 'http://library.local')), destination)
+  assert.equal(parseLibraryDestination(new URL(libraryDestinationUrl({ ...destination, imageId: 'third' }), 'http://library.local')).referenceId, destination.referenceId)
+  for (const address of ['/?view=similar', '/?view=similar&reference=', '/?view=similar&reference=a&reference=b', '/?view=similar&reference=a&tag=b', '/?view=similar&reference=a&q=x', '/?view=similar&reference=a&visibility=hidden', '/?view=library&reference=a']) {
+    assert.ok(parseLibraryDestination(new URL(address, 'http://library.local')).problem, address)
+  }
+})

@@ -84,6 +84,10 @@ The selected image was narrower than related cards on phones, capped unnecessari
 
 ## Remaining Friction and Open Questions
 
+### Explorar imagens por similaridade visual
+
+Solicitado em 2026-10-17 e implementado na [019](docs/specs/019-visual-similarity/spec.md), após duas rodadas de avaliação com o usuário. V1 usa 65% paleta, 20% embedding da imagem inteira e 15% posição das cores. A ação See similar abre galeria por referência, com páginas estáveis, preparo separado de uploads e retorno contextual. Derivados/modelo persistem no volume local; Docker inclui o runtime. Testes, build, navegador e execução isolada em Docker registrados no [plano](docs/specs/019-visual-similarity/plan.md). Sem publicação em produção; avaliar uso cotidiano antes de ampliar controles ou critérios.
+
 ### Rediscovery with little textual context
 
 Images without useful filenames or manually assigned tags still depend on visual memory. Search and filtering address known textual cues, but do not establish whether cross-cutting themes or curated reference groups need another interaction.
@@ -102,7 +106,7 @@ Showing tags shared by selected images is deferred until usage demonstrates a ne
 
 This remains speculative, not a selected next feature. Atmospheric suggestions have not been requested. Evaluate existing manual entry, search, and group additions before introducing assistance.
 
-Any future exploration should preserve personally meaningful tags and explicit user choice. Avoid automatic tagging, background processing, embeddings/vector search, similarity search, provider-management systems, and automatic organization.
+Any future exploration should preserve personally meaningful tags and explicit user choice. Avoid automatic tagging, speculative background processing, provider-management systems, and automatic organization. Embeddings and similarity search were previously deferred here; the explicit user request now selects the bounded discovery in [019](docs/specs/019-visual-similarity/discovery.md), without authorizing broader AI-assisted suggestions or automatic tagging.
 
 
 ## API de assets e visibilidade do acervo

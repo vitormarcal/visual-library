@@ -49,6 +49,7 @@ export const ensureDataStore = async () => {
 
   if (!db) {
     db = new DatabaseSync(dbPath)
+    db.exec('PRAGMA busy_timeout = 5000')
     db.exec(`
       CREATE TABLE IF NOT EXISTS images (
         id TEXT PRIMARY KEY,
@@ -91,6 +92,10 @@ export const ensureDataStore = async () => {
       )
     `)
 
+    db.exec(`CREATE TABLE IF NOT EXISTS image_visual_features (
+      image_id TEXT PRIMARY KEY, version TEXT NOT NULL, source_hash TEXT,
+      status TEXT NOT NULL CHECK(status IN ('ready', 'failed')), features_json TEXT
+    )`)
     const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>
 
     if (!columns.some((column) => column.name === 'source_url')) {
@@ -255,6 +260,7 @@ export const deleteImageRecord = (imageId: string) => {
   const affected = getImageTags(imageId).map((tag) => tag.id)
   db.exec('BEGIN')
   try {
+    db.prepare('DELETE FROM image_visual_features WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_references WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(imageId)

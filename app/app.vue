@@ -6,27 +6,7 @@ import { findRelatedImages } from './utils/related-images'
 import { groupImagesByTag } from './utils/tag-exploration'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from './utils/library-navigation'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from './utils/viewer-history'
-type ImageRecord = {
-  id: string
-  filename: string
-  originalName: string | null
-  mimeType: string
-  sizeBytes: number
-  createdAt: string
-  src: string
-  width: number | null
-  height: number | null
-  tags: ImageTag[]
-  source: string
-  hiddenFromGallery: boolean
-}
-
-type ImageTag = {
-  id: string
-  name: string
-  normalizedName: string
-}
-
+import type { ImageRecord, ImageTag } from './types/image'
 type TagSummary = ImageTag & {
   imageCount: number
   lastUsedAt: string
@@ -52,6 +32,14 @@ const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
 const navigation = useLibraryNavigation()
 const destination = navigation.destination
+const referenceId = computed(() => destination.value.screen === 'similar' ? destination.value.referenceId : null)
+const similarity = useSimilarImages(referenceId)
+const referenceImage = computed(() => publicImages.value.find(image => image.id === referenceId.value) ?? null)
+const similarInitialLoading = computed(() => destination.value.screen === 'similar' && similarity.current.value.busy && !similarity.current.value.images.length)
+watch(() => similarity.current.value.images, incoming => {
+  const existing = new Set(images.value.map(image => image.id))
+  images.value = [...images.value, ...incoming.filter(image => !existing.has(image.id))]
+})
 const selectedImageId = computed({ get: () => destination.value.imageId, set: (imageId: string | null) => navigation.replace({ ...destination.value, imageId }) })
 const returnFocusImageId = ref<string | null>(null)
 const viewerHistory = ref<ViewerHistoryEntry[]>([])
@@ -81,9 +69,9 @@ const requiredTagIds = computed(() => [...(destination.value.subjectId ? [destin
 const missingFilters = computed(() => destination.value.tagIds.filter((id) => tagLookups.value[id] === 'missing' && !tagMetadata.value[id]))
 const resolvingDestination = computed(() => !loading.value && !libraryError.value && requiredTagIds.value.some((id) => !tagMetadata.value[id] && !['missing', 'error'].includes(tagLookups.value[id] ?? 'loading')))
 const destinationError = computed(() => requiredTagIds.value.some((id) => !tagMetadata.value[id] && tagLookups.value[id] === 'error'))
-const destinationUnavailable = computed(() => destination.value.problem || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This subject is no longer available.' : null))
+const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This subject is no longer available.' : null))
 const destinationBlocked = computed(() => Boolean(destinationUnavailable.value || missingFilters.value.length || destinationError.value || resolvingDestination.value))
-const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : 'Saved visuals')
+const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : 'Saved visuals')
 useHead(() => ({ title: `${title.value} · Visual Library` }))
 const navigationHref = (target: 'library' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
@@ -148,6 +136,8 @@ let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 
 const visibleImages = computed(() => {
+  if (screen.value === 'similar') return destinationBlocked.value ? [] : similarity.current.value.images
+    .map(image => images.value.find(current => current.id === image.id) ?? image).filter(image => !image.hiddenFromGallery)
   return eligibleImages.value.filter((image) => {
     const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
     return !destinationBlocked.value && matchesImageSearch(image, galleryQuery.value)
@@ -309,7 +299,7 @@ const clearCaptureNotice = () => {
   notice.value = ''
 }
 
-const captureTags = computed(() => screen.value === 'explore' || destinationBlocked.value ? [] : effectiveFilters.value.map(tag => tag.name))
+const captureTags = computed(() => screen.value === 'explore' || screen.value === 'similar' || destinationBlocked.value ? [] : effectiveFilters.value.map(tag => tag.name))
 const batchTags = ref<string[]>([])
 
 const handleSave = async (files: File[], retry = false) => {
@@ -370,6 +360,7 @@ const handleDelete = async (id: string) => {
   try {
     await $fetch(`/api/images/${id}`, { method: 'DELETE' })
     images.value = images.value.filter((image) => image.id !== id)
+    similarity.remove(id)
     const retained = destination.value.tagIds.filter((tagId) => images.value.some((image) => image.tags.some((tag) => tag.id === tagId)))
     if (retained.length !== destination.value.tagIds.length) {
       navigation.replace({ ...destination.value, tagIds: retained })
@@ -405,6 +396,11 @@ const clearTagFilters = () => {
 }
 
 const handleViewerTagFilter = (tag: ImageTag) => {
+  if (screen.value === 'similar') {
+    tagMetadata.value[tag.id] = tag
+    navigation.push({ ...libraryDestination(), tagIds: [tag.id] })
+    return
+  }
   if (addTagFilter(tag)) {
     viewerFilterNotice.value = ''
     navigation.closeViewer({ ...destination.value, imageId: null })
@@ -431,7 +427,7 @@ const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> =>
 const restorePage = async (position: PagePosition, selector: string, transition: number) => {
   await nextTick()
   if (transition !== pageTransition) return
-  const fallback = screen.value === 'explore' ? '[data-explore-search]' : '[data-library-search]'
+  const fallback = screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
   const origin = document.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(fallback)
   origin?.focus({ preventScroll: true })
   const correctScroll = () => window.scrollTo({ top: Math.min(position.scrollTop, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'instant' })
@@ -496,7 +492,7 @@ watch([() => destination.value.subjectId, () => destination.value.tagIds.join('\
 let interactionKey: string | null = null
 let restoredKey: string | null = null
 let closingFocusId: string | null = null
-watch([() => navigation.entry.value?.key, loading, destinationBlocked], async ([key]) => {
+watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarInitialLoading], async ([key]) => {
   if (!key) return
   if (key !== interactionKey) {
     closingFocusId = destination.value.imageId ? null : returnFocusImageId.value
@@ -505,7 +501,7 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked], async ([
     restoredKey = null
     if (destination.value.imageId) returnFocusImageId.value = navigation.entry.value?.parent?.focusId ?? destination.value.imageId
   }
-  if (loading.value || destinationBlocked.value || libraryError.value || restoredKey === key || destination.value.imageId) return
+  if (loading.value || similarInitialLoading.value || destinationBlocked.value || libraryError.value || restoredKey === key || destination.value.imageId) return
   restoredKey = key
   const state = navigation.entry.value!
   if (closingFocusId) {
@@ -514,13 +510,13 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked], async ([
     void restorePage(state, selector, pageTransition)
     return
   }
-  if (navigation.mode.value === 'push' && screen.value === 'subject') {
+  if (navigation.mode.value === 'push' && (screen.value === 'subject' || screen.value === 'similar')) {
     await nextTick()
     if (navigation.entry.value?.key !== key) return
     window.scrollTo({ top: 0, behavior: 'instant' })
-    document.querySelector<HTMLElement>('[data-subject-heading]')?.focus({ preventScroll: true })
+    document.querySelector<HTMLElement>(screen.value === 'similar' ? '[data-similar-heading]' : '[data-subject-heading]')?.focus({ preventScroll: true })
   } else if (!destination.value.imageId) {
-    const selector = state.focusId ? `[${screen.value === 'explore' ? 'data-explore-tag-id' : 'data-lightbox-open-id'}="${CSS.escape(state.focusId)}"]` : screen.value === 'explore' ? '[data-explore-search]' : '[data-library-search]'
+    const selector = state.focusId ? `[${screen.value === 'explore' ? 'data-explore-tag-id' : 'data-lightbox-open-id'}="${CSS.escape(state.focusId)}"]` : screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
     void restorePage(state, selector, pageTransition)
   }
 })
@@ -548,6 +544,20 @@ const openViewer = (id: string) => {
   navigation.push({ ...destination.value, imageId: id }, id)
 }
 
+const openSimilar = (id: string) => {
+  if (pendingTagSaves.value.has(id) || visibilityBusy.value.has(id) || !publicImages.value.some(image => image.id === id)) return
+  if (referenceId.value === id) { navigation.closeViewer(); return }
+  navigation.push({ ...libraryDestination('similar'), referenceId: id })
+}
+const refreshSimilar = () => {
+  if (similarity.current.value.busy) return
+  similarity.refresh()
+  window.scrollTo({ top: 0, behavior: 'instant' })
+  document.querySelector<HTMLElement>('[data-similar-heading]')?.focus({ preventScroll: true })
+}
+const retrySimilar = () => similarity.current.value.expired ? refreshSimilar() : similarity.retry()
+const similarHref = computed(() => selectedImage.value && !selectedImage.value.hiddenFromGallery
+  ? libraryDestinationUrl({ ...libraryDestination('similar'), referenceId: selectedImage.value.id }) : null)
 const closeViewer = () => navigation.closeViewer()
 
 const navigateViewer = (id: string | undefined, position: ViewerPosition, related = false) => {
@@ -603,12 +613,13 @@ watch(visibleImages, () => {
       <div>
         <p class="eyebrow">Visual Library</p>
         <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ title }}</h1>
+        <h1 v-else-if="screen === 'similar'" data-similar-heading tabindex="-1">Similar images</h1>
         <h1 v-else>{{ screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
       </div>
     </header>
 
     <nav class="libraryNav" aria-label="Library navigation">
-      <a :href="navigationHref('explore')" :aria-current="screen !== 'library' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Explore</a>
+      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Explore</a>
       <a :href="navigationHref('library')" :aria-current="screen === 'library' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)">Library</a>
     </nav>
 
@@ -645,6 +656,16 @@ watch(visibleImages, () => {
       :dimensions="coverDimensions" :library-href="navigationHref('library')"
       @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
     />
+    <template v-else-if="screen === 'similar'">
+      <div v-if="libraryError" class="loadError" role="status"><p>Could not load the library.</p><button type="button" @click="loadImages">Try again</button></div>
+      <SimilarGallery v-else :reference="referenceImage" :images="visibleImages"
+        :busy="similarity.current.value.busy || loading" :preparing="similarity.current.value.state === 'preparing'"
+        :failed="['failed', 'unavailable'].includes(similarity.current.value.state)" :error="similarity.current.value.error"
+        :partial="similarity.current.value.partial" :failed-count="similarity.current.value.failedCount"
+        :prepared-count="similarity.current.value.preparedCount" :total-count="similarity.current.value.totalCount"
+        :has-more="similarity.current.value.nextOffset !== null" :image-href="imageHref" :back-href="navigation.similarOriginUrl()"
+        @open="openViewer" @delete="handleDelete" @more="similarity.more" @retry="retrySimilar" @refresh="refreshSimilar" @back="navigation.returnFromSimilar" />
+    </template>
     <template v-else>
       <div v-if="screen === 'library'" class="visibilityMode">
         <button type="button" :aria-pressed="destination.hidden" :disabled="applyingTags" @click="toggleHiddenMode">{{ destination.hidden ? 'Show gallery' : 'Hidden images' }}</button>
@@ -715,6 +736,8 @@ watch(visibleImages, () => {
     <LightboxViewer
       v-if="selectedImage"
       :image="selectedImage"
+      :similar-href="similarHref"
+      @similar="openSimilar"
       :related-images="relatedImages"
       :can-go-back="canGoBack"
       :restoration="viewerRestoration"

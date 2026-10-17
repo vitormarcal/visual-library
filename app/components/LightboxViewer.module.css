@@ -261,6 +261,7 @@
 .returnButton:active { background: rgba(255, 255, 255, 0.12); }
 
 .tagsHint { color: rgba(255, 255, 255, 0.7); font-weight: 400; }
+a.exploreButton { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 
 .backButton {
   position: fixed;
