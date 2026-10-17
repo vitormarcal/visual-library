@@ -19,6 +19,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Repetir tags ao salvar num contexto filtrado
+
+Solicitado em 2026-10-17 e implementado em [018](docs/specs/018-upload-filter-tags/spec.md): novas imagens recebem as tags dos filtros e do assunto aberto, com indicação prévia na área de captura. Lotes e retries mantêm o contexto inicial; duplicatas permanecem sem alterações. Testes automatizados e build passaram; validação visual em navegador permanece pendente.
+
 ### Carregamento repetido e excessivo de imagens
 
 Solicitado e implementado em 2026-10-14 em [017](docs/specs/017-progressive-image-loading/spec.md): arquivos imutáveis com cache de longa duração, proporções reservadas e downloads por proximidade da tela. Galeria, capas e relacionadas compartilham ativação durante a sessão. Dimensões do legado são preenchidas com leituras limitadas e persistidas. Metadados de imagens e tags chegam em paralelo; respostas 304 dispensam leitura de conteúdo.

@@ -309,8 +309,13 @@ const clearCaptureNotice = () => {
   notice.value = ''
 }
 
+const captureTags = computed(() => screen.value === 'explore' || destinationBlocked.value ? [] : effectiveFilters.value.map(tag => tag.name))
+const batchTags = ref<string[]>([])
+
 const handleSave = async (files: File[], retry = false) => {
   if (saving.value || !files.length) return
+  if (!retry) batchTags.value = [...captureTags.value]
+  const tags = [...batchTags.value]
   const previous = retry ? uploadResult.value ?? undefined : undefined
   saving.value = true
   clearCaptureNotice()
@@ -319,11 +324,13 @@ const handleSave = async (files: File[], retry = false) => {
     uploadResult.value = await saveImageBatch(files, async (file) => {
       const formData = new FormData()
       formData.append('image', file)
+      formData.append('tags', JSON.stringify(tags))
       const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: formData })
       if (isDuplicateSaveResponse(saved)) return 'duplicate'
       images.value = [saved, ...images.value]
       return 'saved'
     }, (current, total) => { uploadProgress.value = { current, total } }, previous, uploadLimit)
+    void loadTags()
     if (!uploadResult.value.failures.length) {
       const result = uploadResult.value
       uploadResultTimer = setTimeout(() => { if (uploadResult.value === result) uploadResult.value = null }, 3200)
@@ -342,12 +349,15 @@ const retryFailedImages = () => {
 
 const handleSaveUrl = async (url: string) => {
   if (saving.value) return
+  const tags = [...captureTags.value]
+  batchTags.value = tags
   saving.value = true
   uploadResult.value = null
   clearCaptureNotice()
   try {
-    const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: { url } })
+    const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: { url, tags } })
     applySaveResponse(saved)
+    void loadTags()
   } catch (error) {
     const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     showNotice(message || 'This image URL cannot be saved.', 'error')
@@ -604,6 +614,7 @@ watch(visibleImages, () => {
 
     <SaveDropzone
       :notice="notice"
+      :tags="saving ? batchTags : captureTags"
       :notice-kind="noticeKind"
       :saving="saving"
       :progress="uploadProgress"

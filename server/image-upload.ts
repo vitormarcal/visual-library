@@ -38,6 +38,13 @@ const parseJsonField = (value: FormDataEntryValue | null, maxBytes: number): unk
   try { return JSON.parse(value) } catch { throw badForm() }
 }
 
+export const readCaptureTags = (value: unknown): string[] => {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 32 || value.some(tag => typeof tag !== 'string')) throw badForm()
+  try { return normalizeTagValues(value).map(tag => tag.name) }
+  catch (error) { throw createError({ statusCode: 400, statusMessage: (error as Error).message }) }
+}
+
 const readEnrichment = (form: FormData): AssetEnrichment => {
   let tags: string[] = []
   if (form.has('tags')) {
@@ -101,7 +108,8 @@ export const readImageForm = async (event: H3Event, external = false) => {
     if (hidden !== null && hidden !== 'true' && hidden !== 'false') throw badForm()
     hiddenFromGallery = hidden === 'true'
   }
-  const enrichment = external ? readEnrichment(form) : undefined
+  if (!external && form.getAll('tags').length > 1) throw badForm()
+  const enrichment = external ? readEnrichment(form) : { tags: readCaptureTags(form.has('tags') ? parseJsonField(form.get('tags'), 4096) : undefined) }
   const data = Buffer.from(await image.arrayBuffer())
   const format = validateImageFormat(data)
   const input: SaveImageInput = { data, originalName: image.name || null, mimeType: format.mimeType, sourceUrl: null }

@@ -51,3 +51,6 @@
   .uploadButton { width: 100%; }
   .status { min-height: 2.8em; }
 }
+
+.tagContext { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); color: var(--color-mute); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.tag { max-width: 100%; padding: 4px 10px; border-radius: var(--radius-full); background: var(--color-secondary-bg); color: var(--color-ink); }

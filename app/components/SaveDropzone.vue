@@ -3,6 +3,7 @@ import styles from './SaveDropzone.module.css'
 import { acceptImageTypes, filesFromTransfer, isImageFile, uploadSummary, type UploadResult } from '../utils/image-upload'
 
 const props = defineProps<{
+  tags: string[]
   notice: string
   noticeKind: 'success' | 'error'
   saving: boolean
@@ -141,6 +142,10 @@ watch(() => props.result, (result) => {
         :class="[styles.status, !saving && (result || notice) && styles.result, !saving && !result && notice && noticeKind === 'error' && styles.error]"
         role="status" aria-live="polite" aria-atomic="true"
       >{{ statusText }}<span v-if="notice && (saving || result)" :class="noticeKind === 'error' && styles.error"> {{ notice }}</span></span>
+      <div v-if="tags.length" :class="styles.tagContext" role="status" aria-live="polite">
+        <span>{{ saving ? 'Applying tags:' : 'New images will receive these tags:' }}</span>
+        <span v-for="tag in tags" :key="tag" :class="styles.tag">{{ tag }}</span>
+      </div>
     </div>
     <button
       ref="pickerButton" :class="styles.uploadButton" type="button"

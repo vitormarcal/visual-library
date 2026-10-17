@@ -125,6 +125,9 @@ try {
     const downloaded = await fetch(base + image.src)
     assert.equal(downloaded.status, 200); assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), await fixture(extension))
   }
+  for (const tags of ['{', 'null', '[1]', JSON.stringify(['x'.repeat(49)]), JSON.stringify(Array.from({length: 9}, (_, i) => `tag${i}`))]) {
+    assert.equal((await send(png, { tags }, '/api/images')).status, 400)
+  }
   // Concurrent uploads preserve the first record and remove the losing file.
   const raceBytes = Buffer.from(png); raceBytes[raceBytes.length - 1] ^= 1 // structure remains valid; CRC is not decoded
   const race = await Promise.all([send(raceBytes, {source:'first'}), send(raceBytes, {source:'second'})])
@@ -268,14 +271,26 @@ try {
   const recoveredContent = await fetch(`${base}/api/assets/${largeAsset.id}/content`)
   assert.equal(recoveredContent.status, 200)
   assert.equal((await recoveredContent.arrayBuffer()).byteLength, large.length)
+  const captureBytes = Buffer.from(png); captureBytes[captureBytes.length - 1] ^= 64
+  const capture = await send(captureBytes, { tags: JSON.stringify(['  Referências  ', 'referências', 'Autor']) }, '/api/images')
+  assert.equal(capture.status, 200)
+  const capturedImage = await capture.json()
+  assert.deepEqual(capturedImage.tags.map((tag: { name: string }) => tag.name).sort(), ['Autor', 'Referências'])
+  const captureDuplicate = await send(captureBytes, { tags: '["Outra"]' }, '/api/images')
+  assert.deepEqual(await captureDuplicate.json(), { duplicate: true, message: 'Already saved.' })
+  assert.deepEqual(getImageTags(capturedImage.id).map(tag => tag.name).sort(), ['Autor', 'Referências'])
   // Controlled remote response: no network access or changes to SSRF rules.
+  const remoteBytes = Buffer.from(png); remoteBytes[remoteBytes.length - 1] ^= 32
   const originalFetch = globalThis.fetch
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    if (String(url) === 'https://8.8.8.8/fixture') return new Response(png, { headers: { 'content-type': 'text/plain' } })
+    if (String(url) === 'https://8.8.8.8/fixture') return new Response(remoteBytes, { headers: { 'content-type': 'text/plain' } })
     return originalFetch(url, init)
   }) as typeof fetch
-  const remote = await fetch(base + '/api/images', { method:'POST', body:JSON.stringify({url:'https://8.8.8.8/fixture'}), headers:{'content-type':'application/json'} })
-  assert.equal(remote.status, 200); assert.deepEqual(await remote.json(), { duplicate:true, message:'Already saved.' })
+  const remote = await fetch(base + '/api/images', { method:'POST', body:JSON.stringify({url:'https://8.8.8.8/fixture', tags:['Assunto', 'Refinamento']}), headers:{'content-type':'application/json'} })
+  assert.equal(remote.status, 200)
+  const remoteImage = await remote.json()
+  assert.deepEqual(remoteImage.tags.map((tag: { name: string }) => tag.name).sort(), ['Assunto', 'Refinamento'])
+  assert.deepEqual(getImageTags(remoteImage.id).map(tag => tag.name).sort(), ['Assunto', 'Refinamento'])
   globalThis.fetch = originalFetch
   console.log('All isolated asset HTTP and database assertions passed')
 } finally {

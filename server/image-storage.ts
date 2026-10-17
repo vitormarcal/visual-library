@@ -7,7 +7,7 @@ import { ensureDataStore, enrichImageWithinTransaction, hashImageBytes, imageDir
 import { validateImageFormat } from './image-format.ts'
 import type { SaveImageInput } from './image-url.ts'
 
-export const saveImage = async (input: SaveImageInput, source = 'visual-library', hiddenFromGallery = false, enrichment?: AssetEnrichment) => {
+export const saveImage = async (input: SaveImageInput, source = 'visual-library', hiddenFromGallery = false, enrichment?: AssetEnrichment, enrichDuplicates = true) => {
   const format = validateImageFormat(input.data)
   let path: string | undefined, owned = false
   try {
@@ -19,7 +19,7 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
       try {
         const row = db.prepare('SELECT * FROM images WHERE id = ?').get(id) as ImageRow | undefined
         if (!row) throw new Error('Image disappeared during upload')
-        enrichImageWithinTransaction(id, source, enrichment)
+        if (enrichDuplicates) enrichImageWithinTransaction(id, source, enrichment)
         db.exec('COMMIT')
         return { row, created: false }
       } catch (error) { db.exec('ROLLBACK'); throw error }
