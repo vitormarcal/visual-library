@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { discoveryImages } from './utils/image-visibility'
+import { sharedCaptureKeys, sharedCaptureMessage } from './utils/shared-capture'
 import { matchesImageSearch } from './utils/image-search'
 import { saveImageBatch, type UploadResult } from './utils/image-upload'
 import { findRelatedImages } from './utils/related-images'
@@ -30,6 +31,7 @@ const uploadProgress = ref<{ current: number; total: number } | null>(null)
 const uploadResult = shallowRef<UploadResult | null>(null)
 const notice = ref('')
 const noticeKind = ref<'success' | 'error'>('success')
+const sharedNotice = ref(sharedCaptureMessage(useRequestURL().searchParams))
 const navigation = useLibraryNavigation()
 const destination = navigation.destination
 const referenceId = computed(() => destination.value.screen === 'similar' ? destination.value.referenceId : null)
@@ -585,6 +587,11 @@ const goBackInViewer = () => {
 }
 
 onMounted(() => {
+  const url = new URL(location.href)
+  if (url.searchParams.has('shared')) {
+    for (const key of sharedCaptureKeys) url.searchParams.delete(key)
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }
   navigation.start()
   void loadImages()
 })
@@ -636,6 +643,11 @@ watch(visibleImages, () => {
       @save-url="handleSaveUrl"
       @error="showNotice($event, 'error')"
     />
+
+    <section v-if="sharedNotice" class="destinationProblem" role="status">
+      <p>{{ sharedNotice }}</p>
+      <button type="button" @click="sharedNotice = ''">Dismiss</button>
+    </section>
 
     <section v-if="hiddenLinkedImage && !destinationBlocked" class="destinationProblem" role="status">
       <p>This image is hidden from the gallery.</p>

@@ -19,6 +19,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Abrir no celular e salvar pelo compartilhamento
+
+Solicitado em 2026-10-18 e implementado em [020](docs/specs/020-install-share/spec.md): instalação com ícone e abertura standalone, recebimento online de arquivos e links diretos de imagem pelo menu Compartilhar nos sistemas compatíveis. Sem modo offline. Resultado de captura aparece na Library, preservando validação e deduplicação existentes. Verificação física da instalação e do compartilhamento entre apps permanece pendente; testes HTTP e Chrome estão no plano.
+
 ### Repetir tags ao salvar num contexto filtrado
 
 Solicitado em 2026-10-17 e implementado em [018](docs/specs/018-upload-filter-tags/spec.md): novas imagens recebem as tags dos filtros e do assunto aberto, com indicação prévia na área de captura. Lotes e retries mantêm o contexto inicial; duplicatas permanecem sem alterações. Testes automatizados e build passaram; validação visual em navegador permanece pendente.

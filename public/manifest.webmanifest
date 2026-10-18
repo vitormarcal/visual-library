@@ -1,0 +1,30 @@
+{
+  "id": "/",
+  "name": "Visual Library",
+  "short_name": "Visual Library",
+  "description": "Your personal visual library.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "/icons/library-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/library-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/library-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [{
+        "name": "image",
+        "accept": ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"]
+      }]
+    }
+  }
+}

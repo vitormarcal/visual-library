@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY app ./app
+COPY public ./public
 COPY server ./server
 COPY nuxt.config.ts ./nuxt.config.ts
 COPY runtime/similarity/features.mjs ./runtime/similarity/features.mjs
