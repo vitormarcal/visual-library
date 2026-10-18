@@ -58,6 +58,7 @@ const emit = defineEmits<{
 }>()
 
 const viewer = ref<HTMLElement | null>(null)
+const controlsHidden = ref(false)
 const closeButton = ref<HTMLButtonElement | null>(null)
 const tagInput = ref<HTMLInputElement | null>(null)
 const tagsPanel = ref<HTMLElement | null>(null)
@@ -143,6 +144,7 @@ const focusableControls = () => {
   }
 
   return Array.from(viewer.value.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]:not([aria-disabled="true"])'))
+    .filter((control) => control.getClientRects().length > 0 && getComputedStyle(control).visibility !== 'hidden')
 }
 
 const isTagEditorTarget = (target: EventTarget | null) => {
@@ -304,6 +306,7 @@ onBeforeUnmount(() => {
 })
 
 watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) => {
+  controlsHidden.value = false
   const version = ++restorationVersion
   stopRestoration?.()
   editingTags.value = false
@@ -365,11 +368,13 @@ syncDraftTags()
 <template>
   <section
     ref="viewer"
-    :class="styles.overlay"
+    :class="[styles.overlay, { [styles.controlsHidden]: controlsHidden }]"
     role="dialog"
     aria-modal="true"
     aria-label="Image viewer"
     @click.self="$emit('close')"
+    @scroll.passive="controlsHidden = false"
+    @keydown="controlsHidden = false"
   >
     <button
       ref="closeButton"
@@ -403,6 +408,13 @@ syncDraftTags()
           :width="image.width || undefined" :height="image.height || undefined"
           decoding="async"
         >
+        <button
+          type="button"
+          :class="styles.imageToggle"
+          :aria-label="controlsHidden ? 'Show image controls' : 'Hide image controls'"
+          :aria-pressed="controlsHidden"
+          @click="controlsHidden = !controlsHidden"
+        />
       </div>
       <div :class="styles.viewingFooter">
         <div :class="styles.adjacentNavigation" role="group" aria-label="Browse images">

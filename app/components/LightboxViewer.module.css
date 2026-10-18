@@ -24,6 +24,8 @@
   min-height: 0;
 }
 
+.imageToggle { display: none; }
+
 .image {
   position: absolute;
   inset: 0;
@@ -360,3 +362,43 @@ a.exploreButton { display: inline-flex; align-items: center; justify-content: ce
 
 .assetDetails { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; font-size: 14px; color: rgba(255, 255, 255, 0.7); overflow-wrap: anywhere; }
 .assetDetails p { flex-basis: 100%; text-align: center; }
+
+@media (max-width: 640px), (max-height: 500px) {
+  .mainView {
+    position: relative;
+    display: block;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .viewingHeader { display: none; }
+  .imageStage { width: 100%; height: 100%; }
+  .image { width: 100%; height: 100%; border-radius: 0; }
+
+  .imageToggle {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    touch-action: manipulation;
+  }
+
+  .viewingFooter {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 24px max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    gap: var(--space-sm);
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    pointer-events: none;
+  }
+
+  .viewingFooter > * { pointer-events: auto; }
+  .controlsHidden .viewingFooter,
+  .controlsHidden .closeButton,
+  .controlsHidden .backButton { visibility: hidden; }
+}
