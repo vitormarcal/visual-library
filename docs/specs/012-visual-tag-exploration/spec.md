@@ -84,3 +84,8 @@ A implementação e os resultados dos testes estão registrados em plan.md. A va
 ## API de assets e visibilidade (014)
 
 [014](../014-assets-api/spec.md) acrescenta origem e ocultação individual ao mesmo acervo. A descoberta padrão usa somente imagens visíveis, inclusive busca, assuntos, relacionadas e capas/contagens. Ocultação preserva arquivo, ID e tags; Library oferece recuperação explícita dos ocultos. A API externa retorna referências estáveis inclusive em duplicatas; a resposta de duplicata da interface permanece compatível. Captura mantém seu fluxo e passa a validar formato pelos bytes e usar limite configurável. Não há autenticação, perfis ou sincronização de tags/coleções. Navegação dos ocultos e links antigos seguem as regras de 014.
+
+
+## Redescobrir mínimo (022)
+
+[022](../022-rediscover/spec.md) acrescenta ao Explore um lote finito de até oito imagens, independente da pesquisa de assuntos. Endereços Explore podem abrir o viewer somente com `selection` identificando o lote; lotes conhecidos mantêm ordem e retorno. Nova aba/reload sem lote conhecido recupera a imagem na Library. Isso estende a restrição anterior de Explore sem visualizador, sem alterar critérios das galerias por assunto ou dos links antigos. Sem histórico de aberturas.

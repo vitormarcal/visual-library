@@ -23,6 +23,7 @@ const props = defineProps<{
   selectedIds?: string[]
   busy?: boolean
   singleColumn?: boolean
+  compact?: boolean
   imageHref: (id: string) => string
 }>()
 
@@ -42,7 +43,7 @@ const open = (event: MouseEvent, id: string) => {
     <p v-if="loading" :class="styles.empty">Loading library.</p>
     <p v-else-if="images.length === 0" :class="styles.empty">{{ emptyText || 'No images saved yet.' }}</p>
 
-    <div v-else :class="styles.grid" :style="singleColumn ? { columnCount: 1 } : undefined">
+    <div v-else :class="[styles.grid, { [styles.compact]: compact }]" :style="singleColumn ? { columnCount: 1 } : undefined">
       <figure
         v-for="image in images"
         :key="image.id"

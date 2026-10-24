@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { createRediscoveryBatches } from './utils/rediscovery'
 import { discoveryImages } from './utils/image-visibility'
 import { sharedCaptureKeys, sharedCaptureMessage } from './utils/shared-capture'
 import { matchesImageSearch } from './utils/image-search'
@@ -81,6 +82,26 @@ const linkAction = (event: MouseEvent, action: () => void) => { if (interceptLib
 const subjectImages = computed(() => subjectTag.value ? publicImages.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
 const allSubjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value))
 const subjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value, exploreQuery.value))
+const rediscoveryBatches = createRediscoveryBatches()
+const rediscovery = computed(() => rediscoveryBatches.get(destination.value.selectionId))
+const rediscoveredImages = computed(() => {
+  const current = new Map(publicImages.value.map(image => [image.id, image]))
+  return (rediscovery.value?.ids ?? []).map(id => current.get(id)).filter((image): image is ImageRecord => Boolean(image))
+})
+const anotherSelection = () => {
+  const selectionId = crypto.randomUUID()
+  rediscoveryBatches.create(selectionId, publicImages.value, rediscovery.value?.ids)
+  navigation.replace({ ...destination.value, selectionId, imageId: null })
+}
+// A batch belongs to this page session; never reconstruct a different lot under an old ID.
+watch([() => destination.value.selectionId, () => destination.value.screen, loading, libraryError, () => publicImages.value.length], () => {
+  if (loading.value || libraryError.value || destination.value.problem || screen.value !== 'explore') return
+  if (rediscovery.value && (rediscovery.value.ids.length || !publicImages.value.length)) return
+  if (destination.value.imageId) {
+    navigation.replace({ ...libraryDestination(), imageId: destination.value.imageId })
+    showNotice('This selection is no longer available. Opened the image in Library.', 'success')
+  } else anotherSelection()
+})
 type PagePosition = { scrollTop: number; focusId: string | null }
 let pageTransition = 0
 let cancelPageRestoration = () => {}
@@ -138,6 +159,7 @@ let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 
 const visibleImages = computed(() => {
+  if (screen.value === 'explore') return destinationBlocked.value ? [] : rediscoveredImages.value
   if (screen.value === 'similar') return destinationBlocked.value ? [] : similarity.current.value.images
     .map(image => images.value.find(current => current.id === image.id) ?? image).filter(image => !image.hiddenFromGallery)
   return eligibleImages.value.filter((image) => {
@@ -398,7 +420,7 @@ const clearTagFilters = () => {
 }
 
 const handleViewerTagFilter = (tag: ImageTag) => {
-  if (screen.value === 'similar') {
+  if (screen.value === 'similar' || screen.value === 'explore') {
     tagMetadata.value[tag.id] = tag
     navigation.push({ ...libraryDestination(), tagIds: [tag.id] })
     return
@@ -518,7 +540,10 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarIn
     window.scrollTo({ top: 0, behavior: 'instant' })
     document.querySelector<HTMLElement>(screen.value === 'similar' ? '[data-similar-heading]' : '[data-subject-heading]')?.focus({ preventScroll: true })
   } else if (!destination.value.imageId) {
-    const selector = state.focusId ? `[${screen.value === 'explore' ? 'data-explore-tag-id' : 'data-lightbox-open-id'}="${CSS.escape(state.focusId)}"]` : screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
+    const selector = state.focusId ? screen.value === 'explore'
+      ? `[data-explore-tag-id="${CSS.escape(state.focusId)}"], [data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
+      : `[data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
+      : screen.value === 'explore' ? '[data-rediscovery-heading]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
     void restorePage(state, selector, pageTransition)
   }
 })
@@ -660,14 +685,30 @@ watch(visibleImages, () => {
       <a href="/?view=explore" @click="linkAction($event, recoverExplore)">Explore subjects</a>
       <a href="/?view=library" @click="linkAction($event, () => navigation.push(libraryDestination()))">Library</a>
     </section>
-    <TagExploreGrid
-      v-else-if="screen === 'explore'"
-      v-model:query="exploreQuery" :groups="subjects" :has-tags="allSubjects.length > 0"
-      :loading="loading || (tagsLoading && !tagSummaries.length)"
-      :error="libraryError || (tagsError && !tagSummaries.length)"
-      :dimensions="coverDimensions" :library-href="navigationHref('library')"
-      @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
-    />
+    <template v-else-if="screen === 'explore'">
+      <section class="rediscovery" aria-labelledby="rediscovery-heading">
+        <div class="rediscoveryHeader">
+          <div>
+            <h2 id="rediscovery-heading" data-rediscovery-heading tabindex="-1">Rediscover</h2>
+            <p v-if="!loading && !libraryError && rediscoveredImages.length">{{ rediscovery?.includesRecent ? 'A selection of your saves, including more recent images.' : 'From images you saved at least 30 days ago.' }}</p>
+          </div>
+          <button v-if="!loading && !libraryError && publicImages.length && (publicImages.length > 1 || !rediscoveredImages.length)" data-rediscovery-refresh type="button" @click="anotherSelection">Another selection</button>
+        </div>
+        <div v-if="libraryError" class="loadError" role="status">
+          <p>Could not load saved images.</p><button type="button" @click="loadImages">Try again</button>
+        </div>
+        <GalleryGrid v-else :images="rediscoveredImages" :loading="loading" compact :image-href="imageHref"
+          :empty-text="publicImages.length ? 'No images remain in this selection. Choose another selection.' : 'Saved images will appear here.'"
+          @open="openViewer" @delete="handleDelete" />
+      </section>
+      <TagExploreGrid
+        v-model:query="exploreQuery" :groups="subjects" :has-tags="allSubjects.length > 0"
+        :loading="loading || (tagsLoading && !tagSummaries.length)"
+        :error="libraryError || (tagsError && !tagSummaries.length)"
+        :dimensions="coverDimensions" :library-href="navigationHref('library')"
+        @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
+      />
+    </template>
     <template v-else-if="screen === 'similar'">
       <div v-if="libraryError" class="loadError" role="status"><p>Could not load the library.</p><button type="button" @click="loadImages">Try again</button></div>
       <SimilarGallery v-else :reference="referenceImage" :images="visibleImages"
@@ -773,6 +814,13 @@ watch(visibleImages, () => {
 </template>
 
 <style>
+.rediscovery { margin: var(--space-xl) 0 64px; }
+.rediscoveryHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
+.rediscoveryHeader h2 { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 600; }
+.rediscoveryHeader p { margin: 6px 0 0; color: var(--color-mute); font-size: 14px; line-height: 1.4; }
+.rediscoveryHeader button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.rediscoveryHeader button:active { background: var(--color-secondary-pressed); }
+
 .visibilityMode { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: var(--color-mute); font-size: 14px; }
 .visibilityMode button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 16px; background: var(--color-surface-card); color: var(--color-ink); font-weight: 600; }
 .filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }

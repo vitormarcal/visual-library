@@ -57,3 +57,19 @@ test('similar galleries preserve reference independently of the opened image and
     assert.ok(parseLibraryDestination(new URL(address, 'http://library.local')).problem, address)
   }
 })
+
+test('Explore image links identify a finite rediscovery selection without changing legacy image destinations', () => {
+  const selectionId = '67f9d1a5-207a-409b-9653-0be9c51c2dca'
+  const destination = { ...libraryDestination('explore'), selectionId, imageId: 'image & one', query: 'personal subject' }
+  const address = libraryDestinationUrl(destination)
+  assert.ok(address.includes('view=explore'))
+  assert.deepEqual(parseLibraryDestination(new URL(address, 'http://library.local')), destination)
+  const closed = { ...destination, imageId: null }
+  assert.deepEqual(parseLibraryDestination(new URL(libraryDestinationUrl(closed), 'http://library.local')), closed)
+  assert.equal(parseLibraryDestination(new URL('http://library.local/?image=legacy')).screen, 'library')
+  for (const address of [
+    '/?view=explore&selection=invalid', '/?view=explore&selection=',
+    `/?view=library&selection=${selectionId}`, `/?view=similar&reference=a&selection=${selectionId}`,
+    `/?view=explore&selection=${selectionId}&selection=${selectionId}`,
+  ]) assert.ok(parseLibraryDestination(new URL(address, 'http://library.local')).problem, address)
+})

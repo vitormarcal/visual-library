@@ -61,6 +61,8 @@ export const useLibraryNavigation = () => {
   const replace = (next: LibraryDestination) => {
     if (!entry.value || closing || next.problem) return
     const value = { ...entry.value, url: libraryDestinationUrl(next, entry.value.url) }
+    // A recovered viewer in another screen needs a parent in that screen.
+    if (next.screen !== destination.value.screen) { value.parent = null; value.origin = null }
     if (!next.imageId) {
       if (next.screen === 'library') value.library = snapshot(value)
       if (next.screen === 'explore') value.explore = snapshot(value)

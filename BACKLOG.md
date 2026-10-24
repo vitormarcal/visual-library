@@ -6,7 +6,7 @@ New entries should come primarily from real usage, repeated friction, browsing b
 
 ## Sequência escolhida em 2026-10-24
 
-[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), depois Redescobrir mínimo sem histórico, correção independente do gatilho `/share` e avaliação semântica isolada. As três últimas entregas permanecem pendentes.
+[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), seguido da correção independente do gatilho `/share` e avaliação semântica isolada. As duas últimas entregas permanecem pendentes.
 
 ## Observed Usage
 
@@ -22,6 +22,10 @@ Observed on 2026-10-01:
 Tags remain optional and freeform. These observations do not impose a taxonomy or restrict other useful associations. Shared behavior is defined in [lightweight tags](docs/specs/005-lightweight-tags/spec.md).
 
 ## Implemented Responses to Friction
+
+### Reencontrar imagens fora das capturas recentes
+
+Solicitado e implementado em 2026-10-24 em [022](docs/specs/022-rediscover/spec.md): bloco Rediscover no Explore com até oito imagens, prioridade para salvamentos de pelo menos 30 dias, outra seleção explícita e lote estável durante navegação. Sem histórico de aberturas, IA, endpoint ou tabela nova. Miniaturas e viewer atuais preservados; pesquisa de assuntos é independente. Suíte de 60 testes, build e smoke Chrome desktop/mobile emulado passaram, incluindo retorno/foco, edição, exclusão/ocultação e fallback de nova aba/reload. Detalhes no [plano](docs/specs/022-rediscover/plan.md). Benefício real e toque físico permanecem para avaliação no uso pessoal; sem deploy.
 
 ### Originais grandes durante navegação visual
 

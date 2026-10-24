@@ -2,6 +2,7 @@ export type LibraryDestination = {
   screen: 'library' | 'explore' | 'subject' | 'similar'
   subjectId: string | null
   referenceId: string | null
+  selectionId: string | null
   query: string
   tagIds: string[]
   imageId: string | null
@@ -10,7 +11,7 @@ export type LibraryDestination = {
 }
 
 export const libraryDestination = (screen: LibraryDestination['screen'] = 'library'): LibraryDestination => ({
-  screen, subjectId: null, referenceId: null, query: '', tagIds: [], imageId: null, hidden: false, problem: null,
+  screen, subjectId: null, referenceId: null, selectionId: null, query: '', tagIds: [], imageId: null, hidden: false, problem: null,
 })
 
 export const parseLibraryDestination = (url: URL): LibraryDestination => {
@@ -21,18 +22,20 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
   const destination = libraryDestination(view === 'explore' || view === 'subject' || view === 'similar' ? view : 'library')
   destination.subjectId = params.get('subject')
   destination.referenceId = params.get('reference')
+  destination.selectionId = params.get('selection')
   destination.query = params.get('q') ?? ''
   destination.tagIds = [...new Set(params.getAll('tag'))].filter((id) => id !== destination.subjectId)
   destination.imageId = params.get('image')
   destination.hidden = params.get('visibility') === 'hidden'
   if ((params.has('visibility') && (params.get('visibility') !== 'hidden' || destination.screen !== 'library'))
     || !['library', 'explore', 'subject', 'similar'].includes(view)
-    || ['view', 'subject', 'reference', 'q', 'image', 'visibility'].some((key) => params.getAll(key).length > 1)
+    || ['view', 'subject', 'reference', 'selection', 'q', 'image', 'visibility'].some((key) => params.getAll(key).length > 1)
     || (destination.screen === 'subject' ? !destination.subjectId : destination.subjectId !== null)
     || (destination.screen === 'similar' ? !destination.referenceId || Boolean(destination.query || destination.tagIds.length) : destination.referenceId !== null)
     || destination.tagIds.some((id) => !id)
     || (params.has('image') && !destination.imageId)
-    || (destination.screen === 'explore' && (destination.imageId || destination.tagIds.length))) {
+    || (destination.selectionId !== null && (destination.screen !== 'explore' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(destination.selectionId)))
+    || (destination.screen === 'explore' && ((destination.imageId && !destination.selectionId) || destination.tagIds.length))) {
     destination.problem = 'This address does not identify a valid library destination.'
   } else if (destination.tagIds.length + (destination.screen === 'subject' ? 1 : 0) > 3) {
     destination.problem = 'This address has too many tag filters. Choose up to three.'
@@ -42,11 +45,12 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
 
 export const libraryDestinationUrl = (destination: LibraryDestination, source = '/'): string => {
   const url = new URL(source, 'http://library.local')
-  for (const key of ['view', 'subject', 'reference', 'q', 'tag', 'image', 'visibility']) url.searchParams.delete(key)
+  for (const key of ['view', 'subject', 'reference', 'selection', 'q', 'tag', 'image', 'visibility']) url.searchParams.delete(key)
   // Explore searches need an explicit view to distinguish older Library links.
-  if (destination.screen !== 'explore' || destination.query) url.searchParams.set('view', destination.screen)
+  if (destination.screen !== 'explore' || destination.query || destination.selectionId) url.searchParams.set('view', destination.screen)
   if (destination.screen === 'subject' && destination.subjectId) url.searchParams.set('subject', destination.subjectId)
   if (destination.screen === 'similar' && destination.referenceId) url.searchParams.set('reference', destination.referenceId)
+  if (destination.selectionId) url.searchParams.set('selection', destination.selectionId)
   if (destination.query) url.searchParams.set('q', destination.query)
   for (const id of [...new Set(destination.tagIds)].filter((id) => id !== destination.subjectId)) url.searchParams.append('tag', id)
   if (destination.hidden) url.searchParams.set('visibility', 'hidden')

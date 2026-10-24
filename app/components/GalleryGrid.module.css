@@ -99,3 +99,7 @@
 .selected .openButton:focus-visible { outline-color: var(--color-focus-outer); }
 .selected img { opacity: 0.8; }
 .selectionMark { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-full); background: white; color: black; pointer-events: none; }
+
+/* Finite Rediscover block keeps two columns on narrow screens. */
+.compact { column-count: 4; }
+@media (max-width: 640px) { .compact { column-count: 2; } }
