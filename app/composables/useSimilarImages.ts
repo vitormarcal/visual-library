@@ -10,6 +10,7 @@ const session = (referenceId = ''): Session => ({ referenceId, state: 'preparing
   preparedCount: 0, totalCount: 0, failedCount: 0, busy: false, error: '', expired: false, started: false })
 
 export function useSimilarImages(referenceId: Ref<string | null>) {
+  const $fetch = useNuxtApp().$libraryApi
   const sessions = new Map<string, Session>()
   const current = shallowRef<Session>(reactive(session()))
   let poll: ReturnType<typeof setTimeout> | undefined

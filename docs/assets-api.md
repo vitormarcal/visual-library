@@ -2,7 +2,7 @@
 
 O Visual Library usa Nuxt/Nitro/H3, SQLite nativo do Node e arquivos locais em `data/images`. A API externa compartilha a tabela `images`, UUIDs, deduplicação SHA-256 e ciclo de vida com a biblioteca. Aplicações consumidoras guardam o ID e seus próprios metadados; não precisam conhecer nomes ou diretórios internos.
 
-Não há autenticação nesta entrega, por decisão do usuário. Todas as rotas são acessíveis a quem alcançar o servidor. `source` é informado pelo cliente e `hiddenFromGallery` controla apresentação, não autorização. Não foram adicionadas permissões CORS.
+A API exige sessão do dono ou token Bearer revogável de aplicação. Configuração e transição em [acesso e compartilhamento](access-and-sharing.md). `source` é informado pelo cliente e `hiddenFromGallery` controla apresentação, não autorização. Não foram adicionadas permissões CORS.
 
 ## Endpoints externos
 
@@ -83,7 +83,7 @@ Arquivo novo, tags e referência são confirmados conjuntamente. Erro de limite 
 
 ## Referenciar e exibir
 
-Guardar o ID na aplicação consumidora. Configurar a URL base do Visual Library e formar `/api/assets/{id}` para metadados e `/api/assets/{id}/content` para os bytes.
+Para chamadas de servidor, enviar `Authorization: Bearer TOKEN` nos exemplos curl abaixo (inclusive uploads); os exemplos mostram os payloads e caminhos. O navegador do dono usa sua sessão. Guardar o ID na aplicação consumidora. Configurar a URL base do Visual Library e formar `/api/assets/{id}` para metadados e `/api/assets/{id}/content` para os bytes.
 
 ```bash
 curl http://visual-library:3000/api/assets/ASSET_ID
@@ -91,18 +91,19 @@ curl -o original.jpg http://visual-library:3000/api/assets/ASSET_ID/content
 ```
 
 ```html
-<img src="https://biblioteca.exemplo/api/assets/ASSET_ID/content" alt="Imagem">
+<!-- Para leitores externos, criar um link público pelo visualizador. -->
+<img src="https://biblioteca.exemplo/shared-images/TOKEN_PUBLICO" alt="Imagem">
 ```
 
 O hostname `visual-library` da rede Docker normalmente só é resolvido pelos containers. O navegador precisa de endereço alcançável, por exemplo o domínio usado para acessar a biblioteca ou um endereço da rede local. Nenhuma alteração no Media Pulse faz parte desta implementação.
 
-O ID independe do filename registrado. A entrega usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, max-age=31536000, immutable`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
+O ID independe do filename registrado. A entrega usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
 
 ## Origem e visibilidade na interface
 
 No visualizador, a área abaixo da imagem mostra `Source` e permite `Hide from gallery`/`Show in gallery`. Na Library, `Hidden images` abre somente as ocultas; `Show gallery` retorna às visíveis. Esse modo usa `/?view=library&visibility=hidden` e acompanha reload/histórico.
 
-Ocultos não participam da descoberta padrão: galeria, busca, assuntos, relacionadas, capas e contagens. Arquivos e tags permanecem armazenados e acessíveis por HTTP. Links internos antigos para ocultos oferecem recuperação explícita sem mostrá-los automaticamente na galeria. Capas são substituídas por integrantes visíveis e a substituta válida permanece estável quando outra imagem volta a ser visível.
+Ocultos não participam da descoberta padrão: galeria, busca, assuntos, relacionadas, capas e contagens. Arquivos e tags permanecem armazenados e acessíveis por HTTP autenticado. Links internos antigos para ocultos oferecem recuperação explícita sem mostrá-los automaticamente na galeria. Capas são substituídas por integrantes visíveis e a substituta válida permanece estável quando outra imagem volta a ser visível.
 
 A interface usa `PATCH /api/images/{id}/visibility` com JSON `{ "hiddenFromGallery": true }`, retornando a imagem no formato interno. Este endpoint não altera origem ou tags. `GET /api/images` continua listando o acervo completo, com os campos aditivos `source` e `hiddenFromGallery`; a interface filtra a apresentação.
 
@@ -133,7 +134,7 @@ Erros seguem o envelope HTTP do H3/Nitro, com `statusCode` e `statusMessage`. De
 
 ## Limitações
 
-- Excluir pela interface remove o registro e quebra referências externas. ID estável não garante retenção; o browser pode continuar mostrando conteúdo já armazenado em cache durante o período de validade de até um ano.
+- Excluir pela interface remove o registro e quebra referências externas. ID estável não garante retenção; cópias baixadas e caches emitidos antes da autenticação podem permanecer disponíveis.
 - Validação estrutural não decodifica pixels, verifica todos os checksums ou identifica toda corrupção. Legados são identificados somente pelo prefixo; formato não reconhecido retorna 415 sem apagar o arquivo.
 - Falhas tratáveis de escrita/insert são compensadas. Interrupção abrupta do processo ou recusa do filesystem em limpar podem deixar órfãos; falhas de compensação são registradas. A exclusão mantém sua limitação anterior: erro de unlink é ignorado.
 - Registros antigos sem hash continuam fora da deduplicação. Uma duplicata não repara automaticamente arquivo ausente.
@@ -164,4 +165,4 @@ Ao corrigir, remover um termo antigo apenas quando ele não é pessoal nem perte
 
 **Legado:** tags anteriores à procedência são preservadas. A primeira adoção informa `legacyTagsPreserved`; remoções de termos pessoais/compartilhados informam `preservedTags`. A classificação da referência é corrigida, mas essas tags globais não são apagadas automaticamente.
 
-Reenvio de upload conserva sugestões genéricas quando a referência já existe; grupos vinculados são atualizados sob suas regras de revisão. O Visual Library continua sem autenticação: aplicação e referência são declarações do cliente, não permissões. Sem fila, sincronização de metadados gerais ou controle de retenção.
+Reenvio de upload conserva sugestões genéricas quando a referência já existe; grupos vinculados são atualizados sob suas regras de revisão. O Visual Library agora exige autenticação; aplicação e referência continuam declarações do cliente, não permissões por asset. Sem fila, sincronização de metadados gerais ou controle de retenção.

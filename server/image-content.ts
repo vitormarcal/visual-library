@@ -1,22 +1,23 @@
+import { createHash } from 'node:crypto'
 import { open } from 'node:fs/promises'
 import { createError, getRequestHeader, sendStream, setHeader, setResponseStatus, type H3Event } from 'h3'
 import { ensureDataStore, imageDir, type ImageRow } from './db.ts'
 import { detectImageFormat } from './image-format.ts'
 
-export const sendImageContent = async (event: H3Event, row: ImageRow) => {
+export const sendImageContent = async (event: H3Event, row: ImageRow, publicContent = false) => {
   let file
   try { file = await open(`${imageDir}/${row.filename}`, 'r') }
   catch (error) {
     const code = (error as NodeJS.ErrnoException).code
-    throw createError({ statusCode: code === 'ENOENT' || code === 'ENOTDIR' ? 404 : 500, statusMessage: 'Image file unavailable.' })
+    throw createError({ statusCode: code === 'ENOENT' || code === 'ENOTDIR' ? 404 : 500, statusMessage: publicContent ? 'Image unavailable.' : 'Image file unavailable.' })
   }
   let streaming = false
   try {
     const stat = await file.stat()
     if (!stat.isFile()) throw createError({ statusCode: 404, statusMessage: 'Image file not found.' })
-    const etag = `W/"${row.id}-${stat.size}-${stat.mtimeMs}"`
+    const etag = `W/"${createHash('sha256').update(`${row.id}-${stat.size}-${stat.mtimeMs}`).digest('hex')}"`
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    setHeader(event, 'Cache-Control', 'private, max-age=31536000, immutable')
+    setHeader(event, 'Cache-Control', 'no-store')
     setHeader(event, 'ETag', etag)
     setHeader(event, 'Last-Modified', stat.mtime.toUTCString())
     const match = getRequestHeader(event, 'if-none-match')
@@ -40,6 +41,7 @@ export const sendImageContent = async (event: H3Event, row: ImageRow) => {
       db.prepare('UPDATE images SET mime_type = ? WHERE id = ?').run(mime, row.id)
     }
     setHeader(event, 'Content-Length', stat.size)
+    if (event.method === 'HEAD') return ''
     const stream = file.createReadStream({ start: 0, autoClose: true })
     // sendStream in H3 does not close a node stream when the client disconnects.
     const cancel = () => { if (!event.node.res.writableEnded) stream.destroy(new Error('Image request closed')) }
@@ -58,7 +60,8 @@ export const sendImageContent = async (event: H3Event, row: ImageRow) => {
     event.node.res.removeHeader('Content-Type')
     event.node.res.removeHeader('ETag')
     event.node.res.removeHeader('Last-Modified')
-    event.node.res.removeHeader('Cache-Control')
+    setHeader(event, 'Cache-Control', 'no-store')
+    if (publicContent) throw createError({ statusCode: (error as { statusCode?: number }).statusCode === 404 ? 404 : 500, statusMessage: 'Image unavailable.' })
     if ((error as { statusCode?: number }).statusCode) throw error
     throw createError({ statusCode: 500, statusMessage: 'Could not read image.' })
   } finally { if (!streaming) await file.close() }

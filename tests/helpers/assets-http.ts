@@ -64,7 +64,7 @@ try {
   assert.equal((await fetch(`${base}/api/assets/missing/content`)).status, 404)
   const content = await fetch(`${base}/api/assets/${asset.id}/content`)
   assert.equal(content.headers.get('content-type'), 'image/png')
-  assert.equal(content.headers.get('cache-control'), 'private, max-age=31536000, immutable')
+  assert.equal(content.headers.get('cache-control'), 'no-store')
   assert.deepEqual(Buffer.from(await content.arrayBuffer()), png)
   assert.equal((await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-none-match': content.headers.get('etag')! } })).status, 304)
   assert.equal((await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-modified-since': content.headers.get('last-modified')! } })).status, 304)
@@ -156,7 +156,7 @@ try {
   try {
     const cached = await fetch(`${base}/api/assets/${asset.id}/content`, { headers: { 'if-none-match': content.headers.get('etag')! } })
     assert.equal(cached.status, 304); assert.equal(await cached.text(), '')
-    assert.equal(cached.headers.get('cache-control'), 'private, max-age=31536000, immutable')
+    assert.equal(cached.headers.get('cache-control'), 'no-store')
   } finally { fs.promises.open = originalOpen; syncBuiltinESMExports() }
   fs.promises.open = (async (...args: Parameters<typeof originalOpen>) => {
     const file = await originalOpen(...args)

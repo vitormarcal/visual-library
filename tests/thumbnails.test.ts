@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-test('persistent previews use real decoding, immutable HTTP cache, fallback and deletion in an isolated library', () => {
+test('persistent previews use real decoding, revocable HTTP cache, fallback and deletion in an isolated library', () => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-library-thumbnails-'))
   try {
     const result = spawnSync(process.execPath, [new URL('./helpers/thumbnails-http.ts', import.meta.url).pathname], {

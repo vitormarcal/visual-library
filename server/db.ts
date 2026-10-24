@@ -92,6 +92,29 @@ export const ensureDataStore = async () => {
       )
     `)
 
+    db.exec(`CREATE TABLE IF NOT EXISTS owner_sessions (
+      token_hash TEXT PRIMARY KEY, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, password_fingerprint TEXT NOT NULL
+    ); CREATE TABLE IF NOT EXISTS owner_credentials (
+      id INTEGER PRIMARY KEY CHECK(id = 1), password_hash TEXT, setup_generation TEXT
+    ); CREATE TABLE IF NOT EXISTS owner_reset_commands (
+      key_hash TEXT PRIMARY KEY, applied_at TEXT NOT NULL
+    ); CREATE TABLE IF NOT EXISTS application_tokens (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
+      prefix TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT
+    ); CREATE TABLE IF NOT EXISTS image_public_links (
+      image_id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
+    );`)
+
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='integration_credentials'").get()) {
+      db.exec('BEGIN')
+      try {
+        db.exec(`INSERT OR IGNORE INTO application_tokens (id,name,token_hash,prefix,created_at,revoked_at)
+          SELECT 'legacy-media-pulse',name,token_hash,prefix,created_at,revoked_at FROM integration_credentials;
+          DROP TABLE integration_credentials;`)
+        db.exec('COMMIT')
+      } catch (error) { db.exec('ROLLBACK'); throw error }
+    }
+
     db.exec(`CREATE TABLE IF NOT EXISTS image_visual_features (
       image_id TEXT PRIMARY KEY, version TEXT NOT NULL, source_hash TEXT,
       status TEXT NOT NULL CHECK(status IN ('ready', 'failed')), features_json TEXT
@@ -265,6 +288,7 @@ export const deleteImageRecord = (imageId: string) => {
   const affected = getImageTags(imageId).map((tag) => tag.id)
   db.exec('BEGIN')
   try {
+    db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_semantic_vectors WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_visual_features WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)

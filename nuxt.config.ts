@@ -16,7 +16,7 @@ export default defineNuxtConfig({
       ],
     },
   },
-  runtimeConfig: { public: { maxImageSizeBytes: 15 * 1024 * 1024 } },
+  runtimeConfig: { ownerResetKey: '', libraryOrigin: '', public: { maxImageSizeBytes: 15 * 1024 * 1024 } },
   devtools: { enabled: false },
   typescript: {
     strict: true,

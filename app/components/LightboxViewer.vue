@@ -469,6 +469,7 @@ syncDraftTags()
     </div>
 
     <div id="viewer-tags" ref="tagsPanel" :class="styles.tagsPanel">
+      <PublicImageLink :image-id="image.id" />
       <div :class="styles.assetDetails">
         <span>Source: {{ image.source }}</span>
         <button type="button" :class="styles.exploreButton" :disabled="savingTags" @click="$emit('visibility', image.id, !image.hiddenFromGallery)">{{ image.hiddenFromGallery ? 'Show in gallery' : 'Hide from gallery' }}</button>

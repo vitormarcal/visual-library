@@ -6,3 +6,6 @@
 data
 tools
 *.log
+
+.env
+.env.*

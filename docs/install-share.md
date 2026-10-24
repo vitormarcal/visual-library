@@ -16,3 +16,8 @@ O servidor precisa estar acessível e o celular precisa de conexão. Não há ca
 Se já existia um atalho antes desta versão e a biblioteca não aparecer no Compartilhar, remover o atalho e reinstalar pelo navegador compatível.
 
 Referências: [instalação](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable), [compatibilidade do compartilhamento](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target#browser_compatibility).
+
+
+## Acesso pessoal (026)
+
+Entrar na biblioteca antes de receber capturas. Sem sessão, o recebimento redireciona para login e pede compartilhar novamente; não salva nem retém arquivos anonimamente. Origin/Fetch Metadata devem demonstrar origem válida. O fluxo real de Web Share Target precisa de verificação física no celular após autenticação. Ver [acesso e compartilhamento](access-and-sharing.md).

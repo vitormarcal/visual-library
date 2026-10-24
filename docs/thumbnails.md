@@ -26,3 +26,8 @@ Excluir uma imagem pela aplicação remove seu diretório de previews. Previews 
 ## Limites
 
 640 px é uma política inicial, não otimização comprovada para toda imagem/tela/DPR. Validar nitidez com o uso real, especialmente em celular de alta densidade. Arquivos pequenos podem não economizar bytes; o objetivo é reduzir originais grandes. Não há alteração do TTFB do documento público, paginação ou virtualização. A decisão e a sequência das próximas entregas estão no [roadmap](ROADMAP-redescoberta-desempenho.md).
+
+
+## Autenticação (026)
+
+Miniaturas e originais exigem sessão pessoal; tokens de aplicações acessam conteúdo somente pela API de assets. Cache atual é `no-store`, com validação de acesso antes de 304. Isso substitui a política anterior de cache privado immutable. Links públicos individuais entregam o original, sem miniatura pública. Ver [acesso e compartilhamento](access-and-sharing.md).

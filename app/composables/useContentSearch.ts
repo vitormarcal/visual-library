@@ -3,6 +3,7 @@ type Status = { state: 'inactive' | 'preparing' | 'ready' | 'unavailable'; total
 type Session = Status & { images: ImageRecord[]; busy: boolean; error: string; started: boolean }
 const empty = (): Session => ({ state: 'inactive', totalCount: 0, preparedCount: 0, failedCount: 0, partial: false, images: [], busy: false, error: '', started: false })
 export function useContentSearch(active: Ref<boolean>, query: Ref<string>, tagIds: Ref<string[]>) {
+  const $fetch = useNuxtApp().$libraryApi
   const sessions = new Map<string, Session>()
   const current = shallowRef<Session>(reactive(empty()))
   let revision = 0, poll: ReturnType<typeof setTimeout> | undefined, disposed = false

@@ -62,7 +62,7 @@ export async function sendThumbnail(event: H3Event, row: ImageRow) {
   try {
     const stat = await file.stat()
     const etag = `"${thumbnailVersion}-${row.content_hash}"`
-    setHeader(event, 'Cache-Control', 'private, max-age=31536000, immutable')
+    setHeader(event, 'Cache-Control', 'no-store')
     setHeader(event, 'ETag', etag)
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     const match = getRequestHeader(event, 'if-none-match')
