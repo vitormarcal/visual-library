@@ -10,7 +10,9 @@ import tarfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data', required=True)
-parser.add_argument('--limit', type=int, default=100)
+selection = parser.add_mutually_exclusive_group()
+selection.add_argument('--limit', type=int, default=100)
+selection.add_argument('--all', action='store_true', help='Export every visible image (explicit authorization required)')
 args = parser.parse_args()
 if not 1 <= args.limit <= 100:
     parser.error('--limit must be between 1 and 100')
@@ -23,7 +25,7 @@ try:
     # Snapshot metadata quickly; don't hold SQLite's read lock while copying originals.
     db.execute('BEGIN')
     rows = db.execute('SELECT id,filename,original_name,created_at,content_hash FROM images WHERE hidden_from_gallery=0 ORDER BY created_at,id').fetchall()
-    count = min(args.limit, len(rows))
+    count = len(rows) if args.all else min(args.limit, len(rows))
     if not count:
         raise ValueError('No visible images to evaluate')
     chosen = [rows[i * (len(rows) - 1) // (count - 1) if count > 1 else 0] for i in range(count)]
@@ -49,7 +51,7 @@ with tarfile.open(fileobj=sys.stdout.buffer, mode='w|') as archive:
         total_bytes += len(data)
         images.append({'id': image_id, 'file': 'images/' + filename, 'sha256': actual,
                        'originalName': original_name, 'createdAt': created_at, 'tags': tags[image_id], 'hiddenFromGallery': False})
-    metadata = json.dumps({'version': 1, 'selection': 'even temporal sample of visible images',
+    metadata = json.dumps({'version': 1, 'selection': 'all visible images' if args.all else 'even temporal sample of visible images',
                            'visibleCount': len(rows), 'images': images}, ensure_ascii=False, indent=2).encode()
     info = tarfile.TarInfo('dataset.json')
     info.mode = 0o600

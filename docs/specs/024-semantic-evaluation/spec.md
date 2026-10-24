@@ -1,8 +1,8 @@
 # Avaliação semântica isolada
 
-**Status: adiada por decisão do usuário em 2026-10-24.** O piloto e os julgamentos ficam preservados; não iniciar outra comparação ou integração automaticamente.
+**Status: retomada pelo usuário em 2026-10-24 para avaliar toda a biblioteca visível.** Preservar o piloto e seus julgamentos; executar o mesmo encoder/consultas sobre um snapshot completo, sem integração ao produto.
 
-Quarto item do roadmap. Solicitado em 2026-10-24. O usuário autorizou amostra de até 100 imagens visíveis, por leitura, inferência local e relatórios privados fora do repositório. Consultas fornecidas: `mulher gurreira segurando espada`, `mulher posando em frente a carro`, `coruja`, `água`.
+Quarto item do roadmap. Solicitado em 2026-10-24. Inicialmente o usuário autorizou amostra de até 100 imagens visíveis; na retomada autorizou toda a biblioteca visível. Permanecem leitura do acervo, inferência local e relatórios privados fora do repositório. Consultas fornecidas: `mulher gurreira segurando espada`, `mulher posando em frente a carro`, `coruja`, `água`.
 
 ## Objetivo
 
@@ -10,7 +10,7 @@ Avaliar se recuperação por conteúdo complementa nome/tags no acervo pessoal, 
 
 ## Escopo
 
-- Amostra fixa de até 100 imagens visíveis, escolhida por distribuição temporal, com IDs/hashes e metadados congelados para comparação.
+- Piloto inicial: amostra fixa de até 100 imagens visíveis por distribuição temporal. Retomada: snapshot de todas as imagens visíveis, com IDs/hashes e metadados congelados para comparação; não incluir ocultas.
 - Preservar consultas do usuário; adicionar variante corrigida de `gurreira` e pares em inglês para diagnóstico, identificados como tais.
 - Comparar ranking semântico com o contrato lexical existente de nome/tags, sem misturar scores ou substituir DINOv2/paleta.
 - Executar encoder texto/imagem alinhado em CPU, sem enviar imagens ou consultas a serviço externo.
@@ -22,4 +22,4 @@ Avaliar se recuperação por conteúdo complementa nome/tags no acervo pessoal, 
 
 Sem UI de busca no produto, tagging, treinamento, novo banco, serviços permanentes, integração em produção ou envio de conteúdo externo. Miniaturas, captura, busca lexical e similaridade estética existentes permanecem independentes.
 
-O piloto com quatro intenções e 100 imagens pode revelar problemas; não substitui o gate mais amplo proposto no estudo (30 consultas reais, português e exemplos diversos). Se não houver resultados relevantes na amostra, não concluir incapacidade do encoder nem sucesso por aparência plausível. A decisão de integrar depende de utilidade observada e custo no hardware alvo.
+O piloto inicial com quatro intenções e 100 imagens pode revelar problemas; não substitui o gate mais amplo proposto no estudo (30 consultas reais, português e exemplos diversos). Se não houver resultados relevantes na amostra, não concluir incapacidade do encoder nem sucesso por aparência plausível. A decisão de integrar depende de utilidade observada e custo no hardware alvo.

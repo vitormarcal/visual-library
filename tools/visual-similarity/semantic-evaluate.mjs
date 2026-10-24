@@ -7,8 +7,8 @@ import sharp from 'sharp'
 import { digest, semanticPolicy, semanticFingerprint, validSemanticCache, rankSemantic, rankLexical } from './semantic-ranking.mjs'
 import { createSemanticEncoder } from './semantic-model.mjs'
 import { semanticReport } from './semantic-report.mjs'
-const { values } = parseArgs({ options: { dataset: { type: 'string' }, queries: { type: 'string' }, out: { type: 'string' }, models: { type: 'string' }, offline: { type: 'boolean', default: false } } })
-if (!values.dataset || !values.queries || !values.out) throw new Error('Usage: node semantic-evaluate.mjs --dataset /private/sample/dataset.json --queries /private/queries.json --out /separate/report [--models /private/models] [--offline]')
+const { values } = parseArgs({ options: { dataset: { type: 'string' }, queries: { type: 'string' }, out: { type: 'string' }, models: { type: 'string' }, offline: { type: 'boolean', default: false }, all: { type: 'boolean', default: false } } })
+if (!values.dataset || !values.queries || !values.out) throw new Error('Usage: node semantic-evaluate.mjs --dataset /private/sample/dataset.json --queries /private/queries.json --out /separate/report [--models /private/models] [--offline] [--all]')
 const inside = (parent, child) => { const rel = relative(parent, child); return !rel || (!rel.startsWith('..') && !isAbsolute(rel)) }
 async function canonical(path) { try { return await realpath(path) } catch (error) { if (error.code !== 'ENOENT') throw error; return join(await canonical(dirname(path)), basename(path)) } }
 const datasetPath = await realpath(resolve(values.dataset)), input = dirname(datasetPath)
@@ -16,9 +16,10 @@ const out = await canonical(resolve(values.out)), models = await canonical(resol
 const repo = await realpath(new URL('../..', import.meta.url))
 if (inside(input, out) || inside(out, input) || inside(input, models) || inside(models, input) || inside(repo, out) || inside(repo, models)) throw new Error('Keep input, output and model writes separate; output/models must be outside the repository')
 const dataset = JSON.parse(await readFile(datasetPath, 'utf8')), queryFile = JSON.parse(await readFile(values.queries, 'utf8'))
-if (dataset.version !== 1 || !Array.isArray(dataset.images) || !dataset.images.length || dataset.images.length > 100
+if (dataset.version !== 1 || !Array.isArray(dataset.images) || !dataset.images.length || (!values.all && dataset.images.length > 100)
   || dataset.images.some(image => typeof image.id !== 'string' || !/^[\w-]{1,100}$/.test(image.id) || typeof image.file !== 'string' || (image.originalName !== null && typeof image.originalName !== 'string') || typeof image.createdAt !== 'string' || !Number.isFinite(Date.parse(image.createdAt)) || image.hiddenFromGallery !== false || !/^[a-f0-9]{64}$/.test(image.sha256) || !Array.isArray(image.tags) || image.tags.some(tag => typeof tag.name !== 'string'))
-  || new Set(dataset.images.map(image => image.id)).size !== dataset.images.length) throw new Error('Invalid visible-only dataset (1–100 unique images with SHA-256)')
+  || new Set(dataset.images.map(image => image.id)).size !== dataset.images.length) throw new Error('Invalid visible-only dataset (default 1–100 unique images with SHA-256; --all requires a full visible snapshot)')
+if (values.all && (dataset.selection !== 'all visible images' || dataset.visibleCount !== dataset.images.length)) throw new Error('--all requires every visible image in the frozen snapshot')
 const queries = queryFile.queries
 if (queryFile.version !== 1 || !Array.isArray(queries) || !queries.length || queries.length > 100 || new Set(queries.map(query => query.id)).size !== queries.length
   || queries.some(query => typeof query.id !== 'string' || !/^[\w-]{1,100}$/.test(query.id) || typeof query.text !== 'string' || !query.text.trim() || query.text.length > 1000 || (query.tags !== undefined && (!Array.isArray(query.tags) || query.tags.some(tag => typeof tag !== 'string'))))) throw new Error('Invalid queries')
@@ -38,7 +39,7 @@ const cache = join(out, 'vectors'), thumbs = join(out, 'thumbs')
 await mkdir(cache, { recursive: true }); await mkdir(thumbs, { recursive: true })
 const metrics = { policy: semanticPolicy, ...run, offline: values.offline, startedAt: new Date().toISOString(),
   host: { name: hostname(), node: process.version, constrainedMemoryBytes: process.constrainedMemory(), cpu: cpus()[0]?.model, logicalCpus: cpus().length, totalMemoryBytes: totalmem() },
-  selectedImages: dataset.images.length, imageCacheHits: 0, textCacheHits: 0, visionLoadMs: 0, textLoadMs: 0, images: [], queries: [] }
+  selection: dataset.selection, allVisible: values.all, selectedImages: dataset.images.length, imageCacheHits: 0, textCacheHits: 0, visionLoadMs: 0, textLoadMs: 0, images: [], queries: [] }
 const started = performance.now(), cpuStarted = process.cpuUsage()
 let encoder, visionLoaded = false, textLoaded = false
 const images = [], queryResults = []

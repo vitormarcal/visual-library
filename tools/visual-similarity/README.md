@@ -46,7 +46,7 @@ node semantic-evaluate.mjs --dataset /privado/amostra/dataset.json \
   --queries /privado/queries.json --out /privado/relatorio --offline
 ```
 
-O JSON de dataset tem `version: 1` e `images`: de 1 a 100 objetos com `id`, `file` relativo ao diretório do JSON, `sha256`, `originalName`, `createdAt`, `tags: [{name}]` e `hiddenFromGallery: false`. Congelar amostra, hashes e metadados; o programa rejeita arquivos fora do diretório, hashes alterados, ocultas e IDs repetidos. A ferramenta não acessa automaticamente SQLite/SSH. Seleção/exportação da amostra deve ser autorizada separadamente.
+O JSON de dataset tem `version: 1` e `images`: por padrão de 1 a 100 objetos (ou snapshot completo com `--all`) com `id`, `file` relativo ao diretório do JSON, `sha256`, `originalName`, `createdAt`, `tags: [{name}]` e `hiddenFromGallery: false`. Congelar amostra, hashes e metadados; o programa rejeita arquivos fora do diretório, hashes alterados, ocultas e IDs repetidos. A ferramenta não acessa automaticamente SQLite/SSH. Seleção/exportação da amostra deve ser autorizada separadamente.
 
 Queries têm `version: 1` e `queries: [{id, text, language, source, tags?}]`. `tags` é opcional e filtra por identidade antes de ranquear, sem remover acentos das identidades; o baseline lexical reutiliza o matcher da aplicação. Consultas não recebem tradução ou prefixo automático. Cosseno não representa probabilidade/confiança.
 
@@ -76,3 +76,30 @@ python3 -c "import tarfile; t=tarfile.open('/privado/sample.tar'); t.extractall(
 ```
 
 O exportador abre SQLite com `mode=ro` e `query_only`, congela metadados visíveis numa transação curta e encerra a leitura do banco antes de copiar bytes. A amostragem temporal não garante diversidade nem a presença de uma coruja, carro ou qualquer positivo. Original alterado ou path externo aborta a exportação; não reutilize um TAR de execução malsucedida. O TAR inclui cópias pessoais e deve permanecer privado; não é um backup do acervo.
+
+### Biblioteca visível completa
+
+A retomada autorizada pelo usuário permite exportar **todas as imagens visíveis** com `semantic-sample.py --all`, sem mudar o padrão de amostra de 100. `--all` e `--limit` são mutuamente exclusivos. O snapshot registra `selection: "all visible images"` e `visibleCount`.
+
+```bash
+ssh usuario@host python3 - --data /caminho/data --all \
+  < semantic-sample.py > /privado/full.tar
+# Extrair em uma entrada privada nova, então:
+node semantic-evaluate.mjs --dataset /privado/full/dataset.json \
+  --queries /privado/queries.json --out /privado/full-report \
+  --models /privado/models --offline --all
+```
+
+O avaliador só aceita mais de 100 imagens quando `--all` é explícito; exige que o número de registros coincida com `visibleCount` e o snapshot seja declarado completo. Continua rejeitando ocultas, duplicatas de ID, hashes alterados e paths externos. Não muda código, schema ou índice da aplicação.
+
+Para reaproveitar anotações de um experimento anterior sem atribuir notas às imagens novas:
+
+```bash
+node semantic-migrate.mjs --previous /privado/old/results.json \
+  --judgments /privado/old/judgments.exported.json \
+  --results /privado/full-report/results.json --out /privado/full-report/judgments.seed.json
+```
+
+A migração exige o mesmo modelo/consultas e conserva notas somente se ID e SHA-256 da imagem coincidirem. Não propaga notas entre consultas ou gera zeros para candidatos novos. Ao usar o export original de 151 marcações, os 749 zeros completados por convenção no piloto não são reaplicados automaticamente. A importação normal do HTML continua exigindo fingerprint do novo dataset; o arquivo migrado pode ser usado em **Retomar julgamentos**. A função `semanticReport(results, metrics, seed)` também permite gerar o relatório já preenchido com esse seed validado.
+
+Os dez primeiros resultados semânticos agora têm seletores de nota ao lado da imagem; os demais candidatos ficam numa seção recolhida, sem duplicar controles. Isso permite revisar o topo de toda a biblioteca sem precisar percorrer todos os cartões. Métricas de recuperação completa continuam dependendo de julgamentos suficientes, e não são calculadas como se imagens ainda não vistas fossem irrelevantes.

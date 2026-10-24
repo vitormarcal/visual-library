@@ -1,8 +1,8 @@
 # Plano de avaliação
 
-**Status atual: adiada por decisão do usuário em 2026-10-24.** Nenhuma nova execução, download ou integração está selecionada.
+**Status atual: retomada pelo usuário em 2026-10-24 para executar sobre toda a biblioteca visível.** Mesmo encoder, revisão, consultas e orçamento do Mordor; sem novo modelo ou integração. O adiamento anterior e as limitações do piloto ficam preservados no histórico abaixo.
 
-Ferramenta isolada em `tools/visual-similarity`, reutilizando dependências fixadas do experimento (`@huggingface/transformers` 4.3.1 e sharp 0.35.5). Não importar pelo servidor ou runtime de produção. Dataset JSON fora do repositório define até 100 imagens com IDs, nomes/tags, paths relativos e SHA-256. Consultas JSON separadas. Validar paths, hashes, visibilidade e isolamento da saída antes de inferência.
+Ferramenta isolada em `tools/visual-similarity`, reutilizando dependências fixadas do experimento (`@huggingface/transformers` 4.3.1 e sharp 0.35.5). Não importar pelo servidor ou runtime de produção. Dataset JSON fora do repositório define IDs, nomes/tags, paths relativos e SHA-256: até 100 imagens no piloto, ou todas as visíveis com `--all` explícito na retomada. Consultas JSON separadas. Validar paths, hashes, visibilidade e isolamento da saída antes de inferência.
 
 Candidato: `onnx-community/siglip2-base-patch16-224-ONNX`, revisão `ba1f3b0843f24bc5417d38e19c37b287d719b2f4`, torres q8 de texto e imagem, CPU, duas threads. Texto/imagem do mesmo checkpoint, 768 dimensões normalizadas e cosseno. Preprocessamento oficial do checkpoint após orientação/primeiro frame, alpha em branco e limite de 40 MP. Consultas sem tradução automática ou prefixo inglês. Medir português, grafia original/corrigida e inglês separadamente.
 
@@ -102,3 +102,53 @@ A baixa diversidade **pode ter influenciado** os resultados; não foi isolada co
 **Decisão final desta etapa:** adiar a funcionalidade, sem outra rodada de modelos, downloads ou integração. Preservar ferramentas, pesos em cache e relatórios privados; nenhuma exclusão foi solicitada. O trabalho entregue em miniaturas, Redescobrir e captura permanece independente. Uma retomada só deve ocorrer por nova decisão de produto, com necessidade concreta e amostra adequada às consultas, incluindo positivos confirmados e julgamentos pareados. Isso não constitui uma próxima entrega já selecionada.
 
 Detalhes pessoais do conteúdo não são necessários à documentação versionada; registra-se somente a concentração temática relevante ao método.
+
+
+## Retomada: biblioteca visível completa — 2026-10-24
+
+Por solicitação explícita do usuário, retomada do mesmo candidato sobre **todas as 876 imagens visíveis**, em vez de outra amostra ou outro modelo. O piloto de 100 imagens e suas anotações permanecem intactos. A cobertura integral inclui as 100 anteriores e outras 776; não garante diversidade temática ou presença de positivos para cada intenção, mas remove a dúvida de exclusão pela amostragem temporal.
+
+O exportador ganhou `--all` explícito, mutuamente exclusivo com `--limit`; o padrão continua limitado a 100. O avaliador só aceita um snapshot maior quando `--all` está presente, `selection` declara todas as visíveis e `visibleCount` coincide com os registros. Visibilidade, IDs, paths e hashes continuam validados. Exportação somente leitura de **1.005.673.131 bytes** de originais, metadados congelados antes do IO; todos os 876 hashes foram conferidos no host e novamente na cópia local.
+
+Execução no Mordor em contêiner isolado, mesmo digest de imagem/revisão/quantização e nove textos do piloto, rede desabilitada, **dois CPUs e 2 GiB**, raiz e entrada/modelos somente leitura. Nenhum volume de produção montado no contêiner de avaliação, restart, modelo novo ou deploy. Vetores novos nesta rodada, sem cache de imagens/textos reaproveitado, para registrar custo real do conjunto completo. Pesos existentes em cache: nenhum download.
+
+| Métrica da execução integral | Resultado |
+| --- | --- |
+| Imagens processadas / visíveis no snapshot | 876 / 876, sem falhas |
+| Tempo do harness após preflight | 154,10 s |
+| Mediana por imagem, excluindo a primeira | 150 ms, incluindo IO/hash, inferência, cache e preview |
+| Pico RSS do processo | 1112,75 MiB, aproximadamente 1,09 GiB |
+| CPU user / system | 276,52 s / 2,49 s, somados entre threads |
+| Carga de tokenizer/torre textual sem download | 1,93 s |
+| Primeira consulta com carga textual | 2,01 s |
+| Demais consultas, incluindo ranking | aproximadamente 67–74 ms |
+| Ranking semântico + lexical de 876 candidatos | aproximadamente 35–39 ms |
+| Cache JSON de vetores de 876 imagens e 9 textos | 14.623.849 bytes |
+
+São tempos pontuais, não p95, SLA HTTP ou comparação causal de hardware. O pico é RSS do processo. Nenhuma consulta teve correspondência lexical nos metadados congelados, inclusive sobre o conjunto completo. O semântico retornou rankings para todos os textos; relevância dos novos resultados ainda não foi julgada.
+
+| Consulta original | Candidatos do top 10 integral que não estavam na amostra de 100 |
+| --- | --- |
+| mulher gurreira segurando espada | 9 |
+| mulher posando em frente a carro | 7 |
+| coruja | 9 |
+| água | 9 |
+
+A maioria dos candidatos do novo topo estava fora do piloto, confirmando que sua cobertura era insuficiente para representar o ranking integral. Isso não prova que os novos candidatos sejam relevantes nem transforma o resultado anterior em aprovação do modelo.
+
+### Notas anteriores e revisão
+
+`semantic-migrate.mjs` reaproveita notas somente com mesmo fingerprint de modelo/consultas e mesmo ID/SHA-256 de imagem. Foram migradas **151 notas explícitas, sem descartes**, a partir de `judgments.exported.json` preservado. Os 749 zeros completados por convenção no piloto permanecem naquele artefato; não preencheram candidatos desta rodada. O novo dataset tem outro hash. As nove consultas continuam incompletas para métricas globais, sem nova conclusão de qualidade.
+
+O relatório mostra seletores no próprio top 10; a seção dos demais candidatos continua recolhida e cada candidato possui só um controle de nota. As 151 notas migradas já vêm preenchidas, e o export `judgments-full.json` evita confundir arquivos com o piloto. Exportação/importação preservam fingerprints e proveniência; imagens sem nota continuam sem nota. Revisar o top 10 permite avaliar sua precisão sem julgar todos os 876 candidatos; Recall/nDCG abrangentes continuam dependendo de relevâncias suficientes.
+
+### Validação e artefatos
+
+- **17 testes do harness passaram**. Modos padrão/integral, rejeição de snapshot incompleto, exportação de mais de 100 sem ocultos/mutação do SQLite, hashes, migração com hash alterado/novo ID/modelo diferente, seed de outro dataset e um único controle por candidato cobertos. Permanecem controles e testes anteriores.
+- **61 testes da aplicação passaram**. `git diff --check` e sintaxe dos scripts passaram. Sem mudança de versão, dependência ou UI do aplicativo.
+- Chrome/CDP com o relatório completo em 1440 × 900 e 390 × 844: **7884 controles**, 151 notas pré-preenchidas, previews locais, sem overflow ou exceções. Exportação, retomada e rejeição de outro dataset conferidas. A nota de smoke é sintética e foi isolada em `validation-smoke-*`, fora dos julgamentos humanos.
+- Scorer executado sobre o seed: **zero consultas completas**, sem métricas conclusivas. Não houve preenchimento automático de novos candidatos como irrelevantes.
+
+Área privada durável: `/home/vitor/Documentos/relatorios/visual-library-semantic-full-2026-10-24`. Relatório em `report/index.html`, seed em `report/judgments.seed.json`, resultados/métricas em `report/results.json` e `report/metrics.json`, snapshot em `sample/`, consultas em `queries.json` e notas de método em `assessment.md`. Nenhum conteúdo pessoal incorporado ao Git. Cópia isolada no Mordor: `/tmp/visual-library-semantic-full-gQi7yZfE`; o contêiner de avaliação foi removido ao concluir.
+
+**Estado atual:** execução integral concluída; aguardando revisão dos novos resultados. Esta retomada não autoriza integração, novos modelos ou tagging. As conclusões qualitativas do piloto ficam restritas àquela amostra e não substituem a avaliação integral.

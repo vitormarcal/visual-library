@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, access } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, access, copyFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -67,12 +67,28 @@ test('offline cached evaluation validates frozen input, confines paths, preserve
     for (const [kind, sourceHash] of [['image', hash], ['text', digest('coruja')]]) {
       await writeFile(join(out, 'vectors', `${kind}-${digest(semanticFingerprint + sourceHash)}.json`), JSON.stringify({ fingerprint: semanticFingerprint, sourceHash, vector: vector(0) }))
     }
-    const run = (output = out) => spawnSync(process.execPath, [new URL('./semantic-evaluate.mjs', import.meta.url).pathname, '--dataset', datasetFile, '--queries', queryFile, '--out', output, '--offline'], { encoding: 'utf8', timeout: 10000 })
+    const run = (output = out, extra = []) => spawnSync(process.execPath, [new URL('./semantic-evaluate.mjs', import.meta.url).pathname, '--dataset', datasetFile, '--queries', queryFile, '--out', output, '--offline', ...extra], { encoding: 'utf8', timeout: 10000 })
     const result = run(); assert.equal(result.status, 0, result.stdout + result.stderr)
     const metrics = JSON.parse(await readFile(join(out, 'metrics.json'), 'utf8'))
     assert.equal(metrics.imageCacheHits, 1); assert.equal(metrics.textCacheHits, 1)
     assert.equal(metrics.visionLoadMs, 0); assert.equal(metrics.textLoadMs, 0)
     assert.deepEqual(await readFile(join(input, 'image.png')), bytes)
+    // Full-corpus mode is explicit; default sampling retains its previous ceiling.
+    const single = { ...dataset.images[0] }
+    dataset.images = Array.from({ length: 101 }, (_, i) => ({ ...single, id: `image-${i}` }))
+    dataset.selection = 'all visible images'; dataset.visibleCount = 101
+    await writeFile(datasetFile, JSON.stringify(dataset))
+    assert.equal(run(join(root, 'too-many')).status, 1)
+    await assert.rejects(access(join(root, 'too-many')))
+    const fullOut = join(root, 'full-out'); await mkdir(join(fullOut, 'vectors'), { recursive: true })
+    for (const file of await readdir(join(out, 'vectors'))) await copyFile(join(out, 'vectors', file), join(fullOut, 'vectors', file))
+    const full = run(fullOut, ['--all']); assert.equal(full.status, 0, full.stdout + full.stderr)
+    assert.equal(JSON.parse(await readFile(join(fullOut, 'metrics.json'), 'utf8')).imageCacheHits, 101)
+    dataset.visibleCount = 102; await writeFile(datasetFile, JSON.stringify(dataset))
+    assert.equal(run(join(root, 'incomplete-full'), ['--all']).status, 1)
+    await assert.rejects(access(join(root, 'incomplete-full')))
+    dataset.images = [single]; delete dataset.selection; delete dataset.visibleCount
+    await writeFile(datasetFile, JSON.stringify(dataset))
     assert.equal(run(input).status, 1)
     await writeFile(join(root, 'outside.png'), bytes); await symlink(join(root, 'outside.png'), join(input, 'escape.png'))
     dataset.images[0].file = 'escape.png'; await writeFile(datasetFile, JSON.stringify(dataset))
@@ -110,8 +126,46 @@ test('sample exporter reads SQLite without mutation, excludes hidden rows and re
     assert.equal(dataset.images.length, 1); assert.equal(dataset.images[0].id, 'a'); assert.equal(dataset.images[0].sha256, hash)
     assert.deepEqual(await readFile(dbPath), before)
     assert.deepEqual(await readFile(join(root, 'images', 'a.png')), bytes)
+    const larger = new DatabaseSync(dbPath)
+    for (let i = 0; i < 100; i++) larger.prepare('INSERT INTO images VALUES (?,?,?,?,?,?)').run(`extra-${i}`, 'a.png', 'Extra', '2020-01-01', hash, 0)
+    larger.close()
+    const frozen = await readFile(dbPath)
+    const all = spawnSync('python3', [new URL('./semantic-sample.py', import.meta.url).pathname, '--data', root, '--all'], { maxBuffer: 1024 * 1024 })
+    assert.equal(all.status, 0, all.stderr.toString()); await writeFile(archive, all.stdout)
+    const fullMetadata = spawnSync('python3', ['-c', "import sys,tarfile; print(tarfile.open(sys.argv[1]).extractfile('dataset.json').read().decode())", archive], { encoding: 'utf8' })
+    const full = JSON.parse(fullMetadata.stdout)
+    assert.equal(full.images.length, 101); assert.equal(full.visibleCount, 101); assert.equal(full.selection, 'all visible images')
+    assert.ok(full.images.every(image => image.id !== 'hidden'))
+    assert.deepEqual(await readFile(dbPath), frozen)
+    const mixed = spawnSync('python3', [new URL('./semantic-sample.py', import.meta.url).pathname, '--data', root, '--all', '--limit', '10'], { encoding: 'utf8' })
+    assert.notEqual(mixed.status, 0)
     await writeFile(join(root, 'images', 'a.png'), 'changed')
     const changed = spawnSync('python3', [new URL('./semantic-sample.py', import.meta.url).pathname, '--data', root], { encoding: 'utf8' })
     assert.equal(changed.status, 1); assert.match(changed.stderr, /original changed/)
   } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('judgment migration preserves only matching image IDs/hashes under the same model and queries', async () => {
+  const { migrateJudgments } = await import('./semantic-migrate.mjs')
+  const previous = { fingerprint: 'model', datasetHash: 'old', queriesHash: 'queries', images: [{ id: 'a', sha256: 'hash-a' }, { id: 'b', sha256: 'hash-b' }], queries: [{ id: 'q', candidates: ['a', 'b'] }] }
+  const current = { ...previous, datasetHash: 'full', images: [{ id: 'a', sha256: 'hash-a' }, { id: 'b', sha256: 'changed' }, { id: 'new', sha256: 'new' }], queries: [{ id: 'q', candidates: ['a', 'b', 'new'] }] }
+  const judgments = { version: 1, fingerprint: 'model', datasetHash: 'old', queriesHash: 'queries', grades: { q: { a: 2, b: 0 } } }
+  const migrated = migrateJudgments(previous, judgments, current)
+  assert.equal(migrated.grades.q.a, 2)
+  assert.ok(!Object.hasOwn(migrated.grades.q, 'b'))
+  assert.ok(!Object.hasOwn(migrated.grades.q, 'new'))
+  assert.equal(migrated.provenance.copied, 1); assert.equal(migrated.provenance.skipped, 1)
+  assert.throws(() => migrateJudgments(previous, judgments, { ...current, fingerprint: 'other-model' }))
+  assert.throws(() => migrateJudgments(previous, { ...judgments, datasetHash: 'wrong' }, current))
+})
+
+test('report presents one grading control per candidate and validates the seed experiment', () => {
+  const results = { fingerprint: 'model', datasetHash: 'full', queriesHash: 'queries', images: [image('a'), image('b')], queries: [{ id: 'q', text: 'água', language: 'pt', source: 'user', candidates: ['a', 'b'], semantic: [{ id: 'a' }], lexical: [] }] }
+  const seed = { fingerprint: 'model', datasetHash: 'full', queriesHash: 'queries', grades: { q: { a: 2 } } }
+  const html = semanticReport(results, { allVisible: true }, seed)
+  assert.equal((html.match(/<select data-query=/g) ?? []).length, 2)
+  assert.ok(html.includes('<option value="2" selected>'))
+  assert.ok(html.includes('Todas as imagens visíveis'))
+  assert.ok(html.includes('Avaliar os demais 1 candidatos'))
+  assert.throws(() => semanticReport(results, {}, { ...seed, datasetHash: 'other' }))
 })
