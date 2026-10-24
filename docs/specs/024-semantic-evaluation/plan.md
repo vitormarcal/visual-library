@@ -14,7 +14,7 @@ Testar ranking, filtros, métricas, caches, relatório escapado e validações s
 
 ## Resultados
 
-Piloto técnico executado em 2026-10-24. **Qualidade pendente de julgamento humano; integração não aprovada nesta entrega.**
+Piloto técnico e análise dos julgamentos executados em 2026-10-24. **Recomendação após revisão: não integrar este candidato como está.**
 
 ### Amostra e consultas
 
@@ -56,7 +56,7 @@ No primeiro passe do Mordor, sobreposição de membros do top 10 entre portuguê
 - **15 testes do harness passaram**, incluindo os controles anteriores. Novos testes cobrem vetores normalizados, dimensões, cache/fingerprint/hash, filtro antes do ranking, contrato lexical real, métricas com julgamentos incompletos/sem positivos, escaping do HTML e ausência de imagens remotas, avaliação offline totalmente em cache, paths/symlinks, integridade e exportação SQLite read-only.
 - **61 testes da aplicação passaram** como regressão. `git diff --check` passou. Sem mudança de dependências, Dockerfile, runtime ou interface do aplicativo; não se gerou release de produto nem deploy.
 - Chrome headless/CDP com relatório privado em **1440 × 900 e 390 × 844**: nove consultas, 900 seletores inicialmente sem nota, previews locais, sem overflow ou exceções JS. Exportar JSON preserva fingerprints; retomar exportação recupera os campos; outro dataset é rejeitado sem apagar notas existentes. A nota usada no smoke foi sintética e seus arquivos ficaram separados da área de revisão humana.
-- Scorer com exportação parcial de smoke manteve todas as consultas como **incompletas**; não calculou aprovação automática. nDCG@10, Recall@10 e sucesso top 5 continuam sem resultado humano.
+- Scorer com exportação parcial de smoke manteve todas as consultas como **incompletas**; não calculou aprovação automática. Na etapa inicial, nDCG@10, Recall@10 e sucesso top 5 ainda não tinham resultado humano; o export recebido depois está analisado abaixo.
 
 ### Artefatos privados e próximo passo
 
@@ -68,4 +68,24 @@ No primeiro passe do Mordor, sobreposição de membros do top 10 entre portuguê
 - Área remota temporária: `/tmp/visual-library-semantic-s8LuzGAv`, sem contêiner experimental permanente. O exportador reproduzível agora está em `tools/visual-similarity/semantic-sample.py`; ele não roda automaticamente.
 - Smoke de relatório: `/tmp/visual-library-semantic-report-smoke.mjs`; exportações sintéticas em `validation-smoke`, não são julgamentos do usuário.
 
-**Decisão atual:** candidato tecnicamente executável no orçamento de teste; utilidade ainda não demonstrada. Revisar primeiro as quatro consultas de origem `user`, atribuir 0/1/2 aos candidatos e exportar julgamentos. “Retomar julgamentos” permite continuar uma revisão parcial. Inglês e grafia corrigida são diagnósticos opcionais. Só então calcular qualidade; quatro intenções não satisfazem o gate maior de 30 consultas reais. Nenhum índice semântico, botão de busca ou sugestão de tags foi integrado ao produto.
+**Decisão ao fim do piloto técnico, antes do export:** candidato tecnicamente executável no orçamento de teste; utilidade ainda não demonstrada. Revisar primeiro as quatro consultas de origem `user`, atribuir 0/1/2 aos candidatos e exportar julgamentos. “Retomar julgamentos” permite continuar uma revisão parcial. Inglês e grafia corrigida são diagnósticos opcionais. Só então calcular qualidade; quatro intenções não satisfazem o gate maior de 30 consultas reais. Nenhum índice semântico, botão de busca ou sugestão de tags foi integrado ao produto.
+
+
+## Julgamentos recebidos e decisão — 2026-10-24
+
+O usuário exportou os julgamentos e instruiu explicitamente a interpretar os não avaliados como **0, irrelevante**. Preservado o original de Downloads; uma cópia privada manteve **151 notas explícitas** e completou **749 zeros**. A complementação registra autorização, SHA-256 do original e IDs completados por consulta. Nenhum comportamento padrão do scorer ou relatório foi alterado: em outras avaliações, ausentes continuam incompletos. Nenhuma inferência adicional ou alteração no acervo ocorreu.
+
+| Consulta original | Explícitas / zeros completados | Nota 2 no top 10 | Nota 1 no top 10 | Nota 2 na amostra | nDCG@10 |
+| --- | --- | --- | --- | --- | --- |
+| mulher gurreira segurando espada | 99 / 1 | 0 | 1 | 0 | 0,126 |
+| mulher posando em frente a carro | 28 / 72 | 1 | 0 | 1 | 1,000 |
+| coruja | 2 / 98 | 0 | 0 | 0 | 0,000 |
+| água | 8 / 92 | 1 | 1 | 7 | 0,190 |
+
+O scorer usa notas 1 e 2 como algum grau de relevância em Recall/sucesso top 5; um parcial não é acerto completo. Por isso a leitura acima separa os graus. A precisão estrita nas quatro consultas foi **2 itens com nota 2 em 40 posições**. Mulher/carro teve o positivo na posição 1: nDCG=1 reflete a ordem perfeita de um único positivo anotado, não dez acertos. Água teve os sete positivos completos nas posições **3, 30, 34, 41, 65, 86 e 87**, evidenciando que seis ficaram fora do top 10. Guerreiras e corujas não receberam nota 2; não declarar ausência desses conteúdos no acervo completo.
+
+Os nove JSONs foram completados pela convenção autorizada, mas não houve 900 notas explícitas. `an owl` não teve marcações: seu estado de ausência de positivos decorre de 100 zeros completados, não de revisão humana exaustiva. Traduções e grafia corrigida possuem notas diferentes; não inferir vantagem linguística por comparação não pareada. Estes resultados substituem a pendência inicial de receber o primeiro export, sem satisfazer o gate de 30 consultas reais.
+
+Arquivos privados em `/home/vitor/Documentos/relatorios/visual-library-semantic-2026-10-24`: `judgments.exported.json`, `judgments.completed.json`, `quality.completed.json`, `quality.summary.json` e `assessment.md`. Nenhum ID, preview ou anotação individual foi incorporado ao Git; apenas agregados nesta documentação.
+
+**Decisão:** não integrar SigLIP2 q8 nesta forma. Houve um acerto útil para mulher/carro, mas a maioria dos resultados próximos da entrada é irrelevante e água recuperou mal os positivos conhecidos. O custo técnico aceitável não compensa essa qualidade. Uma próxima avaliação deve usar positivos confirmados para cada intenção e julgamentos pareados, antes de escolher outro candidato. Não iniciar automaticamente outro modelo, download, tagging ou integração.
