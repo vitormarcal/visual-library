@@ -61,7 +61,8 @@ No primeiro passe do Mordor, sobreposição de membros do top 10 entre portuguê
 ### Artefatos privados e próximo passo
 
 - Raiz local: `/tmp/visual-library-semantic-8mwhvkOS`.
-- Relatório de referência para revisão: `/tmp/visual-library-semantic-8mwhvkOS/mordor-profile/index.html`.
+- Cópia durável privada para revisão: `/home/vitor/Documentos/relatorios/visual-library-semantic-2026-10-24/report/index.html`, com amostra e consultas congeladas ao lado em `sample/` e `queries.json`. Código/artefatos separados; nenhum arquivo pessoal foi incorporado ao Git.
+- Saída temporária original de referência: `/tmp/visual-library-semantic-8mwhvkOS/mordor-profile/index.html`.
 - Resultados/métricas: `mordor-profile/results.json` e `mordor-profile/metrics.json` nessa raiz. Passes anteriores em `report`, `mordor-report` e `mordor-repeat`.
 - Amostra e queries congeladas: `sample/dataset.json` e `queries.json`. Não foram incorporadas ao Git. Downloads iniciais e logs ficam na mesma área privada.
 - Área remota temporária: `/tmp/visual-library-semantic-s8LuzGAv`, sem contêiner experimental permanente. O exportador reproduzível agora está em `tools/visual-similarity/semantic-sample.py`; ele não roda automaticamente.
