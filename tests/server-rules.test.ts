@@ -51,6 +51,7 @@ test('recognizes public and non-public IP addresses', () => {
   assert.equal(isPublicIpAddress('127.0.0.1'), false)
   assert.equal(isPublicIpAddress('169.254.1.1'), false)
   assert.equal(isPublicIpAddress('::1'), false)
+  for (const ip of ['0:0:0:0:0:0:0:1', '::ffff:127.0.0.1', '::ffff:7f00:1', '100::1', '64:ff9b::7f00:1', '2002:7f00:1::', '2001::1', '3fff::1']) assert.equal(isPublicIpAddress(ip), false, ip)
   assert.equal(isPublicIpAddress('fd00::1'), false)
   assert.equal(isPublicIpAddress('2001:4860:4860::8888'), true)
 })
@@ -65,14 +66,14 @@ test('recognizes public remote targets after hostname resolution', () => {
   assert.equal(isPublicRemoteTarget('example.com', [
     { address: '192.168.1.10' },
     { address: '93.184.216.34' },
-  ]), true)
+  ]), false)
 })
 
 test('allows only HTTP(S) remote URLs', () => {
   assert.equal(parseRemoteUrl('https://example.com/image.png').protocol, 'https:')
   assert.equal(parseRemoteUrl('http://example.com/image.png').protocol, 'http:')
 
-  for (const value of ['file:///tmp/image.png', 'ftp://example.com/image.png', '/image.png', 'not a url']) {
+  for (const value of ['file:///tmp/image.png', 'ftp://example.com/image.png', '/image.png', 'not a url', 'https://user:secret@example.com/image.png']) {
     assert.throws(
       () => parseRemoteUrl(value),
       (error: unknown) => (error as { statusMessage?: string }).statusMessage === 'This image URL cannot be saved.',

@@ -29,7 +29,7 @@ Preservar o volume `/app/data`, incluindo SQLite e imagens. Arquivos `.env` loca
 
 ## Sessão pessoal e contrato HTTP
 
-Cookie `vl_owner_session`: token opaco de 32 bytes aleatórios base64url, HttpOnly, SameSite=Lax, Path=/, sem Domain, Secure em HTTPS, validade absoluta de 30 dias. O banco guarda SHA-256 do texto do token e fingerprint do hash da senha atual. Logout remove a sessão. Redefinição apaga senha e sessões em uma transação. Login revalida o hash antes de emitir sessão para não aceitar uma senha verificada antes de um reset concorrente.
+Em HTTPS, cookie `__Host-vl_owner_session`; em HTTP local de desenvolvimento, `vl_owner_session`: token opaco de 32 bytes aleatórios base64url, HttpOnly, SameSite=Lax, Path=/, sem Domain, Secure em HTTPS, validade absoluta de 30 dias. O banco guarda SHA-256 do texto do token e fingerprint do hash da senha atual. Logout remove a sessão. Redefinição apaga senha e sessões em uma transação. Login revalida o hash antes de emitir sessão para não aceitar uma senha verificada antes de um reset concorrente. Em HTTPS, o nome antigo sem prefixo não é aceito como alternativa; após atualizar para essa proteção, entrar novamente no navegador. Senha, tokens e links permanecem.
 
 | Método e rota | Resposta/comportamento |
 | --- | --- |
@@ -40,7 +40,7 @@ Cookie `vl_owner_session`: token opaco de 32 bytes aleatórios base64url, HttpOn
 
 Setup/login e alterações com sessão exigem Origin igual à configuração e `X-Library-Request: 1`; Fetch Metadata incompatível é recusado. A interface acrescenta o cabeçalho. Setup não exige cookie ou UUID secreto, por decisão de produto. Tela antiga de setup recebe 409 se outro ciclo começou ou alguém já definiu a senha. Senhas inválidas/confirmações diferentes retornam 400; senha incorreta 401, origem inválida 403, excesso de corpo 413, limite de tentativas 429/Retry-After.
 
-Setup e login compartilham limite de dez tentativas por IP da conexão e sessenta globais por minuto, no máximo duas derivações concorrentes. Não confia em cabeçalhos arbitrários de proxy; atrás de proxy o limite por IP pode ser compartilhado. Limites são locais ao processo. Corpo de login até 4 KiB e setup até 16 KiB, com senha até 1024 caracteres.
+Setup e login compartilham limite de dez tentativas por IP da conexão e sessenta globais por minuto, no máximo duas derivações concorrentes. Não confia em cabeçalhos arbitrários de proxy; atrás de proxy o limite por IP pode ser compartilhado. Limites são locais ao processo. Vagas de derivação só são reservadas após ler o JSON; a leitura do corpo de login/setup tem prazo de dez segundos (408 ao exceder). Corpo de login até 4 KiB e setup até 16 KiB, com senha até 1024 caracteres.
 
 Ao receber 401, a interface desmonta dados privados e cancela requisições pendentes; respostas de outra sessão são descartadas. Também verifica a sessão ao recuperar foco/visibilidade e a cada minuto enquanto autenticada e visível.
 
@@ -90,3 +90,8 @@ Respostas privadas/públicas usam `Cache-Control: no-store`. ETag/304 só são a
 Não exige banco compartilhado entre backends ativos, JWT ou outro serviço de identidade.
 
 Compartilhamento pelo sistema do celular ainda requer validação física. Sem sessão, redireciona ao login pedindo compartilhar novamente, sem ler/reter arquivos. Com sessão, exige Origin canônico ou, se ausente, Fetch Metadata same-origin. Não repete POST perdido automaticamente.
+
+
+## Revisão de segurança
+
+[Achados, correções e limites](security/review-2026-10-24.md): cookie __Host em HTTPS, CSP com nonce para scripts de produção, bloqueio de iframe, HSTS e validação de DNS no socket da captura remota. O proxy precisa preservar esses cabeçalhos. Scripts de terceiros e frames não fazem parte da interface; imagens públicas continuam incorporáveis em outros sites. Capturas por URL recusam DNS misto público/privado, endereços especiais e URLs com credenciais. Isso substitui a validação DNS anterior de melhor esforço.

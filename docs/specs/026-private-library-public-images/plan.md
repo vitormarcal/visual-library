@@ -67,3 +67,11 @@ Após a validação, o usuário solicitou avanço de versão, commit e push. Ver
 ## Retorno após deploy — 0.15.0
 
 Após informar que gerou a imagem e iniciou o deploy para `https://visu.marcal.dev`, o usuário confirmou que funcionou, no contexto do fluxo inicial de definição da senha e acesso pessoal. Esse relato registra validação de uso pelo dono; não houve nova inspeção remota ou teste automatizado do ambiente de produção pelo agente. Integração efetiva dos consumidores, compartilhamentos públicos e Web Share Target no celular continuam sujeitos à verificação no uso.
+
+
+## Revisão de segurança posterior
+
+A pedido do usuário, revisão de sessões, bypass, CSRF, tokens, reset, captura remota e dependências, com testes de ataque isolados. Achados e mudanças em [revisão de segurança](../../security/review-2026-10-24.md). Esta etapa acrescenta Undici como dependência direta para verificar DNS no socket e atualiza Nuxt/Vue; os resultados anteriores sem novas dependências descrevem a entrega inicial. Sem alterar a decisão aceita de primeiro visitante no setup.
+
+
+As correções da revisão de segurança foram versionadas como **0.15.1**, após solicitação do usuário para avanço de versão, commit e push. Sem publicação de imagem ou deploy nesta etapa.

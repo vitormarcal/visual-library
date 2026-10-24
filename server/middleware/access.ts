@@ -1,9 +1,15 @@
 import { createError, getRequestHeader, sendRedirect, setHeader } from 'h3'
 import { hasOwnerSession, validApplicationToken } from '../access-store.ts'
 import { accessConfig, ownerCookie, requireSameOrigin } from '../auth.ts'
+import { setSecurityHeaders } from '../security-headers.ts'
+
+const assetId = '[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}'
+const assetRead = new RegExp(`^/api/assets/${assetId}(?:/content)?$`)
+const assetTags = new RegExp(`^/api/assets/${assetId}/references/tags$`)
 
 export default defineEventHandler(async event => {
   const config = accessConfig(event)
+  setSecurityHeaders(event, config.origin)
   const path = event.path.split('?')[0]!, method = event.method
   // Default denial includes unusual encodings and paths that another router may normalize.
   const staticGet = ['GET', 'HEAD'].includes(method) && (/^\/_nuxt\/[\w./-]+$/.test(path) && !path.includes('..') || /^\/icons\/[\w.-]+$/.test(path) || path === '/manifest.webmanifest')
@@ -19,8 +25,8 @@ export default defineEventHandler(async event => {
     const token = /^Bearer (\S+)$/.exec(authorization)?.[1]
     if (!token || !await validApplicationToken(token)) throw createError({ statusCode: 401, statusMessage: 'Invalid integration credential.' })
     const allowed = method === 'POST' && path === '/api/assets'
-      || method === 'GET' && /^\/api\/assets\/[^/%]+(?:\/content)?$/.test(path)
-      || method === 'PUT' && /^\/api\/assets\/[^/%]+\/references\/tags$/.test(path)
+      || method === 'GET' && assetRead.test(path)
+      || method === 'PUT' && assetTags.test(path)
     if (!allowed) throw createError({ statusCode: 403, statusMessage: 'Operation not allowed for integration.' })
     event.context.accessIdentity = 'application'
     return

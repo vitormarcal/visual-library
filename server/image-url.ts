@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
+import { Agent } from 'undici'
 import { createError } from 'h3'
 import { validateImageFormat } from './image-format.ts'
 
@@ -71,24 +72,14 @@ const isPrivateIpv4 = (address: string) => {
 }
 
 const isPrivateIpv6 = (address: string) => {
-  const value = address.toLowerCase()
-
-  if (value.startsWith('::ffff:')) {
-    return isPrivateIpv4(value.slice(7))
-  }
-
-  return (
-    value === '::' ||
-    value === '::1' ||
-    value.startsWith('fc') ||
-    value.startsWith('fd') ||
-    value.startsWith('fe8') ||
-    value.startsWith('fe9') ||
-    value.startsWith('fea') ||
-    value.startsWith('feb') ||
-    value.startsWith('ff') ||
-    value.startsWith('2001:db8')
-  )
+  // URL canonicalization closes expanded-loopback and alternate IPv6 spellings.
+  const value = new URL(`http://[${address}]/`).hostname.slice(1, -1).toLowerCase()
+  const [first, second = '0'] = value.split(':')
+  const prefix = Number.parseInt(first!, 16)
+  // Only ordinary global unicast; exclude transition, protocol and documentation ranges.
+  return !(prefix >= 0x2000 && prefix <= 0x3fff)
+    || (prefix === 0x2001 && Number.parseInt(second || '0', 16) < 0x0200)
+    || value.startsWith('2001:db8:') || prefix === 0x2002 || prefix === 0x3fff
 }
 
 export const isPublicIpAddress = (address: string) => {
@@ -116,7 +107,7 @@ export const isPublicRemoteTarget = (hostname: string, addresses: Array<{ addres
     return isPublicIpAddress(normalizedHostname)
   }
 
-  return addresses.some(({ address }) => isPublicIpAddress(address))
+  return addresses.length > 0 && addresses.every(({ address }) => isPublicIpAddress(address))
 }
 
 export const parseRemoteUrl = (value: string) => {
@@ -128,7 +119,7 @@ export const parseRemoteUrl = (value: string) => {
     throw publicUrlError()
   }
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.username || url.password) {
     throw publicUrlError()
   }
 
@@ -136,7 +127,7 @@ export const parseRemoteUrl = (value: string) => {
 }
 
 export const assertPublicRemoteTarget = async (url: URL) => {
-  const hostname = url.hostname.toLowerCase()
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
 
   if (isIP(hostname)) {
     if (!isPublicRemoteTarget(hostname)) {
@@ -158,6 +149,21 @@ export const assertPublicRemoteTarget = async (url: URL) => {
     throw publicUrlError()
   }
 }
+
+// DNS checks must run in the socket's own lookup, not only in a preflight check.
+// The connection uses exactly the validated addresses; no second unrestricted lookup.
+export const remoteImageDispatcher = new Agent({
+  connect: {
+    timeout: remoteFetchTimeoutMs,
+    lookup(hostname, options, callback) {
+      lookup(hostname, { all: true, verbatim: true }).then(addresses => {
+        if (!isPublicRemoteTarget(hostname, addresses)) { callback(publicUrlError(), '', 4); return }
+        if (options.all) callback(null, addresses)
+        else callback(null, addresses[0]!.address, addresses[0]!.family)
+      }, () => { callback(publicUrlError(), '', 4) })
+    },
+  },
+})
 
 const readLimitedBody = async (response: Response, limit: number) => {
   if (!response.body) {
@@ -201,10 +207,8 @@ export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBy
     for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
       await assertPublicRemoteTarget(currentUrl)
 
-      const response = await fetch(currentUrl, {
-        redirect: 'manual',
-        signal: controller.signal,
-      })
+      const requestOptions = { redirect: 'manual' as const, signal: controller.signal, dispatcher: remoteImageDispatcher }
+      const response = await fetch(currentUrl, requestOptions)
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location')
@@ -213,6 +217,7 @@ export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBy
           throw publicUrlError()
         }
 
+        await response.body?.cancel().catch(() => {})
         currentUrl = parseRemoteUrl(new URL(location, currentUrl).toString())
         continue
       }

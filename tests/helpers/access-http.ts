@@ -23,7 +23,7 @@ const { ensureDataStore, deleteImageRecord, setImageVisibility } = await import(
 const db = await ensureDataStore()
 const png = await readFile(new URL('../fixtures/images/tiny.png', import.meta.url))
 await writeFile('data/images/private.png', png)
-db.prepare(`INSERT INTO images (id,filename,mime_type,size_bytes,created_at,source,hidden_from_gallery) VALUES ('private','private.png','image/png',?,'2026-01-01','visual-library',0)`).run(png.length)
+db.prepare(`INSERT INTO images (id,filename,mime_type,size_bytes,created_at,source,hidden_from_gallery) VALUES ('00000000-0000-4000-8000-000000000001','private.png','image/png',?,'2026-01-01','visual-library',0)`).run(png.length)
 const router = createRouter()
 const routes = [
   ['post', '/api/auth/setup', 'api/auth/setup.post.ts'], ['post', '/api/auth/login', 'api/auth/login.post.ts'], ['get', '/api/auth/session', 'api/auth/session.get.ts'], ['post', '/api/auth/logout', 'api/auth/logout.post.ts'],
@@ -58,9 +58,12 @@ const login = async () => {
   cookie = header.split(';')[0]!
 }
 try {
-  const privatePaths = ['/api/images', '/api/tags', '/api/assets/private', '/api/assets/private/content', '/images/private.png', '/thumbnails/private', '/api/search/content/status', '/api/access/tokens', '/api/images/private/public-link']
+  const privatePaths = ['/api/images', '/api/tags', '/api/assets/00000000-0000-4000-8000-000000000001', '/api/assets/00000000-0000-4000-8000-000000000001/content', '/images/private.png', '/thumbnails/private', '/api/search/content/status', '/api/access/tokens', '/api/images/00000000-0000-4000-8000-000000000001/public-link']
   for (const path of privatePaths) {
     const result = await call(path)
+    assert.equal(result.headers.get('x-frame-options'), 'DENY')
+    assert.ok(result.headers.get('content-security-policy')!.includes("frame-ancestors 'none'"))
+    assert.ok(result.headers.get('content-security-policy')!.includes("object-src 'none'"))
     assert.equal(result.status, 401, path); assert.equal(result.headers.get('cache-control'), 'no-store')
     assert.ok(!(await result.text()).includes('private.png'))
   }
@@ -82,6 +85,11 @@ try {
   assert.equal(await store.ownerPasswordHash(), savedHash)
   assert.equal(db.prepare('SELECT key_hash FROM owner_reset_commands').get()!.key_hash, store.digestSecret(resetKey))
   assert.equal((await call('/api/auth/setup', { method: 'POST', headers: { origin: 'https://evil.test', 'x-library-request': '1' }, body: '{}' })).status, 403)
+  for (const [method, route] of routes) {
+    if (route.startsWith('/api/auth/') || route.startsWith('/shared-images/') || route === '/share') continue
+    const path = route.replace(':id', '00000000-0000-4000-8000-000000000001').replace(':filename', 'private.png')
+    assert.equal((await call(path, { method: method.toUpperCase() })).status, 401, `${method} ${path}`)
+  }
   assert.equal((await call('/api/search/content/prepare', { method: 'POST' })).status, 401)
   assert.equal(prepareCalled, false)
   assert.equal((await call('/api/assets', { method: 'POST', body: 'invalid huge parser should not run' })).status, 401)
@@ -89,7 +97,12 @@ try {
   assert.equal((await owner('/api/auth/login', 'POST', { password: 'wrong' })).status, 401)
   assert.equal((await call('/api/auth/login', { method: 'POST', headers: { origin: 'https://evil.test', 'x-library-request': '1' }, body: JSON.stringify({ password }) })).status, 403)
   assert.equal((await call('/api/auth/login', { method: 'POST', headers: { origin }, body: JSON.stringify({ password }) })).status, 403)
+  const fixedCookie = 'vl_owner_session=' + 'z'.repeat(43)
+  cookie = fixedCookie
   await login()
+  assert.notEqual(cookie, fixedCookie, 'Successful login must generate a fresh server-side session')
+  assert.equal((await call('/api/images?session=' + cookie.split('=')[1])).status, 401)
+  assert.equal((await call('/api/images', { headers: { 'x-session': cookie.split('=')[1]! } })).status, 401)
   assert.deepEqual(await (await owner('/api/auth/session')).json(), { authenticated: true, state: 'ready', generation: null })
   assert.equal((await owner('/api/images')).status, 200)
   assert.equal(db.prepare('SELECT token_hash FROM owner_sessions').all().some(row => cookie.includes(String(row.token_hash))), false)
@@ -98,60 +111,61 @@ try {
   const privateEtag = privateContent.headers.get('etag')!
   assert.deepEqual(Buffer.from(await privateContent.arrayBuffer()), png)
   assert.equal((await call('/images/private.png', { headers: { 'if-none-match': privateEtag } })).status, 401)
-  for (const path of ['/api/access/tokens', '/api/images/private/public-link', '/api/auth/logout']) {
+  for (const path of ['/api/access/tokens', '/api/images/00000000-0000-4000-8000-000000000001/public-link', '/api/auth/logout']) {
     assert.equal((await call(path, { method: 'POST', headers: { cookie, origin: 'https://evil.test', 'x-library-request': '1' } })).status, 403)
   }
   assert.equal((await call('/share', { method: 'POST', headers: { cookie, origin: 'https://evil.test' }, body: 'ignored' })).status, 403)
   assert.equal((await call('/share', { method: 'POST', headers: { cookie }, body: 'ignored' })).status, 403)
+  for (const extra of [{ 'x-library-request': '1' }, { origin }, { origin: 'null', 'x-library-request': '1' }, { origin, 'x-library-request': '1', 'sec-fetch-site': 'same-site' }]) assert.equal((await call('/api/access/tokens', { method: 'POST', headers: { cookie, ...extra }, body: '{}' })).status, 403)
   // Native share with explicit same-origin metadata reaches the existing handler.
   assert.equal((await call('/share', { method: 'POST', headers: { cookie, 'sec-fetch-site': 'same-origin' }, body: 'invalid' })).status, 303)
   const credential = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse' })).json()
   const bearer = { authorization: `Bearer ${credential.token}` }
   const otherCredential = await (await owner('/api/access/tokens', 'POST', { name: 'Blog' })).json()
   assert.notEqual(otherCredential.id, credential.id)
-  const row = db.prepare('SELECT token_hash FROM application_tokens').get()!
+  const row = db.prepare('SELECT token_hash FROM application_tokens WHERE id = ?').get(credential.id)!
   assert.equal(row.token_hash, store.digestSecret(credential.token)); assert.notEqual(row.token_hash, credential.token)
   assert.ok(!JSON.stringify(await (await owner('/api/access/tokens')).json()).includes(credential.token))
-  assert.equal((await call('/api/assets/private', { headers: bearer })).status, 200)
-  assert.equal((await call('/api/assets/private/content', { headers: bearer })).status, 200)
-  for (const [path, method] of [['/api/images', 'GET'], ['/api/images/private', 'DELETE'], ['/api/images/private/public-link', 'POST'], ['/api/access/tokens', 'GET'], ['/api/search/content/prepare', 'POST'], ['/api/assets/private/content/extra', 'GET'], ['/api/assets/private/content', 'HEAD'], ['/images/private.png', 'GET']]) {
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 200)
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001/content', { headers: bearer })).status, 200)
+  for (const [path, method] of [['/api/assets/search', 'GET'], ['/api/assets/list/content', 'GET'], ['/api/assets/search/references/tags', 'PUT'], ['/api/images', 'GET'], ['/api/images/00000000-0000-4000-8000-000000000001', 'DELETE'], ['/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST'], ['/api/access/tokens', 'GET'], ['/api/search/content/prepare', 'POST'], ['/api/assets/00000000-0000-4000-8000-000000000001/content/extra', 'GET'], ['/api/assets/00000000-0000-4000-8000-000000000001/content', 'HEAD'], ['/images/private.png', 'GET']]) {
     assert.equal((await call(path!, { method, headers: bearer })).status, 403, `${method} ${path}`)
   }
-  assert.equal((await call('/api/assets/private?token=' + credential.token)).status, 401)
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001?token=' + credential.token)).status, 401)
   assert.equal((await call('/api/images', { headers: { cookie, authorization: 'Bearer invalid' } })).status, 401)
   const form = new FormData(); form.append('image', new Blob([png]), 'new.png'); form.append('source', 'media-pulse')
   assert.equal((await call('/api/assets', { method: 'POST', headers: bearer, body: form })).status, 201)
   // Allowed PUT reaches reference validation, rather than failing authentication.
-  assert.equal((await call('/api/assets/private/references/tags', { method: 'PUT', headers: { ...bearer, 'content-type': 'application/json' }, body: '{}' })).status, 400)
-  assert.equal((await owner('/api/images/private/public-link')).status, 200)
-  assert.deepEqual(await (await owner('/api/images/private/public-link')).json(), { url: null })
-  const [a, b] = await Promise.all([owner('/api/images/private/public-link', 'POST'), owner('/api/images/private/public-link', 'POST')])
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001/references/tags', { method: 'PUT', headers: { ...bearer, 'content-type': 'application/json' }, body: '{}' })).status, 400)
+  assert.equal((await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link')).status, 200)
+  assert.deepEqual(await (await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link')).json(), { url: null })
+  const [a, b] = await Promise.all([owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST'), owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST')])
   const link = (await a.json()).url as string
   assert.equal((await b.json()).url, link)
   const publicPath = new URL(link).pathname
   const publicContent = await call(publicPath)
   assert.equal(publicContent.status, 200); assert.equal(publicContent.headers.get('cache-control'), 'no-store')
-  assert.ok(!publicContent.headers.get('etag')!.includes('private'))
+  assert.ok(!publicContent.headers.get('etag')!.includes('00000000-0000-4000-8000-000000000001'))
   assert.deepEqual(Buffer.from(await publicContent.arrayBuffer()), png)
   const publicEtag = publicContent.headers.get('etag')!
   assert.equal((await call(publicPath, { method: 'HEAD' })).status, 200)
   assert.equal((await call(publicPath, { headers: { 'if-none-match': publicEtag } })).status, 304)
-  setImageVisibility('private', true)
+  setImageVisibility('00000000-0000-4000-8000-000000000001', true)
   assert.equal((await call(publicPath)).status, 200)
   await owner(`/api/access/tokens/${credential.id}`, 'DELETE')
-  assert.equal((await call('/api/assets/private', { headers: bearer })).status, 401)
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 401)
   assert.equal((await call(publicPath)).status, 200)
-  assert.equal((await call('/api/assets/private', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)
   const replacement = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse' })).json()
   assert.notEqual(replacement.token, credential.token)
-  assert.equal((await call('/api/assets/private', { headers: bearer })).status, 401)
-  await owner('/api/images/private/public-link', 'DELETE')
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 401)
+  await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'DELETE')
   assert.equal((await call(publicPath, { headers: { 'if-none-match': publicEtag } })).status, 404)
   assert.equal((await call(publicPath, { method: 'HEAD' })).status, 404)
-  const newLink = (await (await owner('/api/images/private/public-link', 'POST')).json()).url
+  const newLink = (await (await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST')).json()).url
   assert.notEqual(newLink, link)
   assert.equal((await call(publicPath)).status, 404)
-  for (const path of ['/api/images/', '/api/%69mages', '/api/assets/private%2fcontent', '/api/auth/session/extra']) assert.equal((await call(path)).status, 401, path)
+  for (const path of ['/api/images/', '/api/%69mages', '/api/assets/00000000-0000-4000-8000-000000000001%2fcontent', '/api/auth/session/extra']) assert.equal((await call(path)).status, 401, path)
   assert.equal((await call('/shared-images/short')).status, 404)
   // New reset commands revoke owner credentials/sessions, while preserving apps and links.
   const beforeReset = await store.ownerPasswordHash()
@@ -161,7 +175,7 @@ try {
   assert.equal((await owner('/api/images')).status, 401)
   assert.equal(db.prepare('SELECT count(*) AS n FROM owner_sessions').get()!.n, 0)
   assert.equal((await call(new URL(newLink).pathname)).status, 200)
-  assert.equal((await call('/api/assets/private', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)
+  assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)
   const resetState = await store.ownerAccessState()
   await assert.rejects(store.defineOwnerPassword(password, password, pending.generation), error => error.status === 409)
   await assert.rejects(store.defineOwnerPassword('short', 'short', resetState.generation), error => error.status === 400)
@@ -180,16 +194,24 @@ try {
   assert.equal((await owner('/api/auth/logout', 'POST')).status, 200)
   assert.equal((await call('/api/images', { headers: { cookie: previousCookie } })).status, 401)
   await login()
-  const other = db.prepare("SELECT id FROM images WHERE id != 'private' LIMIT 1").get()!
+  const other = db.prepare("SELECT id FROM images WHERE id != '00000000-0000-4000-8000-000000000001' LIMIT 1").get()!
   await store.publicImageLink(String(other.id), true)
-  deleteImageRecord('private')
+  deleteImageRecord('00000000-0000-4000-8000-000000000001')
   assert.equal((await call(new URL(newLink).pathname)).status, 404)
-  assert.equal(db.prepare("SELECT 1 FROM image_public_links WHERE image_id='private'").get(), undefined)
+  assert.equal(db.prepare("SELECT 1 FROM image_public_links WHERE image_id='00000000-0000-4000-8000-000000000001'").get(), undefined)
   const savedOrigin = origin
   origin = 'https://library.example'
   const secureLogin = await call('/api/auth/login', { method: 'POST', headers: { origin, 'x-library-request': '1', 'content-type': 'application/json' }, body: JSON.stringify({ password }) })
   assert.equal(secureLogin.status, 200)
+  assert.match(secureLogin.headers.get('set-cookie')!, /^__Host-vl_owner_session=/)
   assert.match(secureLogin.headers.get('set-cookie')!, /; Secure/i)
+  assert.ok(!secureLogin.headers.get('set-cookie')!.includes('Domain='))
+  assert.equal(secureLogin.headers.get('strict-transport-security'), 'max-age=31536000')
+  assert.equal((await owner('/api/images')).status, 401, 'HTTPS must ignore legacy unprefixed cookies')
+  const secureCookie = secureLogin.headers.get('set-cookie')!.split(';')[0]!
+  assert.equal((await call('/api/images', { headers: { cookie: secureCookie } })).status, 200)
+  assert.equal((await call('/api/images', { headers: { cookie: '__Host-vl_owner_session=' + 'x'.repeat(43) } })).status, 401)
+
   origin = savedOrigin
   // Throttle before expensive password derivation.
   for (let i = 0; i < 12; i++) await owner('/api/auth/login', 'POST', { password: 'wrong' })

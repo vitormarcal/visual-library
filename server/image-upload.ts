@@ -13,14 +13,15 @@ export const imageSizeLimit = (event: H3Event) => parseImageSizeLimit(useRuntime
 const badForm = () => createError({ statusCode: 400, statusMessage: 'Invalid image form.' })
 
 // Do not destroy the incoming socket on overflow: H3 must still deliver the 413.
-export const readLimitedRequest = async (event: H3Event, limit: number) => {
+export const readLimitedRequest = async (event: H3Event, limit: number, timeoutMs?: number) => {
   const declared = Number(getRequestHeader(event, 'content-length'))
   if (declared > limit) { event.node.req.resume(); throw sizeError(limit) }
   return await new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
     const req = event.node.req
-    const cleanup = () => { req.off('data', data); req.off('end', end); req.off('error', error); req.off('aborted', aborted) }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const cleanup = () => { if (timer) clearTimeout(timer); req.off('data', data); req.off('end', end); req.off('error', error); req.off('aborted', aborted) }
     const error = (err: Error) => { cleanup(); reject(err) }
     const aborted = () => error(badForm())
     const end = () => { cleanup(); resolve(Buffer.concat(chunks, size)) }
@@ -28,6 +29,10 @@ export const readLimitedRequest = async (event: H3Event, limit: number) => {
       size += chunk.length
       if (size > limit) { cleanup(); req.resume(); reject(sizeError(limit)); return }
       chunks.push(chunk)
+    }
+    if (timeoutMs !== undefined) {
+      timer = setTimeout(() => { cleanup(); req.resume(); reject(createError({ statusCode: 408, statusMessage: 'Request body timed out.' })) }, timeoutMs)
+      timer.unref()
     }
     req.on('data', data); req.on('end', end); req.on('error', error); req.on('aborted', aborted)
   })

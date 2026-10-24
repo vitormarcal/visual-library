@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "image-meta": "0.2.2",
-    "nuxt": "^4.4.6"
+    "nuxt": "^4.6.2",
+    "undici": "^8.12.3"
   },
-  "version": "0.15.0"
+  "version": "0.15.1"
 }
