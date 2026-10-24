@@ -6,7 +6,7 @@ New entries should come primarily from real usage, repeated friction, browsing b
 
 ## Sequência escolhida em 2026-10-24
 
-[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), correção do gatilho `/share` implementada em [023](docs/specs/023-share-similarity-trigger/spec.md). A avaliação semântica isolada permanece pendente.
+[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), correção do gatilho `/share` implementada em [023](docs/specs/023-share-similarity-trigger/spec.md). O piloto técnico semântico em [024](docs/specs/024-semantic-evaluation/plan.md) foi executado; a revisão humana de qualidade permanece pendente, sem busca integrada.
 
 ## Observed Usage
 
@@ -121,6 +121,10 @@ Preserve calm visual browsing. Avoid taxonomy systems, enterprise search, advanc
 Observe whether additive group tagging removes the repeated work that motivated it.
 
 Showing tags shared by selected images is deferred until usage demonstrates a need. This is separate from the existing gallery suggestions of frequently used tags. Bulk removal, replacement, statistics, and general metadata management remain outside the current scope.
+
+### Busca por conteúdo sem pistas textuais
+
+Solicitado em 2026-10-24 em [024](docs/specs/024-semantic-evaluation/spec.md): piloto separado com amostra autorizada de 100 imagens visíveis e quatro intenções reais em português. SigLIP2 q8 executou no Mordor sem rede, dentro do orçamento de dois CPUs/2 GiB; resultados e comparação lexical ficaram em relatório privado. Ferramenta, scorer e exportador somente leitura estão em `tools/visual-similarity`. Qualidade e eventual integração dependem da revisão humana e ampliação das consultas; não existe busca semântica na interface. Não confundir ranking não vazio com resultado relevante.
 
 ### Optional AI-assisted suggestions
 

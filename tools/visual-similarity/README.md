@@ -1,6 +1,6 @@
 # Experimento de similaridade visual
 
-Ferramenta de desenvolvimento independente do Nuxt. Não altera o acervo e não integra a galeria de produção. Requer Node 26 e runtime Linux com glibc para o ONNX nativo (por exemplo, `node:26-bookworm-slim`); o Dockerfile Alpine atual da aplicação não foi alterado.
+Ferramenta de desenvolvimento independente do Nuxt. Não altera o acervo e não integra a galeria de produção. Requer Node 26 e runtime Linux com glibc para o ONNX nativo (por exemplo, `node:26-bookworm-slim`); a aplicação atual já usa Debian e similaridade integrada; este harness continua separado do runtime de produção.
 
 ```bash
 cd tools/visual-similarity
@@ -33,3 +33,46 @@ Há oito métodos: os três controles anteriores e cinco variantes. O embedding 
 As novas combinações testam 20/65/15 com CLS, 40/45/15 com média da imagem inteira e 20/65/15 com média da imagem inteira (embedding/paleta/posição das cores). A paleta original permanece fixa à esquerda; um seletor troca o método à direita. No celular os dois blocos são empilhados. Controles e pesos ficam nos rótulos; a interface do produto não foi alterada.
 
 Para executar sem rede, reutilize o cache do modelo em `nova/models/` e acrescente `--offline`. Esse modo carrega a revisão fixada diretamente do diretório local e desabilita modelos remotos; foi validado com Docker `--network none`. Os caches de descritores v1/v2 têm versões diferentes. `metrics.json` registra quantas das 20 referências reproduzem exatamente cada controle; divergência de controle ou falha de imagem faz o comando terminar com código 1, mesmo que um relatório parcial tenha sido gerado.
+
+## Avaliação semântica separada (024)
+
+`semantic-evaluate.mjs` avalia texto → imagem com SigLIP2 q8 e a busca lexical atual. Não integra busca ao produto nem altera o índice DINOv2. Reutiliza as dependências deste diretório. Guia completo em [024](../../docs/specs/024-semantic-evaluation/plan.md).
+
+```bash
+node semantic-evaluate.mjs --dataset /privado/amostra/dataset.json \
+  --queries /privado/queries.json --out /privado/relatorio
+# Repetir com o cache completo sem rede:
+node semantic-evaluate.mjs --dataset /privado/amostra/dataset.json \
+  --queries /privado/queries.json --out /privado/relatorio --offline
+```
+
+O JSON de dataset tem `version: 1` e `images`: de 1 a 100 objetos com `id`, `file` relativo ao diretório do JSON, `sha256`, `originalName`, `createdAt`, `tags: [{name}]` e `hiddenFromGallery: false`. Congelar amostra, hashes e metadados; o programa rejeita arquivos fora do diretório, hashes alterados, ocultas e IDs repetidos. A ferramenta não acessa automaticamente SQLite/SSH. Seleção/exportação da amostra deve ser autorizada separadamente.
+
+Queries têm `version: 1` e `queries: [{id, text, language, source, tags?}]`. `tags` é opcional e filtra por identidade antes de ranquear, sem remover acentos das identidades; o baseline lexical reutiliza o matcher da aplicação. Consultas não recebem tradução ou prefixo automático. Cosseno não representa probabilidade/confiança.
+
+Saída e cache de modelos devem ficar fora do repositório e separados da entrada. `--models /privado/models` permite reutilizar os pesos em outra saída. A primeira execução pode baixar aproximadamente 412 MB de torres quantizadas/tokenizer, mais configurações. Revisão, pré-processamento e biblioteca são fixados no fingerprint. Reexecução confere arquivos e reutiliza vetores por hash; não troca silenciosamente dataset/consultas/modelo numa saída já existente.
+
+Abra `index.html` localmente; contém previews pessoais. Compare top 10 lexical/semântico e abra a seção de avaliação de cada consulta para julgar todos os candidatos com 0/1/2. “Não avaliada” permanece diferente de 0. O relatório não envia julgamentos; **Exportar julgamentos JSON** baixa um arquivo local. **Retomar julgamentos** reabre uma exportação parcial do mesmo dataset/consultas/modelo para continuar a revisão. Não publique artefatos pessoais nem comite `models/`, `vectors/`, imagens ou resultados.
+
+```bash
+node semantic-score.mjs --results /privado/relatorio/results.json \
+  --judgments /privado/judgments.json --out /privado/quality.json
+```
+
+O scorer confere fingerprint do dataset/consultas/modelo. Só calcula nDCG@10, Recall@10 e sucesso top 5 quando todos os candidatos daquela consulta foram julgados. Sem positivos conhecidos, sinaliza ausência de relevantes na amostra em vez de aprovação/reprovação. Resultados parciais não viram métricas conclusivas. Inglês, português e grafia corrigida são diagnósticos distintos, não consultas reais adicionais.
+
+`metrics.json` separa carregamento de modelos, inferência textual, ranking, cache, tempo de imagem incluindo preview, CPU user/system e RSS máximo do processo. CPU soma trabalho entre threads e pode exceder o tempo de parede. O download fica incluído na primeira carga; compare reexecução offline para separar rede. RSS não é pico total de contêiner; uma amostra de nove consultas não estabelece p95 de uso real. A lista de arquivos baixados fica no cache; peso da cache pode incluir arquivos temporários em execução.
+
+Modelo base: Apache-2.0. A conversão ONNX não declarou licença nos metadados consultados; não redistribuímos pesos e a licença da conversão deve ser esclarecida antes de distribuição/integração. O suporte multilíngue documentado não comprova qualidade nas consultas pessoais.
+
+Exportação opcional e explícita da amostra (somente após autorizar leitura do acervo):
+
+```bash
+# Executar o script via stdin no host, sem instalar ferramenta no servidor:
+ssh usuario@host python3 - --data /caminho/data --limit 100 \
+  < semantic-sample.py > /privado/sample.tar
+mkdir -m 700 /privado/amostra
+python3 -c "import tarfile; t=tarfile.open('/privado/sample.tar'); t.extractall('/privado/amostra', filter='data')"
+```
+
+O exportador abre SQLite com `mode=ro` e `query_only`, congela metadados visíveis numa transação curta e encerra a leitura do banco antes de copiar bytes. A amostragem temporal não garante diversidade nem a presença de uma coruja, carro ou qualquer positivo. Original alterado ou path externo aborta a exportação; não reutilize um TAR de execução malsucedida. O TAR inclui cópias pessoais e deve permanecer privado; não é um backup do acervo.
