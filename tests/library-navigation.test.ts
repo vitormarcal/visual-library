@@ -73,3 +73,14 @@ test('Explore image links identify a finite rediscovery selection without changi
     `/?view=explore&selection=${selectionId}&selection=${selectionId}`,
   ]) assert.ok(parseLibraryDestination(new URL(address, 'http://library.local')).problem, address)
 })
+
+test('content search URLs preserve submitted query, filters and viewer only in visible Library', () => {
+  const destination = { ...libraryDestination(), searchMode: 'content' as const, query: 'mulher segurando espada', tagIds: ['author'], imageId: 'result' }
+  const url = libraryDestinationUrl(destination)
+  assert.deepEqual(parseLibraryDestination(new URL(url, 'http://library.local')), destination)
+  assert.ok(url.includes('mode=content'))
+  assert.equal(libraryDestination().searchMode, 'text')
+  for (const query of ['?view=explore&mode=content', '?view=subject&subject=a&mode=content', '?view=library&visibility=hidden&mode=content', '?view=library&mode=unknown', '?view=library&mode=content&mode=content', '?view=library&mode=content&q=' + 'x'.repeat(501)]) {
+    assert.ok(parseLibraryDestination(new URL(query, 'http://library.local')).problem, query)
+  }
+})

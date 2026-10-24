@@ -3,6 +3,7 @@ export type LibraryDestination = {
   subjectId: string | null
   referenceId: string | null
   selectionId: string | null
+  searchMode: 'text' | 'content'
   query: string
   tagIds: string[]
   imageId: string | null
@@ -11,7 +12,7 @@ export type LibraryDestination = {
 }
 
 export const libraryDestination = (screen: LibraryDestination['screen'] = 'library'): LibraryDestination => ({
-  screen, subjectId: null, referenceId: null, selectionId: null, query: '', tagIds: [], imageId: null, hidden: false, problem: null,
+  screen, subjectId: null, referenceId: null, selectionId: null, searchMode: 'text', query: '', tagIds: [], imageId: null, hidden: false, problem: null,
 })
 
 export const parseLibraryDestination = (url: URL): LibraryDestination => {
@@ -24,12 +25,15 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
   destination.referenceId = params.get('reference')
   destination.selectionId = params.get('selection')
   destination.query = params.get('q') ?? ''
+  destination.searchMode = params.get('mode') === 'content' ? 'content' : 'text'
   destination.tagIds = [...new Set(params.getAll('tag'))].filter((id) => id !== destination.subjectId)
   destination.imageId = params.get('image')
   destination.hidden = params.get('visibility') === 'hidden'
   if ((params.has('visibility') && (params.get('visibility') !== 'hidden' || destination.screen !== 'library'))
+    || (params.has('mode') && (params.get('mode') !== 'content' || destination.screen !== 'library' || destination.hidden))
+    || (destination.searchMode === 'content' && destination.query.length > 500)
     || !['library', 'explore', 'subject', 'similar'].includes(view)
-    || ['view', 'subject', 'reference', 'selection', 'q', 'image', 'visibility'].some((key) => params.getAll(key).length > 1)
+    || ['view', 'subject', 'reference', 'selection', 'mode', 'q', 'image', 'visibility'].some((key) => params.getAll(key).length > 1)
     || (destination.screen === 'subject' ? !destination.subjectId : destination.subjectId !== null)
     || (destination.screen === 'similar' ? !destination.referenceId || Boolean(destination.query || destination.tagIds.length) : destination.referenceId !== null)
     || destination.tagIds.some((id) => !id)
@@ -45,12 +49,13 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
 
 export const libraryDestinationUrl = (destination: LibraryDestination, source = '/'): string => {
   const url = new URL(source, 'http://library.local')
-  for (const key of ['view', 'subject', 'reference', 'selection', 'q', 'tag', 'image', 'visibility']) url.searchParams.delete(key)
+  for (const key of ['view', 'subject', 'reference', 'selection', 'mode', 'q', 'tag', 'image', 'visibility']) url.searchParams.delete(key)
   // Explore searches need an explicit view to distinguish older Library links.
   if (destination.screen !== 'explore' || destination.query || destination.selectionId) url.searchParams.set('view', destination.screen)
   if (destination.screen === 'subject' && destination.subjectId) url.searchParams.set('subject', destination.subjectId)
   if (destination.screen === 'similar' && destination.referenceId) url.searchParams.set('reference', destination.referenceId)
   if (destination.selectionId) url.searchParams.set('selection', destination.selectionId)
+  if (destination.searchMode === 'content') url.searchParams.set('mode', 'content')
   if (destination.query) url.searchParams.set('q', destination.query)
   for (const id of [...new Set(destination.tagIds)].filter((id) => id !== destination.subjectId)) url.searchParams.append('tag', id)
   if (destination.hidden) url.searchParams.set('visibility', 'hidden')

@@ -96,6 +96,11 @@ export const ensureDataStore = async () => {
       image_id TEXT PRIMARY KEY, version TEXT NOT NULL, source_hash TEXT,
       status TEXT NOT NULL CHECK(status IN ('ready', 'failed')), features_json TEXT
     )`)
+    db.exec(`CREATE TABLE IF NOT EXISTS image_semantic_vectors (
+      image_id TEXT NOT NULL, fingerprint TEXT NOT NULL, source_hash TEXT,
+      status TEXT NOT NULL CHECK(status IN ('ready', 'failed')), vector_json TEXT,
+      PRIMARY KEY (image_id, fingerprint)
+    )`)
     const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>
 
     if (!columns.some((column) => column.name === 'source_url')) {
@@ -260,6 +265,7 @@ export const deleteImageRecord = (imageId: string) => {
   const affected = getImageTags(imageId).map((tag) => tag.id)
   db.exec('BEGIN')
   try {
+    db.prepare('DELETE FROM image_semantic_vectors WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_visual_features WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_references WHERE asset_id = ?').run(imageId)

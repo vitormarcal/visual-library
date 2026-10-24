@@ -35,6 +35,28 @@ const noticeKind = ref<'success' | 'error'>('success')
 const sharedNotice = ref(sharedCaptureMessage(useRequestURL().searchParams))
 const navigation = useLibraryNavigation()
 const destination = navigation.destination
+const contentMode = computed(() => destination.value.screen === 'library' && !destination.value.hidden && destination.value.searchMode === 'content' && !destination.value.problem)
+const contentQuery = computed(() => contentMode.value ? destination.value.query : '')
+const contentTagIds = computed(() => contentMode.value ? destination.value.tagIds : [])
+const content = useContentSearch(contentMode, contentQuery, contentTagIds)
+watch(() => content.current.value.images, incoming => {
+  const existing = new Set(images.value.map(image => image.id))
+  images.value = [...images.value, ...incoming.filter(image => !existing.has(image.id))]
+})
+const contentDraft = ref(destination.value.query)
+watch(() => [destination.value.query, destination.value.searchMode], () => { contentDraft.value = destination.value.query })
+const submitContentSearch = () => {
+  if (!contentMode.value) return
+  if (destination.value.query === contentDraft.value.trim()) content.refresh()
+  else navigation.replace({ ...destination.value, query: contentDraft.value.trim(), imageId: null })
+}
+const setSearchMode = (searchMode: 'text' | 'content') => {
+  if (destination.value.searchMode === searchMode) return
+  contentDraft.value = ''
+  navigation.replace({ ...destination.value, searchMode, query: '', imageId: null })
+}
+const contentInitialLoading = computed(() => contentMode.value && content.current.value.busy && !content.current.value.images.length)
+
 const referenceId = computed(() => destination.value.screen === 'similar' ? destination.value.referenceId : null)
 const similarity = useSimilarImages(referenceId)
 const referenceImage = computed(() => publicImages.value.find(image => image.id === referenceId.value) ?? null)
@@ -61,8 +83,11 @@ const tagsError = ref(false)
 const libraryError = ref(false)
 let tagsRequest = 0
 const galleryQuery = computed({
-  get: () => destination.value.query,
-  set: (query: string) => navigation.replace({ ...destination.value, query }),
+  get: () => contentMode.value ? contentDraft.value : destination.value.query,
+  set: (query: string) => {
+    if (contentMode.value) { contentDraft.value = query; if (!query) navigation.replace({ ...destination.value, query: '' }) }
+    else navigation.replace({ ...destination.value, query })
+  },
 })
 const exploreQuery = galleryQuery
 const galleryFilters = computed(() => destination.value.tagIds.map((id) => tagMetadata.value[id]).filter((tag): tag is ImageTag => Boolean(tag)))
@@ -159,6 +184,9 @@ let filterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let viewerFilterNoticeTimer: ReturnType<typeof setTimeout> | undefined
 
 const visibleImages = computed(() => {
+  if (contentMode.value) return destinationBlocked.value ? [] : content.current.value.images
+    .map(image => images.value.find(current => current.id === image.id) ?? image)
+    .filter(image => !image.hiddenFromGallery && destination.value.tagIds.every(id => image.tags.some(tag => tag.id === id)))
   if (screen.value === 'explore') return destinationBlocked.value ? [] : rediscoveredImages.value
   if (screen.value === 'similar') return destinationBlocked.value ? [] : similarity.current.value.images
     .map(image => images.value.find(current => current.id === image.id) ?? image).filter(image => !image.hiddenFromGallery)
@@ -190,7 +218,7 @@ const openHiddenLink = () => {
   openViewer(id)
 }
 const toggleHiddenMode = () => {
-  if (!applyingTags.value) navigation.push({ ...destination.value, hidden: !destination.value.hidden, imageId: null })
+  if (!applyingTags.value) navigation.push({ ...destination.value, hidden: !destination.value.hidden, searchMode: 'text', query: contentMode.value ? '' : destination.value.query, imageId: null })
 }
 const visibilityBusy = ref(new Set<string>())
 const visibilityNotice = ref('')
@@ -385,6 +413,7 @@ const handleDelete = async (id: string) => {
     await $fetch(`/api/images/${id}`, { method: 'DELETE' })
     images.value = images.value.filter((image) => image.id !== id)
     similarity.remove(id)
+    content.remove(id)
     const retained = destination.value.tagIds.filter((tagId) => images.value.some((image) => image.tags.some((tag) => tag.id === tagId)))
     if (retained.length !== destination.value.tagIds.length) {
       navigation.replace({ ...destination.value, tagIds: retained })
@@ -516,7 +545,7 @@ watch([() => destination.value.subjectId, () => destination.value.tagIds.join('\
 let interactionKey: string | null = null
 let restoredKey: string | null = null
 let closingFocusId: string | null = null
-watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarInitialLoading], async ([key]) => {
+watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarInitialLoading, contentInitialLoading], async ([key]) => {
   if (!key) return
   if (key !== interactionKey) {
     closingFocusId = destination.value.imageId ? null : returnFocusImageId.value
@@ -525,7 +554,7 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarIn
     restoredKey = null
     if (destination.value.imageId) returnFocusImageId.value = navigation.entry.value?.parent?.focusId ?? destination.value.imageId
   }
-  if (loading.value || similarInitialLoading.value || destinationBlocked.value || libraryError.value || restoredKey === key || destination.value.imageId) return
+  if (loading.value || similarInitialLoading.value || contentInitialLoading.value || destinationBlocked.value || libraryError.value || restoredKey === key || destination.value.imageId) return
   restoredKey = key
   const state = navigation.entry.value!
   if (closingFocusId) {
@@ -733,6 +762,9 @@ watch(visibleImages, () => {
           v-model:query="galleryQuery"
           :active-filters="galleryFilters"
           :base-tag="baseTag"
+          :content-search="screen === 'library' && !destination.hidden"
+          :mode="contentMode ? 'content' : 'text'"
+          @mode="setSearchMode" @submit="submitContentSearch"
           :tags="galleryTagSummaries"
           :has-library-tags="hasLibraryTags"
           :notice="filterNotice"
@@ -742,6 +774,27 @@ watch(visibleImages, () => {
         />
 
       </fieldset>
+
+      <section v-if="contentMode" class="contentStatus" role="status" aria-live="polite">
+        <p>Experimental search by image content. Results may include unrelated images.</p>
+        <p v-if="content.current.value.busy && !content.current.value.started">Loading content search.</p>
+        <template v-else-if="content.current.value.state === 'inactive' && !content.current.value.error">
+          <p>Prepare locally once to search your saved images. The first preparation downloads a model (about 412 MB).</p>
+          <button type="button" :disabled="content.current.value.busy || !publicImages.length" @click="content.prepare">Prepare content search</button>
+        </template>
+        <p v-else-if="content.current.value.state === 'preparing'">Preparing content search. {{ content.current.value.preparedCount }} of {{ content.current.value.totalCount }} images ready. You can keep using the library.</p>
+        <template v-else-if="content.current.value.state === 'unavailable' || content.current.value.error">
+          <p>{{ content.current.value.error || 'Content search is unavailable. Tags and filename search still works.' }}</p>
+          <button type="button" :disabled="content.current.value.busy" @click="content.prepare">Try again</button>
+        </template>
+        <template v-else-if="content.current.value.state === 'ready'">
+          <p v-if="!destination.query.trim()">Describe an image and press Search.</p>
+          <p v-else-if="content.current.value.busy">Searching by content.</p>
+          <p v-else>Showing up to 24 images for “{{ destination.query }}”.</p>
+          <p v-if="content.current.value.failedCount">{{ content.current.value.failedCount }} images could not be prepared. <button type="button" :disabled="content.current.value.busy" @click="content.prepare">Retry preparation</button></p>
+          <button v-if="destination.query.trim()" type="button" :disabled="content.current.value.busy" @click="content.refresh">Refresh results</button>
+        </template>
+      </section>
 
       <GalleryBulkTags
         :selecting="selecting"
@@ -768,14 +821,14 @@ watch(visibleImages, () => {
         <p>Could not load the library.</p>
         <button type="button" @click="loadImages">Try again</button>
       </div>
-      <GalleryGrid v-else
+      <GalleryGrid v-else-if="!contentMode || (content.current.value.state === 'ready' && destination.query.trim())"
         :images="visibleImages"
         :image-href="imageHref"
         :selecting="selecting"
         :selected-ids="selectedIds"
         :busy="applyingTags"
         @toggle="toggleSelection"
-        :loading="loading"
+        :loading="loading || contentInitialLoading"
         :empty-text="screen === 'subject' && !subjectImages.length ? 'This subject has no images now. You can return to Explore.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
         @open="openViewer"
         @delete="handleDelete"
@@ -814,6 +867,11 @@ watch(visibleImages, () => {
 </template>
 
 <style>
+.contentStatus { margin: var(--space-lg) 0; color: var(--color-mute); font-size: 14px; line-height: 1.4; }
+.contentStatus p { margin: var(--space-sm) 0; }
+.contentStatus button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-weight: 600; }
+.contentStatus button:active { background: var(--color-secondary-pressed); }
+
 .rediscovery { margin: var(--space-xl) 0 64px; }
 .rediscoveryHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-lg); }
 .rediscoveryHeader h2 { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 600; }

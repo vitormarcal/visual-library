@@ -11,12 +11,16 @@ const props = defineProps<{
   hasLibraryTags: boolean
   notice: string
   baseTag?: ImageTag | null
+  contentSearch?: boolean
+  mode?: 'text' | 'content'
 }>()
 const query = defineModel<string>('query', { default: '' })
 const emit = defineEmits<{
   select: [tag: ImageTag]
   remove: [normalizedName: string]
   clear: []
+  submit: []
+  mode: [mode: 'text' | 'content']
 }>()
 const availableTags = computed(() => {
   const active = new Set(props.activeFilters.map((tag) => tag.normalizedName))
@@ -25,20 +29,25 @@ const availableTags = computed(() => {
     .sort((a, b) => b.imageCount - a.imageCount || a.name.localeCompare(b.name))
 })
 const suggestedTags = computed(() => {
-  const terms = normalizeSearch(query.value).split(' ').filter(Boolean)
+  const terms = props.mode === 'content' ? [] : normalizeSearch(query.value).split(' ').filter(Boolean)
   return terms.length
     ? availableTags.value.filter((tag) => terms.every((term) => normalizeSearch(tag.name).includes(term)))
     : availableTags.value.slice(0, 6)
 })
 const selectTag = (tag: ImageTag) => {
   // Keep the query if the existing three-filter limit prevents selection.
-  if (props.activeFilters.length + (props.baseTag ? 1 : 0) < 3) query.value = ''
+  if (props.mode !== 'content' && props.activeFilters.length + (props.baseTag ? 1 : 0) < 3) query.value = ''
   emit('select', tag)
 }
 </script>
 
 <template>
   <section :class="styles.wrap" aria-label="Search library">
+    <div v-if="contentSearch" :class="styles.modes" aria-label="Search mode">
+      <button type="button" :class="[styles.chip, { [styles.activeChip]: mode !== 'content' }]" :aria-pressed="mode !== 'content'" @click="$emit('mode', 'text')">Tags and filename</button>
+      <button type="button" :class="[styles.chip, { [styles.activeChip]: mode === 'content' }]" :aria-pressed="mode === 'content'" @click="$emit('mode', 'content')">Content · experimental</button>
+    </div>
+    <form :class="styles.searchForm" @submit.prevent="$emit('submit')">
     <div :class="styles.searchBar">
       <svg :class="styles.searchIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
         <circle cx="10.5" cy="10.5" r="6.5" />
@@ -48,8 +57,9 @@ const selectTag = (tag: ImageTag) => {
         v-model="query"
         data-library-search
         type="search"
-        aria-label="Search by tag or filename"
-        placeholder="Search by tag or filename"
+        :aria-label="mode === 'content' ? 'Search image content' : 'Search by tag or filename'"
+        :placeholder="mode === 'content' ? 'Describe an image' : 'Search by tag or filename'"
+        :maxlength="mode === 'content' ? 500 : undefined"
         :class="[styles.searchInput, { [styles.hasQuery]: query }]"
       >
       <button v-if="query" type="button" :class="styles.clearSearch" aria-label="Clear search" @click="query = ''">
@@ -58,6 +68,9 @@ const selectTag = (tag: ImageTag) => {
         </svg>
       </button>
     </div>
+
+    <button v-if="mode === 'content'" type="submit" :class="styles.chip">Search</button>
+    </form>
 
     <div v-if="activeFilters.length" :class="styles.activeBar">
       <button
