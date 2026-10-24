@@ -1,6 +1,6 @@
 # Plano de avaliação
 
-**Status atual: retomada pelo usuário em 2026-10-24 para executar sobre toda a biblioteca visível.** Mesmo encoder, revisão, consultas e orçamento do Mordor; sem novo modelo ou integração. O adiamento anterior e as limitações do piloto ficam preservados no histórico abaixo.
+**Status atual: execução integral e novos julgamentos analisados em 2026-10-24.** Mesmo encoder, revisão, consultas e orçamento do Mordor; utilidade observada em casos específicos, qualidade não uniforme e integração ainda não selecionada. O adiamento anterior e as limitações do piloto ficam preservados no histórico abaixo.
 
 Ferramenta isolada em `tools/visual-similarity`, reutilizando dependências fixadas do experimento (`@huggingface/transformers` 4.3.1 e sharp 0.35.5). Não importar pelo servidor ou runtime de produção. Dataset JSON fora do repositório define IDs, nomes/tags, paths relativos e SHA-256: até 100 imagens no piloto, ou todas as visíveis com `--all` explícito na retomada. Consultas JSON separadas. Validar paths, hashes, visibilidade e isolamento da saída antes de inferência.
 
@@ -151,4 +151,26 @@ O relatório mostra seletores no próprio top 10; a seção dos demais candidato
 
 Área privada durável: `/home/vitor/Documentos/relatorios/visual-library-semantic-full-2026-10-24`. Relatório em `report/index.html`, seed em `report/judgments.seed.json`, resultados/métricas em `report/results.json` e `report/metrics.json`, snapshot em `sample/`, consultas em `queries.json` e notas de método em `assessment.md`. Nenhum conteúdo pessoal incorporado ao Git. Cópia isolada no Mordor: `/tmp/visual-library-semantic-full-gQi7yZfE`; o contêiner de avaliação foi removido ao concluir.
 
-**Estado atual:** execução integral concluída; aguardando revisão dos novos resultados. Esta retomada não autoriza integração, novos modelos ou tagging. As conclusões qualitativas do piloto ficam restritas àquela amostra e não substituem a avaliação integral.
+**Estado ao concluir a execução integral, antes do novo export:** aguardando revisão dos novos resultados. Esta retomada não autoriza integração, novos modelos ou tagging. As conclusões qualitativas do piloto ficam restritas àquela amostra e não substituem a avaliação integral.
+
+
+## Julgamentos da biblioteca completa — 2026-10-24
+
+Novo export validado por fingerprint de modelo, dataset integral e consultas. O usuário confirmou **novamente** não avaliados = 0 para esta exportação. Preservadas **226 notas explícitas**, com 75 novas e uma revisão de nota anterior em relação ao seed; completados **7658 zeros**. O original de Downloads e a cópia privada permaneceram intactos. IDs imputados, autorização e hash do export foram registrados no artefato derivado; o padrão do scorer não mudou. Não houve nova inferência.
+
+| Intenção original | Nota 2 no top 10 | Nota 1 no top 10 | Nota 0 no top 10 | Positivos completos anotados | Melhor posição completa |
+| --- | --- | --- | --- | --- | --- |
+| mulher gurreira segurando espada | 1 | 1 | 8 | 6 | 1 |
+| mulher posando em frente a carro | 7 | 0 | 3 | 11 | 1 |
+| coruja | 1 | 0 | 9 | 1 | 1 |
+| água | 0 | 3 | 7 | 13 | 19 |
+
+São **três primeiras posições plenamente relevantes em quatro intenções**, e nove notas 2 nas 40 posições de top 10 (22,5%). O agregado exige contexto: coruja tem só um positivo completo anotado e ele está em primeiro; não há dez positivos conhecidos para cobrar dez acertos. Guerreiras têm positivos completos em 1, 11, 163, 616, 727 e 749; água tem 13 positivos completos a partir de 19, sem nenhum no top 10. A cobertura integral encontrou exemplos que não estavam na amostra; os problemas de ordenação também ficaram mais bem evidenciados.
+
+nDCG@10 ponderando 0/1/2: aproximadamente **0,296; 0,719; 0,726; 0,097**, respectivamente. O scorer conta parciais como alguma relevância em Recall/sucesso top 5: o sucesso leniente de água decorre de notas 1, não de acerto pleno. Os nove conjuntos estão completos **pela convenção autorizada**, não por 7884 avaliações explícitas. Traduções não receberam julgamentos pareados de todos os mesmos candidatos; não inferir superioridade de idioma desses números.
+
+Diagnósticos registrados no resumo privado: grafia corrigida com duas notas 2 no top 10, mulher/carro em inglês com seis, coruja em inglês com uma no primeiro lugar e água em inglês com três notas 2/cinco notas 1. Esses casos não aumentam o número de intenções reais nem satisfazem uma avaliação ampla de qualidade.
+
+**Conclusão atual:** o resultado integral não sustenta rejeitar genericamente o encoder a partir do piloto de 100. Há sinal de utilidade para recuperar um item conhecido e melhora importante em mulher/carro; a qualidade de uma grade inteira não é uniforme, sobretudo para guerreira e água. Nenhuma integração foi aprovada. Antes de uma decisão de produto, distinguir encontrar um primeiro resultado útil de oferecer vários resultados confiáveis; não criar limiar de score ou integração automaticamente.
+
+Arquivos privados adicionais na pasta integral: `judgments.full.exported.json`, `judgments.full.completed.json`, `quality.full.completed.json`, `quality.full.summary.json` e `assessment.full.judged.md`. O seed, relatório e piloto anteriores foram preservados. Para retomar a revisão com as novas notas, importar o export integral ou o derivado completado. Código da ferramenta e aplicativo não foram alterados neste processamento.

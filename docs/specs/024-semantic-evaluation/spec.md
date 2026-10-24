@@ -1,6 +1,6 @@
 # Avaliação semântica isolada
 
-**Status: retomada pelo usuário em 2026-10-24 para avaliar toda a biblioteca visível.** Preservar o piloto e seus julgamentos; executar o mesmo encoder/consultas sobre um snapshot completo, sem integração ao produto.
+**Status: avaliação da biblioteca visível completa e novos julgamentos analisados em 2026-10-24.** Piloto e julgamentos preservados; mesmo encoder/consultas sobre snapshot completo, com utilidade observada em casos específicos e limitações de ranking. Sem integração ao produto.
 
 Quarto item do roadmap. Solicitado em 2026-10-24. Inicialmente o usuário autorizou amostra de até 100 imagens visíveis; na retomada autorizou toda a biblioteca visível. Permanecem leitura do acervo, inferência local e relatórios privados fora do repositório. Consultas fornecidas: `mulher gurreira segurando espada`, `mulher posando em frente a carro`, `coruja`, `água`.
 
