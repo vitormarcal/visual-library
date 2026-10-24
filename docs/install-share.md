@@ -7,6 +7,8 @@ Após publicar esta versão, abrir o endereço HTTPS da biblioteca no celular.
 
 Nos sistemas compatíveis, depois de instalar, compartilhar um arquivo de imagem ou seu endereço direto e escolher Visual Library. A captura salva no servidor e abre Library com contagens de salvos, duplicatas e falhas. Recompartilhar tenta novamente sem duplicar os itens já salvos. Filtros de sessões anteriores não atribuem tags à captura externa.
 
+Quando pelo menos uma imagem nova é salva, o servidor agenda o preparo de similaridade após responder, usando o processo existente. Não é necessário abrir See similar para iniciar esse preparo. A captura não espera inferência; duplicatas e falhas não iniciam um novo worker. Detalhes em [023](specs/023-share-similarity-trigger/spec.md).
+
 Arquivos: JPEG, PNG, WebP, GIF e AVIF. Um lote aceita até 20 arquivos, e o corpo inteiro está limitado ao tamanho máximo configurado de imagem mais 64 KiB para o formulário (padrão: 15 MiB mais envelope). Dividir compartilhamentos maiores. Um link de post, página ou álbum não equivale a um link direto de imagem; compartilhar a imagem ou copiar seu endereço direto.
 
 O servidor precisa estar acessível e o celular precisa de conexão. Não há cache offline, fila de compartilhamentos ou sincronização posterior. Se a conexão falhar antes do retorno, compartilhar novamente quando o servidor estiver acessível.

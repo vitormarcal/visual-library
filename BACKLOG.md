@@ -6,7 +6,7 @@ New entries should come primarily from real usage, repeated friction, browsing b
 
 ## Sequência escolhida em 2026-10-24
 
-[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), seguido da correção independente do gatilho `/share` e avaliação semântica isolada. As duas últimas entregas permanecem pendentes.
+[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), correção do gatilho `/share` implementada em [023](docs/specs/023-share-similarity-trigger/spec.md). A avaliação semântica isolada permanece pendente.
 
 ## Observed Usage
 
@@ -22,6 +22,10 @@ Observed on 2026-10-01:
 Tags remain optional and freeform. These observations do not impose a taxonomy or restrict other useful associations. Shared behavior is defined in [lightweight tags](docs/specs/005-lightweight-tags/spec.md).
 
 ## Implemented Responses to Friction
+
+### Compartilhamento sem preparo imediato de similares
+
+Corrigido em 2026-10-24 em [023](docs/specs/023-share-similarity-trigger/spec.md): POST `/share` com imagens novas dispara o preparo existente depois da resposta, inclusive lote parcial. Duplicatas e falhas não iniciam worker. 61 testes, build e smoke Nitro com child de teste previamente encerrado passaram; detalhes no [plano](docs/specs/023-share-similarity-trigger/plan.md). Sem novo algoritmo, modelo, fila ou deploy.
 
 ### Reencontrar imagens fora das capturas recentes
 

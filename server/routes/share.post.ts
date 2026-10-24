@@ -44,5 +44,6 @@ export default defineEventHandler(async (event) => {
       else duplicates++
     } catch { failed++ }
   }
+  event.context.sharedImagesCreated = saved > 0
   return redirect({ shared: 'result', saved: String(saved), duplicates: String(duplicates), failed: String(failed) })
 })

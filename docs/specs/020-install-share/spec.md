@@ -14,3 +14,8 @@ Escopo solicitado em 2026-10-18: abrir a biblioteca sem a barra do navegador e r
 - Lotes limitados a 20 arquivos; corpo total limitado ao tamanho configurado de imagem mais 64 KiB de envelope multipart. Compartilhamentos maiores devem ser divididos.
 
 Aceite: manifest e ícones válidos, Docker inclui os recursos públicos, POST valida e salva, resposta 303 evita reenvio no reload, Library exibe resultado sem manter parâmetros transitórios, navegação atual preservada. Validar instalação/compartilhamento físico separadamente dos testes HTTP e navegador.
+
+
+## Preparo de similaridade (023)
+
+[023](../023-share-similarity-trigger/spec.md) completa o gatilho de preparo para compartilhamentos que salvam ao menos uma imagem nova. O hook existente roda após a resposta 303, inclusive em lotes parciais; duplicatas e falhas não iniciam worker. Captura não espera inferência, e modelo indisponível não invalida imagem salva.
