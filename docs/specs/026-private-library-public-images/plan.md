@@ -62,3 +62,8 @@ Limites: primeiro visitante que concluir o setup assume o owner, conforme aceita
 ## Versionamento autorizado
 
 Após a validação, o usuário solicitou avanço de versão, commit e push. Versão atualizada de 0.14.0 para **0.15.0** em package.json e package-lock.json. Publicação de imagem Docker e deploy permanecem fora dessa solicitação.
+
+
+## Retorno após deploy — 0.15.0
+
+Após informar que gerou a imagem e iniciou o deploy para `https://visu.marcal.dev`, o usuário confirmou que funcionou, no contexto do fluxo inicial de definição da senha e acesso pessoal. Esse relato registra validação de uso pelo dono; não houve nova inspeção remota ou teste automatizado do ambiente de produção pelo agente. Integração efetiva dos consumidores, compartilhamentos públicos e Web Share Target no celular continuam sujeitos à verificação no uso.
