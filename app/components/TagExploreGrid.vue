@@ -2,7 +2,7 @@
 import styles from './TagExploreGrid.module.css'
 import { orderExploreGroups } from '../utils/tag-exploration'
 import { interceptLibraryLink, libraryDestination, libraryDestinationUrl } from '../utils/library-navigation'
-type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; src: string; width?: number | null; height?: number | null } | null }
+type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; thumbnailSrc?: string | null; src: string; width?: number | null; height?: number | null } | null }
 const props = defineProps<{
   groups: Group[]
   loading: boolean
@@ -88,7 +88,7 @@ const resetQuery = async () => {
         >
           <ProgressiveImage
             v-if="group.cover && !failed.has(group.cover.id)" :key="group.cover.id"
-            :src="group.cover.src" alt=""
+            :src="group.cover.thumbnailSrc || group.cover.src" alt=""
             :width="group.cover.width || dimensions[group.cover.id]?.width"
             :height="group.cover.height || dimensions[group.cover.id]?.height"
             @load="loaded($event, group.cover.id)" @error="imageFailed(group.cover.id)"

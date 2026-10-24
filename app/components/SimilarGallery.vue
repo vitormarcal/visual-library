@@ -27,7 +27,7 @@ onBeforeUnmount(() => { observer?.disconnect(); window.removeEventListener('resi
     <div class="similarContext">
       <a :href="backHref" @click="interceptLibraryLink($event) && emit('back')">← Back</a>
       <div v-if="reference" class="similarReference">
-        <ProgressiveImage :src="reference.src" :alt="`Reference: ${reference.originalName || 'saved image'}`" :width="reference.width" :height="reference.height" />
+        <ProgressiveImage :src="reference.thumbnailSrc || reference.src" :alt="`Reference: ${reference.originalName || 'saved image'}`" :width="reference.width" :height="reference.height" />
         <p>Similar to this image<span>Colors, appearance and composition · Entire gallery</span></p>
       </div>
     </div>

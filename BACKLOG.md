@@ -4,6 +4,10 @@ This file captures observed product friction and emerging usage patterns. It is 
 
 New entries should come primarily from real usage, repeated friction, browsing behavior, rediscovery difficulty, and interaction discomfort. Avoid speculative feature accumulation.
 
+## Sequência escolhida em 2026-10-24
+
+[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), depois Redescobrir mínimo sem histórico, correção independente do gatilho `/share` e avaliação semântica isolada. As três últimas entregas permanecem pendentes.
+
 ## Observed Usage
 
 ### Tags are personal memory cues
@@ -19,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Originais grandes durante navegação visual
+
+Solicitado e implementado em 2026-10-24 em [021](docs/specs/021-persistent-thumbnails/spec.md): previews WebP persistentes gerados sob demanda para grades, capas e relacionadas; original preservado no viewer. Preparo separado do processo web, sem modelo ou dependência nova, cache privado e fallback para original. Suíte de 56 testes, build, Chrome desktop/mobile emulado e Docker isolado sem rede passaram; detalhes e limites no [plano](docs/specs/021-persistent-thumbnails/plan.md). Sem deploy ou medição A/B no acervo real. Avaliar nitidez em celular físico antes de ajustar a política de 640 px.
+
 ### Abrir no celular e salvar pelo compartilhamento
 
 Solicitado em 2026-10-18 e implementado em [020](docs/specs/020-install-share/spec.md): instalação com ícone e abertura standalone, recebimento online de arquivos e links diretos de imagem pelo menu Compartilhar nos sistemas compatíveis. Sem modo offline. Resultado de captura aparece na Library, preservando validação e deduplicação existentes. Verificação física da instalação e do compartilhamento entre apps permanece pendente; testes HTTP e Chrome estão no plano.
@@ -31,7 +39,7 @@ Solicitado em 2026-10-17 e implementado em [018](docs/specs/018-upload-filter-ta
 
 Solicitado e implementado em 2026-10-14 em [017](docs/specs/017-progressive-image-loading/spec.md): arquivos imutáveis com cache de longa duração, proporções reservadas e downloads por proximidade da tela. Galeria, capas e relacionadas compartilham ativação durante a sessão. Dimensões do legado são preenchidas com leituras limitadas e persistidas. Metadados de imagens e tags chegam em paralelo; respostas 304 dispensam leitura de conteúdo.
 
-Miniaturas e paginação permanecem para avaliação posterior: a interface ainda usa originais e mantém todos os metadados/cartões no cliente.
+Miniaturas foram selecionadas em 021 com base nas medições de 23/10. Paginação permanece para avaliação posterior; todos os metadados/cartões continuam no cliente.
 
 ### Recognizing subjects visually
 

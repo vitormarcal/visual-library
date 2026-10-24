@@ -423,6 +423,9 @@ export const enrichImageWithinTransaction = (assetId: string, application: strin
   }
 }
 
+// Increment when thumbnail dimensions, encoder or quality change.
+export const thumbnailVersion = 'v1'
+
 export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => ({
   id: row.id,
   filename: row.filename,
@@ -431,6 +434,7 @@ export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => (
   sizeBytes: row.size_bytes,
   createdAt: row.created_at,
   src: `/images/${encodeURIComponent(row.filename)}`,
+  thumbnailSrc: row.content_hash ? `/thumbnails/${encodeURIComponent(row.id)}?v=${thumbnailVersion}&hash=${row.content_hash}` : null,
   width: row.width ?? null,
   height: row.height ?? null,
   tags,

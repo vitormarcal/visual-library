@@ -1,0 +1,22 @@
+# Navegação leve e redescoberta
+
+Decisão do usuário em 2026-10-24, após leitura de CONSTITUTION.md e análise dos relatórios de 23/10/2026. As entregas serão feitas individualmente, começando por miniaturas persistentes. Este documento registra a sequência escolhida; não amplia o backlog para todas as funcionalidades do Spooly.
+
+## Evidência e decisão
+
+O estudo `visual-library-spooly-2026-10-23.md` identifica mecanismos úteis e descreve o código em `3c6558b`. O diagnóstico posterior `visual-library-performance-2026-10-23/diagnostico.md` traz medições de navegação e revisa a prioridade. Ambos permanecem em `/home/vitor/Documentos/relatorios`; traces, URLs pessoais e dados do acervo não são copiados para o projeto.
+
+Nas medições, dez imagens iniciais da Library desktop transferiram 6,77 MiB; uma rolagem elevou o acumulado a 22,97 MiB. A 10 Mbps, as dez imagens terminaram de carregar em 6,8 s. Lazy loading e cache HTTP já funcionam. Esses números justificam reduzir os arquivos da grade antes de ampliar descoberta. Não comprovam que decode seja o gargalo dominante nem estimam o ganho de uma implementação ainda inexistente.
+
+A espera pública de até 36,54 s pelo primeiro byte do HTML é um problema separado. Sua causa não foi localizada; miniaturas não corrigem esse intervalo. Mobile foi emulado em computador; não há benchmark de telefone físico.
+
+## Sequência escolhida
+
+1. **Miniaturas persistentes — implementadas e validadas em 2026-10-24, [021](specs/021-persistent-thumbnails/spec.md).** Reduzir transferência na Library, capas, similares e relacionadas. Manter masonry, ativação progressiva, cache privado e originais no lightbox. Validar bytes, proporção, transparência e falhas com acervo temporário. Tamanho e qualidade são política inicial a avaliar, não resultado universal.
+2. **Redescobrir mínimo — pendente.** Lote finito de imagens salvas há mais tempo, seleção variável e ordem mantida ao abrir/voltar, reutilizando Explore e viewer. Sem histórico de abertura nesta primeira versão; não usar rótulos “pouco vista” ou “nunca vista”. Contagem, recibos, retenção e limpeza só entram se uso demonstrar necessidade. Especificar separadamente antes da implementação.
+3. **Gatilho de similaridade de `/share` — pendente, independente.** A rota salva imagens, mas o hook atual acompanha apenas `/api/images`, `/api/assets` e alteração de visibilidade. Completar a cobertura sem nova fila ou algoritmo. Validar captura com worker previamente encerrado, sem depender de abrir similares para dispará-lo.
+4. **Avaliação semântica isolada — pendente.** Avaliar consultas reais, português, qualidade e CPU/RAM no hardware alvo antes de integrar busca. Preservar similaridade estética atual e busca lexical. A avaliação não autoriza tagging automático, novo serviço, envio externo ou novo banco. Downloads de modelos e eventual uso de amostras serão definidos no escopo do experimento.
+
+## Limites de produto
+
+Preservar tags como pistas pessoais e coleções como curadoria distinta. Paginação global, virtualização, novos modos de similaridade, classificação e infraestrutura adicional dependem de fricção medida. Nenhuma entrega exige realizar todo o roadmap. Commit/push de código não implica deploy nem processamento do acervo de produção.

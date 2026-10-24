@@ -11,6 +11,7 @@ type ImageRecord = {
   mimeType: string
   sizeBytes: number
   createdAt: string
+  thumbnailSrc?: string | null
   src: string
   width: number | null
   height: number | null
@@ -608,7 +609,7 @@ syncDraftTags()
           @click="openRelated(related.id)"
         >
           <ProgressiveImage
-            :src="related.src" :alt="related.originalName || 'Saved image'"
+            :src="related.thumbnailSrc || related.src" :alt="related.originalName || 'Saved image'"
             :width="related.width || imageDimensions.get(related.src)?.width"
             :height="related.height || imageDimensions.get(related.src)?.height"
             @load="rememberDimensions"

@@ -9,6 +9,7 @@ type ImageRecord = {
   mimeType: string
   sizeBytes: number
   createdAt: string
+  thumbnailSrc?: string | null
   src: string
   width?: number | null
   height?: number | null
@@ -60,7 +61,7 @@ const open = (event: MouseEvent, id: string) => {
           @click="open($event, image.id)"
         >
           <ProgressiveImage
-            :src="image.src"
+            :src="image.thumbnailSrc || image.src"
             :alt="image.originalName || 'Saved image'"
             :width="image.width" :height="image.height"
           />

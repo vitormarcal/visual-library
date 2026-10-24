@@ -1,6 +1,7 @@
+import { removeThumbnails } from '../../thumbnails.ts'
 import { unlink } from 'node:fs/promises'
 import { createError } from 'h3'
-import { deleteImageRecord, ensureDataStore, imageDir, type ImageRow } from '../../db'
+import { deleteImageRecord, ensureDataStore, imageDir, type ImageRow } from '../../db.ts'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -26,6 +27,7 @@ export default defineEventHandler(async (event) => {
 
   deleteImageRecord(id)
   await unlink(`${imageDir}/${row.filename}`).catch(() => {})
+  await removeThumbnails(id).catch(() => {})
 
   return { ok: true }
 })
