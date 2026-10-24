@@ -24,3 +24,11 @@ Testes de contratos, migração, worker/IPC/cooldown, visibilidade, exclusão, f
 - Contêiner final sem rede, dois CPUs/2 GiB: inferência real, persistência/reinício, captura incremental e hashes dos originais aprovados. Worker semântico ausente após 62 s sem trabalhos. Amostras de memória do contêiner: 882,5 MiB após primeira consulta e 23,26 MiB após encerrar o worker; não são medições de pico nem teste conjunto com DINOv2. Pesos previamente cacheados montados somente leitura; nenhum download.
 
 Não houve deploy, alteração de versão nem indexação do acervo real nesta implementação. A avaliação 024 continua sendo a evidência de qualidade; os testes sintéticos desta entrega verificam integração, não relevância. Concorrência de memória com o preparo DINOv2 não foi medida; a documentação não presume um orçamento conjunto de 2 GiB.
+
+## Retorno inicial de uso — 0.14.0
+
+Em 2026-10-24, após testar a interface, o usuário considerou o resultado “razoável” e relatou encontrar imagens por objetos, personagens e características: espada, revólver, guerreira, bunda, nua, loira e carro. Relatou resultados tanto com consultas em português quanto em inglês. Este registro se baseia no relato do usuário; não houve nova inspeção do acervo ou coleta de consultas, imagens e posições individuais pelo agente.
+
+O retorno indica utilidade percebida na busca por conteúdo no acervo pessoal. Não constitui avaliação formal de precisão, comparação controlada entre idiomas, comprovação de acerto em todas as consultas ou medição de tempo economizado. Os problemas de ordenação documentados em 024 continuam relevantes.
+
+Manter o modo opcional e experimental e a busca por tags/nome como padrão. Observar o uso cotidiano antes de ajustar o modelo ou ampliar controles; ainda falta confirmar se os primeiros resultados ajudam consistentemente a reencontrar a imagem desejada com menos esforço. Este registro não altera o escopo nem autoriza novos modelos ou processamento do acervo.
