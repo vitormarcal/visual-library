@@ -6,7 +6,7 @@ New entries should come primarily from real usage, repeated friction, browsing b
 
 ## Sequência escolhida em 2026-10-24
 
-[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), correção do gatilho `/share` implementada em [023](docs/specs/023-share-similarity-trigger/spec.md). O piloto técnico semântico em [024](docs/specs/024-semantic-evaluation/plan.md) foi executado; os julgamentos foram analisados com a regra autorizada de não avaliados = 0, e o candidato atual não é recomendado para integração. Sem busca semântica na interface.
+[Decisão e evidências](docs/ROADMAP-redescoberta-desempenho.md): miniaturas persistentes primeiro ([021](docs/specs/021-persistent-thumbnails/spec.md)), Redescobrir mínimo sem histórico implementado em [022](docs/specs/022-rediscover/spec.md), correção do gatilho `/share` implementada em [023](docs/specs/023-share-similarity-trigger/spec.md). O piloto técnico semântico em [024](docs/specs/024-semantic-evaluation/plan.md) foi executado; os julgamentos foram analisados com a regra autorizada de não avaliados = 0. O usuário decidiu adiar a funcionalidade, considerando a baixa diversidade temática relatada do acervo. Nenhuma nova comparação está selecionada; sem busca semântica na interface.
 
 ## Observed Usage
 
@@ -124,7 +124,7 @@ Showing tags shared by selected images is deferred until usage demonstrates a ne
 
 ### Busca por conteúdo sem pistas textuais
 
-Solicitado em 2026-10-24 em [024](docs/specs/024-semantic-evaluation/spec.md): piloto separado com amostra autorizada de 100 imagens visíveis e quatro intenções reais em português. SigLIP2 q8 executou no Mordor sem rede, dentro do orçamento de dois CPUs/2 GiB; resultados e comparação lexical ficaram em relatório privado. Ferramenta, scorer e exportador somente leitura estão em `tools/visual-similarity`. Após o primeiro export e a regra explícita de não avaliados = 0, houve apenas dois itens com nota 2 nas 40 posições de top 10 das quatro consultas originais. Não integrar este candidato como está; outra avaliação deve incluir positivos confirmados e julgamentos pareados. Não existe busca semântica na interface. Não confundir ranking não vazio com resultado relevante.
+Solicitado em 2026-10-24 em [024](docs/specs/024-semantic-evaluation/spec.md): piloto separado com amostra autorizada de 100 imagens visíveis e quatro intenções reais em português. SigLIP2 q8 executou no Mordor sem rede, dentro do orçamento de dois CPUs/2 GiB; resultados e comparação lexical ficaram em relatório privado. Ferramenta, scorer e exportador somente leitura estão em `tools/visual-similarity`. Após o primeiro export e a regra explícita de não avaliados = 0, houve apenas dois itens com nota 2 nas 40 posições de top 10 das quatro consultas originais. O usuário decidiu deixar a funcionalidade para depois e relatou concentração temática no acervo; isso limita a generalização, sem invalidar as falhas de ordenação observadas. Preservar o experimento sem iniciar novos modelos, downloads ou integração. Uma retomada depende de nova decisão e amostra adequada com positivos confirmados. Não existe busca semântica na interface. Não confundir ranking não vazio com resultado relevante.
 
 ### Optional AI-assisted suggestions
 

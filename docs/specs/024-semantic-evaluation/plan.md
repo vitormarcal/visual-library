@@ -1,5 +1,7 @@
 # Plano de avaliação
 
+**Status atual: adiada por decisão do usuário em 2026-10-24.** Nenhuma nova execução, download ou integração está selecionada.
+
 Ferramenta isolada em `tools/visual-similarity`, reutilizando dependências fixadas do experimento (`@huggingface/transformers` 4.3.1 e sharp 0.35.5). Não importar pelo servidor ou runtime de produção. Dataset JSON fora do repositório define até 100 imagens com IDs, nomes/tags, paths relativos e SHA-256. Consultas JSON separadas. Validar paths, hashes, visibilidade e isolamento da saída antes de inferência.
 
 Candidato: `onnx-community/siglip2-base-patch16-224-ONNX`, revisão `ba1f3b0843f24bc5417d38e19c37b287d719b2f4`, torres q8 de texto e imagem, CPU, duas threads. Texto/imagem do mesmo checkpoint, 768 dimensões normalizadas e cosseno. Preprocessamento oficial do checkpoint após orientação/primeiro frame, alpha em branco e limite de 40 MP. Consultas sem tradução automática ou prefixo inglês. Medir português, grafia original/corrigida e inglês separadamente.
@@ -89,3 +91,14 @@ Os nove JSONs foram completados pela convenção autorizada, mas não houve 900 
 Arquivos privados em `/home/vitor/Documentos/relatorios/visual-library-semantic-2026-10-24`: `judgments.exported.json`, `judgments.completed.json`, `quality.completed.json`, `quality.summary.json` e `assessment.md`. Nenhum ID, preview ou anotação individual foi incorporado ao Git; apenas agregados nesta documentação.
 
 **Decisão:** não integrar SigLIP2 q8 nesta forma. Houve um acerto útil para mulher/carro, mas a maioria dos resultados próximos da entrada é irrelevante e água recuperou mal os positivos conhecidos. O custo técnico aceitável não compensa essa qualidade. Uma próxima avaliação deve usar positivos confirmados para cada intenção e julgamentos pareados, antes de escolher outro candidato. Não iniciar automaticamente outro modelo, download, tagging ou integração.
+
+
+## Adiamento e limite de interpretação — 2026-10-24
+
+O usuário decidiu deixar a busca semântica para depois e informou forte concentração temática no acervo atual. Esse contexto não foi quantificado por classificação de conteúdo nesta investigação. A amostragem temporal pode refletir o acervo pessoal, mas não garante um benchmark diverso ou positivos suficientes para cada consulta.
+
+A baixa diversidade **pode ter influenciado** os resultados; não foi isolada como causa. Os julgamentos continuam válidos para a amostra e a regra de completar ausentes como zero permanece documentada. O fato de seis dos sete positivos completos de água terem ficado fora do top 10 continua sendo uma limitação observada de ordenação neste piloto. Não generalizar esse resultado para concluir que o encoder falha em todo tipo de acervo; também não atribuir todas as falhas exclusivamente à composição da amostra.
+
+**Decisão final desta etapa:** adiar a funcionalidade, sem outra rodada de modelos, downloads ou integração. Preservar ferramentas, pesos em cache e relatórios privados; nenhuma exclusão foi solicitada. O trabalho entregue em miniaturas, Redescobrir e captura permanece independente. Uma retomada só deve ocorrer por nova decisão de produto, com necessidade concreta e amostra adequada às consultas, incluindo positivos confirmados e julgamentos pareados. Isso não constitui uma próxima entrega já selecionada.
+
+Detalhes pessoais do conteúdo não são necessários à documentação versionada; registra-se somente a concentração temática relevante ao método.

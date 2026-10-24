@@ -1,5 +1,7 @@
 # Avaliação semântica isolada
 
+**Status: adiada por decisão do usuário em 2026-10-24.** O piloto e os julgamentos ficam preservados; não iniciar outra comparação ou integração automaticamente.
+
 Quarto item do roadmap. Solicitado em 2026-10-24. O usuário autorizou amostra de até 100 imagens visíveis, por leitura, inferência local e relatórios privados fora do repositório. Consultas fornecidas: `mulher gurreira segurando espada`, `mulher posando em frente a carro`, `coruja`, `água`.
 
 ## Objetivo
