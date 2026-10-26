@@ -19,6 +19,11 @@ export function writeSessionCookie(event: H3Event, token: string, config: Access
 export function requireOwner(event: H3Event) {
   if (event.context.accessIdentity !== 'owner') throw createError({ statusCode: 403, statusMessage: 'Owner access required.' })
 }
+export function requirePublicLinkPublisher(event: H3Event) {
+  if (event.context.accessIdentity === 'owner') return
+  if (event.context.accessIdentity === 'application' && event.context.publishPublicLinks === true) return
+  throw createError({ statusCode: 403, statusMessage: 'Public link permission required.' })
+}
 export function requireSameOrigin(event: H3Event, config: AccessConfig, share = false) {
   const origin = getRequestHeader(event, 'origin'), site = getRequestHeader(event, 'sec-fetch-site')
   if ((site && site !== 'same-origin' && site !== 'none') || (origin !== config.origin && !(share && !origin && site === 'same-origin'))) {

@@ -5,6 +5,7 @@ import { setSecurityHeaders } from '../security-headers.ts'
 
 const assetId = '[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}'
 const assetRead = new RegExp(`^/api/assets/${assetId}(?:/content)?$`)
+const publicLink = new RegExp(`^/api/images/${assetId}/public-link$`)
 const assetTags = new RegExp(`^/api/assets/${assetId}/references/tags$`)
 
 export default defineEventHandler(async event => {
@@ -24,11 +25,13 @@ export default defineEventHandler(async event => {
   if (authorization !== undefined) {
     const token = /^Bearer (\S+)$/.exec(authorization)?.[1]
     if (!token || !await validApplicationToken(token)) throw createError({ statusCode: 401, statusMessage: 'Invalid integration credential.' })
-    const allowed = method === 'POST' && path === '/api/assets'
+    const canPublish = ['GET', 'POST'].includes(method) && publicLink.test(path) && await validApplicationToken(token, true)
+    const allowed = canPublish || method === 'POST' && path === '/api/assets'
       || method === 'GET' && assetRead.test(path)
       || method === 'PUT' && assetTags.test(path)
     if (!allowed) throw createError({ statusCode: 403, statusMessage: 'Operation not allowed for integration.' })
     event.context.accessIdentity = 'application'
+    event.context.publishPublicLinks = canPublish
     return
   }
   const owner = await hasOwnerSession(ownerCookie(event))

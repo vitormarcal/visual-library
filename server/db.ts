@@ -105,6 +105,11 @@ export const ensureDataStore = async () => {
       image_id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
     );`)
 
+    const tokenColumns = db.prepare('PRAGMA table_info(application_tokens)').all() as Array<{ name: string }>
+    if (!tokenColumns.some(column => column.name === 'publish_public_links')) {
+      db.exec('ALTER TABLE application_tokens ADD COLUMN publish_public_links INTEGER NOT NULL DEFAULT 0 CHECK (publish_public_links IN (0, 1))')
+    }
+
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='integration_credentials'").get()) {
       db.exec('BEGIN')
       try {

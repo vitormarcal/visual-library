@@ -54,16 +54,18 @@ Authorization: Bearer vl_app_...
 
 Cada token tem ID próprio, nome, prefixo de identificação, data e estado de revogação. É possível ter mais de um token com o mesmo nome, para trocar credenciais sem interromper o consumidor: criar novo, atualizar a aplicação e revogar o antigo. A lista nunca devolve segredo ou hash. Revogar um não afeta os demais, a senha do owner ou links públicos.
 
-Todos os tokens têm o mesmo conjunto fixo de operações:
+Por padrão, os tokens permitem:
 
 - `POST /api/assets`.
 - `GET /api/assets/{id}`.
 - `GET /api/assets/{id}/content`.
 - `PUT /api/assets/{id}/references/tags`.
 
-Não autorizam listagem da biblioteca, interface, exclusão, busca/processamento, gestão de acesso ou publicação. O nome é identificação; não cria propriedade/isolamento de assets por aplicação. `source` e `application` continuam metadados declarados. Tokens não são enviados em query, HTML do blog ou URLs de imagens. Bearer inválido não cai na sessão como alternativa.
+Ao criar a credencial, marcar **Allow creating public image links** para permitir também `GET/POST /api/images/{id}/public-link`. A opção começa desmarcada; tokens existentes e legados permanecem sem publicação. Não é possível ampliar a permissão de um token existente: criar outro e revogar o anterior. A permissão permite publicar qualquer imagem por ID conhecido, incluindo imagens já presentes na biblioteca e deduplicadas; não há isolamento por aplicação.
 
-Gestão exige sessão do dono: `GET /api/access/tokens` lista `{ id, name, prefix, createdAt, revokedAt }`; `POST` recebe `{ name }` de 1–80 caracteres após trim e retorna esses campos mais `token` somente na criação; `DELETE /api/access/tokens/{id}` revoga idempotentemente. POST/DELETE exigem proteção de origem. O consumidor é atualizado manualmente; esta entrega não altera o Media Pulse.
+Tokens não autorizam listagem da biblioteca, interface, exclusão, busca/processamento, gestão de acesso ou revogação de links públicos. O nome é identificação; não cria propriedade/isolamento de assets por aplicação. `source` e `application` continuam metadados declarados. Tokens não são enviados em query, HTML do blog ou URLs de imagens. Bearer inválido não cai na sessão como alternativa.
+
+Gestão exige sessão do dono: `GET /api/access/tokens` lista `{ id, name, prefix, createdAt, revokedAt }`; `POST` recebe `{ name, publishPublicLinks?: boolean }`, com nome de 1–80 caracteres após trim e permissão padrão false. Listagem e criação incluem `publishPublicLinks`; a criação retorna também `token` somente nessa resposta; `DELETE /api/access/tokens/{id}` revoga idempotentemente. POST/DELETE exigem proteção de origem. O consumidor é atualizado manualmente; esta entrega não altera o Media Pulse.
 
 Credenciais fixas da implementação anterior são migradas para a lista, preservando hash/prefixo/data/revogação e aceitando seu formato `vl_mp_`. A tabela antiga é removida após migração transacional para não restaurar tokens revogados em reinícios. O hash de senha anteriormente configurado no ambiente não é importado: usar um UUID novo para definir a senha no banco. Sessões antigas não dão acesso sem a senha atual persistida.
 
@@ -71,11 +73,11 @@ Credenciais fixas da implementação anterior são migradas para a lista, preser
 
 No visualizador, **Create and copy public link** publica somente aquela imagem. A URL funciona em img do blog, sem login, e não oferece galeria, tags ou navegação. Copiar novamente reutiliza o mesmo link. Se clipboard falhar, copiar o campo exibido.
 
-**Revoke public link** impede novas entregas; publicar novamente gera outro endereço. Exclusão também remove o vínculo. Ocultar/mostrar na galeria e uploads por aplicações não publicam nem revogam. Redefinir o owner preserva os tokens das aplicações e links públicos, inclusive enquanto a senha está pendente.
+**Revoke public link** impede novas entregas pelo servidor; publicar novamente gera outro endereço. Cópias já armazenadas em navegadores/CDNs podem continuar disponíveis por até um ano, ou enquanto forem conservadas pelo cliente. Revogação não purga esses caches. Exclusão também remove o vínculo. Ocultar/mostrar na galeria e uploads por aplicações não publicam nem revogam. Redefinir o owner preserva os tokens das aplicações e links públicos, inclusive enquanto a senha está pendente.
 
-Rotas pessoais `GET/POST/DELETE /api/images/{id}/public-link` consultam/criam/revogam, retornando `{ url: string | null }`. Público `GET/HEAD /shared-images/{token}` entrega somente conteúdo e cabeçalhos de imagem. Inválidos, revogados ou ausentes retornam 404. Não existe listagem pública.
+Rotas `GET/POST/DELETE /api/images/{id}/public-link` consultam/criam/revogam, retornando `{ url: string | null }`. Owner pode usar todas; token com `publishPublicLinks: true` pode somente GET/POST. POST é idempotente; revogar o token impede novas chamadas, preservando os links já criados. Público `GET/HEAD /shared-images/{token}` entrega somente conteúdo e cabeçalhos de imagem. Inválidos, revogados ou ausentes retornam 404. Não existe listagem pública.
 
-Respostas privadas/públicas usam `Cache-Control: no-store`. ETag/304 só são avaliados depois da autorização. URLs internas antigas passam a exigir sessão ou, para conteúdo de assets, Bearer. Não são publicadas automaticamente. Cópias baixadas e caches de um ano emitidos antes da autenticação não podem ser revogados retroativamente.
+Imagens públicas válidas em `/shared-images/{token}` usam `Cache-Control: public, max-age=31536000, immutable` em GET/HEAD, inclusive respostas 304. O mesmo endereço conserva o conteúdo; navegação/leitores podem reutilizar a imagem por um ano. Respostas privadas, metadados, gestão de links e erros mantêm `Cache-Control: no-store`. ETag/304 só são avaliados depois de validar o link ou a autorização e confirmar que o arquivo existe. URLs internas exigem sessão ou, para conteúdo de assets, Bearer. Upload não publica automaticamente. Revogar/excluir impede entregas futuras pelo servidor, sem invalidar cópias já armazenadas nos caches.
 
 ## Armazenamento e migração futura
 

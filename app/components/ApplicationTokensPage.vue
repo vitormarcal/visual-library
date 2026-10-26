@@ -1,5 +1,6 @@
 <script setup lang="ts">
-type Token = { id: string; name: string; prefix: string; createdAt: string; revokedAt: string | null }
+type Token = { id: string; name: string; prefix: string; createdAt: string; revokedAt: string | null; publishPublicLinks: boolean }
+const publishPublicLinks = ref(false)
 const { $libraryApi } = useNuxtApp()
 const tokens = ref<Token[]>([]), name = ref(''), secret = ref(''), busy = ref(false), error = ref(''), notice = ref('')
 async function load() {
@@ -9,9 +10,9 @@ async function load() {
 async function create() {
   busy.value = true; secret.value = ''; error.value = ''; notice.value = ''
   try {
-    const response = await $libraryApi<Token & { token: string }>('/api/access/tokens', { method: 'POST', body: { name: name.value } })
+    const response = await $libraryApi<Token & { token: string }>('/api/access/tokens', { method: 'POST', body: { name: name.value, publishPublicLinks: publishPublicLinks.value } })
     const { token, ...entry } = response
-    tokens.value = [entry, ...tokens.value]; secret.value = token; name.value = ''
+    tokens.value = [entry, ...tokens.value]; secret.value = token; name.value = ''; publishPublicLinks.value = false
   } catch { error.value = 'Could not create the credential. Enter a name of up to 80 characters and try again.' }
   finally { busy.value = false }
 }
@@ -38,6 +39,8 @@ useHead({ title: 'Access · Visual Library' })
     <form @submit.prevent="create">
       <label for="application-name">Application name</label>
       <input id="application-name" v-model="name" required maxlength="80" placeholder="Media Pulse" :disabled="busy">
+      <label class="publicationPermission"><input v-model="publishPublicLinks" type="checkbox" :disabled="busy"> Allow creating public image links</label>
+      <p>Allows publishing any image by ID, including existing images. Public links remain available after revoking the credential.</p>
       <button type="submit" :disabled="busy || !name.trim()">Create credential</button>
     </form>
     <section v-if="secret" aria-label="New application credential" class="newCredential">
@@ -50,7 +53,7 @@ useHead({ title: 'Access · Visual Library' })
     <p v-if="notice" role="status">{{ notice }}</p>
     <ul aria-label="Application credentials">
       <li v-for="entry in tokens" :key="entry.id">
-        <div><strong>{{ entry.name }}</strong><p>{{ entry.prefix }}… · {{ entry.revokedAt ? 'Revoked' : 'Active' }}</p></div>
+        <div><strong>{{ entry.name }}</strong><p>{{ entry.prefix }}… · {{ entry.revokedAt ? 'Revoked' : 'Active' }}{{ entry.publishPublicLinks ? ' · Public links allowed' : '' }}</p></div>
         <button v-if="!entry.revokedAt" type="button" :disabled="busy" :aria-label="`Revoke credential for ${entry.name}`" @click="revoke(entry)">Revoke</button>
       </li>
     </ul>
@@ -65,6 +68,8 @@ h1 { font-size: 28px; margin-bottom: 16px; }
 p { color: var(--color-mute); line-height: 1.5; font-size: 14px; }
 form, .newCredential { display: grid; gap: 12px; margin: 24px 0; }
 input { width: 100%; min-width: 0; border: 1px solid var(--color-hairline); border-radius: var(--radius-md); padding: 12px; }
+.publicationPermission { display: flex; align-items: center; gap: 8px; }
+.publicationPermission input { width: auto; }
 button { justify-self: start; border: 0; border-radius: var(--radius-full); padding: 12px 16px; color: var(--color-ink); background: var(--color-surface-card); }
 ul { list-style: none; padding: 0; }
 li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--color-hairline); }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile, unlink } from 'node:fs/promises'
 import { createApp, createRouter, defineEventHandler, toNodeListener } from 'h3'
 
 const password = 'correct password for tests'
@@ -119,7 +119,9 @@ try {
   for (const extra of [{ 'x-library-request': '1' }, { origin }, { origin: 'null', 'x-library-request': '1' }, { origin, 'x-library-request': '1', 'sec-fetch-site': 'same-site' }]) assert.equal((await call('/api/access/tokens', { method: 'POST', headers: { cookie, ...extra }, body: '{}' })).status, 403)
   // Native share with explicit same-origin metadata reaches the existing handler.
   assert.equal((await call('/share', { method: 'POST', headers: { cookie, 'sec-fetch-site': 'same-origin' }, body: 'invalid' })).status, 303)
+  assert.equal((await owner('/api/access/tokens', 'POST', { name: 'Invalid', publishPublicLinks: 'true' })).status, 400)
   const credential = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse' })).json()
+  assert.equal(credential.publishPublicLinks, false)
   const bearer = { authorization: `Bearer ${credential.token}` }
   const otherCredential = await (await owner('/api/access/tokens', 'POST', { name: 'Blog' })).json()
   assert.notEqual(otherCredential.id, credential.id)
@@ -144,24 +146,88 @@ try {
   assert.equal((await b.json()).url, link)
   const publicPath = new URL(link).pathname
   const publicContent = await call(publicPath)
-  assert.equal(publicContent.status, 200); assert.equal(publicContent.headers.get('cache-control'), 'no-store')
+  const publicCacheControl = 'public, max-age=31536000, immutable'
+  assert.equal(publicContent.status, 200); assert.equal(publicContent.headers.get('cache-control'), publicCacheControl)
   assert.ok(!publicContent.headers.get('etag')!.includes('00000000-0000-4000-8000-000000000001'))
   assert.deepEqual(Buffer.from(await publicContent.arrayBuffer()), png)
   const publicEtag = publicContent.headers.get('etag')!
-  assert.equal((await call(publicPath, { method: 'HEAD' })).status, 200)
-  assert.equal((await call(publicPath, { headers: { 'if-none-match': publicEtag } })).status, 304)
+  for (const method of ['GET', 'HEAD']) {
+    const result = await call(publicPath, { method })
+    assert.equal(result.status, 200)
+    assert.equal(result.headers.get('cache-control'), publicCacheControl)
+    assert.equal(result.headers.get('etag'), publicEtag)
+    if (method === 'HEAD') assert.equal(await result.text(), '')
+    else assert.deepEqual(Buffer.from(await result.arrayBuffer()), png)
+    for (const conditional of [{ 'if-none-match': publicEtag }, { 'if-modified-since': publicContent.headers.get('last-modified')! }]) {
+      const unchanged = await call(publicPath, { method, headers: conditional })
+      assert.equal(unchanged.status, 304)
+      assert.equal(unchanged.headers.get('cache-control'), publicCacheControl)
+      assert.equal(unchanged.headers.get('etag'), publicEtag)
+      assert.equal(await unchanged.text(), '')
+    }
+  }
+  for (const path of ['/images/private.png', '/api/assets/00000000-0000-4000-8000-000000000001/content']) {
+    const privateResponse = await owner(path)
+    assert.equal(privateResponse.headers.get('cache-control'), 'no-store')
+    const unchanged = await call(path, { headers: { cookie, 'if-none-match': privateResponse.headers.get('etag')! } })
+    assert.equal(unchanged.status, 304)
+    assert.equal(unchanged.headers.get('cache-control'), 'no-store')
+  }
+  // Valid public links must not make missing or unreadable image responses cacheable.
+  try {
+    await unlink('data/images/private.png')
+    for (const method of ['GET', 'HEAD']) {
+      const missing = await call(publicPath, { method, headers: { 'if-none-match': publicEtag } })
+      assert.equal(missing.status, 404)
+      assert.equal(missing.headers.get('cache-control'), 'no-store')
+    }
+    await writeFile('data/images/private.png', 'invalid image bytes')
+    for (const method of ['GET', 'HEAD']) {
+      const invalid = await call(publicPath, { method })
+      assert.equal(invalid.status, 500)
+      assert.equal(invalid.headers.get('cache-control'), 'no-store')
+      assert.equal(invalid.headers.get('etag'), null)
+    }
+  } finally { await writeFile('data/images/private.png', png) }
+
   setImageVisibility('00000000-0000-4000-8000-000000000001', true)
   assert.equal((await call(publicPath)).status, 200)
   await owner(`/api/access/tokens/${credential.id}`, 'DELETE')
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 401)
   assert.equal((await call(publicPath)).status, 200)
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)
-  const replacement = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse' })).json()
+  const replacement = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse', publishPublicLinks: true })).json()
   assert.notEqual(replacement.token, credential.token)
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 401)
+  const publicationPath = '/api/images/00000000-0000-4000-8000-000000000001/public-link'
+  const publisher = { authorization: `Bearer ${replacement.token}` }
+  assert.equal(replacement.publishPublicLinks, true)
+  assert.ok((await (await owner('/api/access/tokens')).json()).some(entry => entry.id === replacement.id && entry.publishPublicLinks === true))
+  for (const method of ['GET', 'POST']) {
+    assert.equal((await call(publicationPath, { method, headers: bearer })).status, 401)
+    assert.equal((await call(publicationPath, { method, headers: { authorization: `Bearer ${otherCredential.token}` } })).status, 403)
+    const response = await call(publicationPath, { method, headers: publisher })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { url: link })
+  }
+  for (const [path, method] of [[publicationPath, 'DELETE'], [publicationPath, 'PUT'], [publicationPath, 'HEAD'], ['/api/images', 'GET'], ['/api/access/tokens', 'POST'], ['/api/assets', 'DELETE'], ['/api/images/00000000-0000-4000-8000-000000000001', 'DELETE'], [publicationPath + '/extra', 'POST'], ['/api/images/search/public-link', 'POST']]) {
+    assert.equal((await call(path!, { method, headers: publisher })).status, 403, `${method} ${path}`)
+  }
+  assert.equal((await call('/api/images/00000000-0000-4000-8000-000000000099/public-link', { method: 'POST', headers: publisher })).status, 404)
+  await owner(publicationPath, 'DELETE')
+  const published = await call(publicationPath, { method: 'POST', headers: publisher })
+  assert.equal(published.status, 200)
+  const publishedPath = new URL((await published.json()).url).pathname
+  assert.deepEqual(Buffer.from(await (await call(publishedPath)).arrayBuffer()), png)
+  await owner(`/api/access/tokens/${replacement.id}`, 'DELETE')
+  for (const method of ['GET', 'POST']) assert.equal((await call(publicationPath, { method, headers: publisher })).status, 401)
+  assert.equal((await call(publishedPath)).status, 200)
   await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'DELETE')
-  assert.equal((await call(publicPath, { headers: { 'if-none-match': publicEtag } })).status, 404)
-  assert.equal((await call(publicPath, { method: 'HEAD' })).status, 404)
+  for (const method of ['GET', 'HEAD']) {
+    const revoked = await call(publicPath, { method, headers: { 'if-none-match': publicEtag } })
+    assert.equal(revoked.status, 404)
+    assert.equal(revoked.headers.get('cache-control'), 'no-store')
+  }
   const newLink = (await (await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST')).json()).url
   assert.notEqual(newLink, link)
   assert.equal((await call(publicPath)).status, 404)

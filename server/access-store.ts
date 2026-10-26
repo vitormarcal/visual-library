@@ -94,24 +94,25 @@ export async function deleteOwnerSession(token: string) {
 }
 export async function listApplicationTokens() {
   const db = await ensureDataStore()
-  return db.prepare(`SELECT id,name,prefix,created_at AS createdAt,revoked_at AS revokedAt FROM application_tokens ORDER BY created_at DESC,id`).all()
+  return db.prepare(`SELECT id,name,prefix,created_at AS createdAt,revoked_at AS revokedAt,publish_public_links AS publishPublicLinks FROM application_tokens ORDER BY created_at DESC,id`).all().map(row => ({ ...row, publishPublicLinks: Boolean(row.publishPublicLinks) }))
 }
-export async function createApplicationToken(name: unknown) {
+export async function createApplicationToken(name: unknown, publishPublicLinks: unknown = false) {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || /[\u0000-\u001f\u007f]/.test(name)) throw new AccessError(400, 'Enter an application name of up to 80 characters.')
+  if (typeof publishPublicLinks !== 'boolean') throw new AccessError(400, 'Public link permission must be a boolean.')
   const token = `vl_app_${secret()}`, db = await ensureDataStore(), id = randomUUID(), createdAt = new Date().toISOString()
-  db.prepare('INSERT INTO application_tokens (id,name,token_hash,prefix,created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, name.trim(), digestSecret(token), token.slice(0, 15), createdAt)
-  return { id, name: name.trim(), prefix: token.slice(0, 15), createdAt, revokedAt: null, token }
+  db.prepare('INSERT INTO application_tokens (id,name,token_hash,prefix,created_at,publish_public_links) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, name.trim(), digestSecret(token), token.slice(0, 15), createdAt, publishPublicLinks ? 1 : 0)
+  return { id, name: name.trim(), prefix: token.slice(0, 15), createdAt, revokedAt: null, publishPublicLinks, token }
 }
 export async function revokeApplicationToken(id: string) {
   const db = await ensureDataStore()
   const result = db.prepare('UPDATE application_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ?').run(new Date().toISOString(), id)
   if (!result.changes) throw new AccessError(404, 'Credential not found.')
 }
-export async function validApplicationToken(token: string) {
+export async function validApplicationToken(token: string, requirePublicLinks = false) {
   if (!/^vl_(?:app|mp)_[\w-]{43}$/.test(token)) return false
   const db = await ensureDataStore()
-  return Boolean(db.prepare('SELECT 1 FROM application_tokens WHERE token_hash = ? AND revoked_at IS NULL').get(digestSecret(token)))
+  return Boolean(db.prepare('SELECT 1 FROM application_tokens WHERE token_hash = ? AND revoked_at IS NULL AND (? = 0 OR publish_public_links = 1)').get(digestSecret(token), requirePublicLinks ? 1 : 0))
 }
 export async function publicImageLink(imageId: string, create = false) {
   const db = await ensureDataStore()

@@ -91,13 +91,17 @@ curl -o original.jpg http://visual-library:3000/api/assets/ASSET_ID/content
 ```
 
 ```html
-<!-- Para leitores externos, criar um link público pelo visualizador. -->
+<!-- Para leitores externos, criar um link público pelo visualizador ou por token autorizado. -->
 <img src="https://biblioteca.exemplo/shared-images/TOKEN_PUBLICO" alt="Imagem">
 ```
 
+Tokens criados com `publishPublicLinks: true` podem consultar/criar o link público por `GET/POST /api/images/{id}/public-link`, usando o ID retornado no upload e o mesmo Bearer. POST retorna `{ "url": "https://biblioteca.exemplo/shared-images/..." }` e reutiliza um link ativo. GET retorna `{ "url": null }` se ainda não publicado. Tokens comuns recebem 403; revogados recebem 401. A publicação é uma chamada explícita após o upload. Revogar o token preserva URLs publicadas; revogar o link continua exclusivo do owner.
+
 O hostname `visual-library` da rede Docker normalmente só é resolvido pelos containers. O navegador precisa de endereço alcançável, por exemplo o domínio usado para acessar a biblioteca ou um endereço da rede local. Nenhuma alteração no Media Pulse faz parte desta implementação.
 
-O ID independe do filename registrado. A entrega usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
+O ID independe do filename registrado. A entrega autenticada de conteúdo usa MIME detectado, `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, ETag e Last-Modified. Requisições condicionais podem retornar 304. Metadados e resposta de upload usam `no-store`. Não há suporte específico a range requests.
+
+Imagens públicas válidas em `/shared-images/{token}` permitem cache por um ano: `Cache-Control: public, max-age=31536000, immutable`, em GET/HEAD e respostas condicionais 304. Erros continuam com `no-store`. Revogar o link ou excluir a imagem interrompe novas entregas pelo servidor; não purga nem invalida cópias existentes em navegadores/CDNs. Rotas privadas e gestão de links conservam `no-store`.
 
 ## Origem e visibilidade na interface
 
