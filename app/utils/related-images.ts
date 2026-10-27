@@ -28,3 +28,20 @@ export const findRelatedImages = <T extends TaggedImage>(image: TaggedImage, can
     .slice(0, 6)
     .map(({ candidate }) => candidate)
 }
+
+// Use current library records so cached similarity cannot reintroduce hidden or deleted images.
+export const viewerDiscoveryImages = <T extends TaggedImage>(
+  image: TaggedImage, candidates: T[], similar: TaggedImage[], fallbackCount = 0,
+): T[] => {
+  const eligible = new Map(candidates.map(candidate => [candidate.id, candidate]))
+  const seen = new Set([image.id])
+  const result: T[] = []
+  for (const candidate of [...findRelatedImages(image, candidates), ...similar]) {
+    const current = eligible.get(candidate.id)
+    if (!current || seen.has(candidate.id)) continue
+    seen.add(candidate.id)
+    result.push(current)
+  }
+  const fallback = candidates.filter(candidate => !seen.has(candidate.id))
+  return [...result, ...fallback.slice(0, fallbackCount)]
+}

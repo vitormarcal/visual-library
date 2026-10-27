@@ -441,3 +441,6 @@ a.exploreButton { display: inline-flex; align-items: center; justify-content: ce
 @media (max-width: 900px) {
   .discovery { padding: 64px 16px 24px; }
 }
+
+.discoveryMore { min-height: 1px; margin-top: 16px; text-align: center; color: var(--color-mute); font-size: 14px; }
+.discoveryMore p { margin: 0; padding: 12px; }

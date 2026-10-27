@@ -2,7 +2,6 @@
 import styles from './LightboxViewer.module.css'
 import { sharedTagCaption } from '../utils/related-images'
 import type { ViewerHistoryEntry, ViewerPosition } from '../utils/viewer-history'
-import { interceptLibraryLink } from '../utils/library-navigation'
 
 type ImageRecord = {
   id: string
@@ -33,7 +32,8 @@ type TagSummary = ImageTag & {
 
 const props = defineProps<{
   image: ImageRecord
-  similarHref?: string | null
+  discoveryBusy: boolean
+  hasMoreDiscovery: boolean
   relatedImages: ImageRecord[]
   hasPrevious: boolean
   hasNext: boolean
@@ -55,7 +55,7 @@ const emit = defineEmits<{
   next: [position: ViewerPosition]
   back: []
   filterTag: [tag: ImageTag]
-  similar: [id: string]
+  moreDiscovery: []
 }>()
 
 const viewer = ref<HTMLElement | null>(null)
@@ -78,9 +78,7 @@ const tagInput = ref<HTMLInputElement | null>(null)
 const tagsPanel = ref<HTMLElement | null>(null)
 const tagsButton = ref<HTMLButtonElement | null>(null)
 const editingTags = ref(false)
-const relatedButton = ref<HTMLButtonElement | null>(null)
 const relatedSection = ref<HTMLElement | null>(null)
-const relatedHeading = ref<HTMLHeadingElement | null>(null)
 const announcement = ref('')
 const backButton = ref<HTMLButtonElement | null>(null)
 const imageDimensions = reactive(new Map<string, { width: number; height: number }>())
@@ -155,6 +153,18 @@ const observeMasonry = async () => {
 }
 watch(() => props.relatedImages, observeMasonry, { flush: 'post' })
 
+const discoverySentinel = ref<HTMLElement | null>(null)
+let discoveryObserver: IntersectionObserver | undefined
+const observeDiscovery = async () => {
+  await nextTick()
+  if (disposed || !discoveryObserver) return
+  discoveryObserver.disconnect()
+  if (discoverySentinel.value && !expanded.value && props.hasMoreDiscovery && !props.discoveryBusy) {
+    discoveryObserver.observe(discoverySentinel.value)
+  }
+}
+watch(() => [props.image.id, props.relatedImages.length, props.discoveryBusy, props.hasMoreDiscovery, expanded.value], observeDiscovery, { flush: 'post' })
+
 const capturePosition = (focus?: string): ViewerPosition => ({
   scrollTop: viewer.value?.scrollTop ?? 0,
   focus: focus ?? (document.activeElement instanceof HTMLElement ? document.activeElement.dataset.viewerFocus ?? null : null),
@@ -174,16 +184,6 @@ const exploreTags = async () => {
   await nextTick()
   tagsPanel.value?.scrollIntoView({ block: 'start', behavior: scrollBehavior() })
   tagsPanel.value?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true })
-}
-const exploreRelated = async (event: MouseEvent) => {
-  await nextTick()
-  const destination = relatedSection.value?.querySelector<HTMLButtonElement>('[data-related-card]')
-  if (event.detail === 0) destination?.focus({ preventScroll: true })
-  destination?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
-}
-const returnToImage = () => {
-  relatedButton.value?.focus({ preventScroll: true })
-  viewer.value?.scrollTo({ top: 0, behavior: scrollBehavior() })
 }
 const openRelated = (id: string) => {
   if (!savingTags.value) emit('openRelated', id, capturePosition(`related:${id}`))
@@ -266,7 +266,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     const firstControl = controls[0]
     const lastControl = controls[controls.length - 1]
 
-    if (event.shiftKey && (document.activeElement === firstControl || document.activeElement === relatedHeading.value || document.activeElement === relatedSection.value)) {
+    if (event.shiftKey && (document.activeElement === firstControl || document.activeElement === relatedSection.value)) {
       event.preventDefault()
       lastControl?.focus()
     } else if (!event.shiftKey && document.activeElement === lastControl) {
@@ -373,6 +373,10 @@ onMounted(async () => {
   masonryObserver = new ResizeObserver(scheduleMasonry)
   window.addEventListener('resize', scheduleMasonry)
   await observeMasonry()
+  discoveryObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting) && !expanded.value && props.hasMoreDiscovery && !props.discoveryBusy) emit('moreDiscovery')
+  }, { root: viewer.value, rootMargin: '400px 0px' })
+  await observeDiscovery()
 
   await nextTick()
   closeButton.value?.focus()
@@ -381,6 +385,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disposed = true
   masonryObserver?.disconnect()
+  discoveryObserver?.disconnect()
   cancelAnimationFrame(masonryFrame)
   window.removeEventListener('resize', scheduleMasonry)
   restorationVersion += 1
@@ -402,7 +407,7 @@ watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) 
   announcement.value = `Opened ${props.image.originalName || 'saved image'}`
   if (!restoration || !viewer.value) {
     viewer.value?.scrollTo({ top: 0, behavior: 'instant' })
-    ;(relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+    ;(expandButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
     return
   }
 
@@ -412,7 +417,7 @@ watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) 
   }
   const target = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-viewer-focus]:not(:disabled)'))
     .find((control) => control.dataset.viewerFocus === restoration.focus)
-  ;(target ?? backButton.value ?? relatedButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
+  ;(target ?? backButton.value ?? expandButton.value ?? tagsButton.value ?? closeButton.value)?.focus({ preventScroll: true })
   restoreScroll()
 
   // Correct lazy-image layout shifts briefly; user input always takes over.
@@ -433,8 +438,8 @@ watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) 
 
 watch(() => props.relatedImages, async (images) => {
   if (images.length) return
-  const lostFocus = document.activeElement === relatedButton.value
-    || Boolean(relatedSection.value?.contains(document.activeElement))
+  const lostFocus = document.activeElement instanceof HTMLElement
+    && Boolean(document.activeElement.closest('[data-related-card]'))
   if (lostFocus) {
     await nextTick()
     closeButton.value?.focus({ preventScroll: true })
@@ -492,13 +497,7 @@ syncDraftTags()
       :class="[styles.relatedSection, { [styles.singleRelated]: relatedImages.length === 1, [styles.pairRelated]: relatedImages.length === 2 }]"
       aria-labelledby="related-heading"
     >
-      <div :class="styles.relatedHeader">
-        <div>
-          <h2 id="related-heading" ref="relatedHeading" tabindex="-1">Related images</h2>
-          <p :class="styles.relatedContext">More from your library</p>
-        </div>
-        <button type="button" :class="styles.returnButton" data-viewer-focus="main-image" @click="returnToImage"><span aria-hidden="true">↑</span> Back to main image</button>
-      </div>
+      <h2 id="related-heading" :class="styles.screenReaderOnly">More from your library</h2>
     <div ref="detailCard" :class="styles.detailCard">
     <div :class="styles.mainView">
       <div :class="styles.viewingHeader" aria-hidden="true" />
@@ -553,20 +552,6 @@ syncDraftTags()
           data-viewer-focus="tags"
           @click="exploreTags"
         >Tags <span aria-hidden="true">↓</span></button>
-        <button
-          v-if="!editingTags && relatedImages.length"
-          ref="relatedButton"
-          type="button"
-          :class="styles.exploreButton"
-          :disabled="savingTags"
-          aria-controls="related-images"
-          data-viewer-focus="explore"
-          @click="exploreRelated"
-        >Explore related <span aria-hidden="true">↓</span></button>
-        <a v-if="!editingTags && similarHref" :href="similarHref" :class="styles.exploreButton"
-          :aria-disabled="savingTags || undefined" data-viewer-focus="similar"
-          @click="savingTags ? $event.preventDefault() : interceptLibraryLink($event) && emit('similar', image.id)"
-        >See similar</a>
       </div>
     </div>
 
@@ -705,6 +690,10 @@ syncDraftTags()
           <span :class="styles.connectionCaption">{{ sharedTagCaption(image, related) }}</span>
         </button>
     </section>
+    <div ref="discoverySentinel" :class="styles.discoveryMore">
+      <p v-if="discoveryBusy" role="status">Finding more images…</p>
+      <button v-else-if="hasMoreDiscovery" type="button" :class="styles.exploreButton" @click="emit('moreDiscovery')">Load more images</button>
+    </div>
     </div>
     <div v-if="expanded" :class="styles.expandedOverlay" role="dialog" aria-modal="true" aria-label="Enlarged image" @click.self="closeExpanded">
       <button ref="expandedClose" type="button" :class="[styles.control, styles.closeButton]" aria-label="Close enlarged image" @click="closeExpanded"><span aria-hidden="true">×</span></button>

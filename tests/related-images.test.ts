@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { findRelatedImages, sharedTagCaption } from '../app/utils/related-images.ts'
+import { findRelatedImages, sharedTagCaption, viewerDiscoveryImages } from '../app/utils/related-images.ts'
 
 const image = (id: string, names: string[]) => ({ id, tags: names.map((normalizedName) => ({ normalizedName })) })
 const current = image('current', ['playboy', 'mel lisboa'])
@@ -48,4 +48,32 @@ test('connection captions use current tag order, exact identity, and distinct sh
   assert.equal(sharedTagCaption(current, image('both', ['playboy', 'mel lisboa'])), 'Shared tag: Mel Lisboa (+1)')
   assert.equal(sharedTagCaption(current, image('one', ['playboy'])), 'Shared tag: Playboy')
   assert.equal(sharedTagCaption(current, image('unrelated', ['ilustracao'])), '')
+})
+
+test('viewer discovery prioritizes tags, then ranked similarity, then paged library fallback', () => {
+  const a = image('tag', ['playboy'])
+  const b = image('similar', [])
+  const c = image('fallback', [])
+  const d = image('later', [])
+  const library = [current, c, a, d, b]
+  assert.deepEqual(viewerDiscoveryImages(current, library, [b, a]).map(image => image.id), ['tag', 'similar'])
+  assert.deepEqual(viewerDiscoveryImages(current, library, [b, a], 1).map(image => image.id), ['tag', 'similar', 'fallback'])
+  assert.deepEqual(viewerDiscoveryImages(current, library, [b, a], 2).map(image => image.id), ['tag', 'similar', 'fallback', 'later'])
+})
+
+test('viewer discovery removes duplicate results, the reference, and stale ineligible records', () => {
+  const currentTag = { ...image('tag', ['playboy']), name: 'Current library record' }
+  const staleTag = { ...currentTag, name: 'Stale similarity record' }
+  const similar = image('similar', [])
+  const result = viewerDiscoveryImages(current, [current, currentTag, similar], [current, staleTag, similar, similar, image('hidden-or-deleted', [])], Infinity)
+  assert.deepEqual(result.map(image => image.id), ['tag', 'similar'])
+  assert.equal(result[0], currentTag)
+})
+
+test('viewer discovery can continue through the library when similarity is unavailable', () => {
+  const library = Array.from({ length: 50 }, (_, i) => image(String(i), []))
+  assert.equal(viewerDiscoveryImages(current, library, [], 24).length, 24)
+  assert.equal(viewerDiscoveryImages(current, library, [], 48).length, 48)
+  assert.equal(viewerDiscoveryImages(current, library, [], 72).length, 50)
+  assert.deepEqual(viewerDiscoveryImages(current, [], [], 24), [])
 })

@@ -5,7 +5,6 @@ import { discoveryImages } from '../utils/image-visibility'
 import { sharedCaptureKeys, sharedCaptureMessage } from '../utils/shared-capture'
 import { matchesImageSearch } from '../utils/image-search'
 import { saveImageBatch, type UploadResult } from '../utils/image-upload'
-import { findRelatedImages } from '../utils/related-images'
 import { groupImagesByTag } from '../utils/tag-exploration'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from '../utils/library-navigation'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from '../utils/viewer-history'
@@ -257,12 +256,8 @@ const galleryTagSummaries = computed(() => {
   return [...tags.values()]
 })
 
-const relatedImages = computed(() => {
-  if (!selectedImage.value) return []
-  const related = findRelatedImages(selectedImage.value, eligibleImages.value)
-  const seen = new Set([selectedImage.value.id, ...related.map((image) => image.id)])
-  return [...related, ...eligibleImages.value.filter((image) => !seen.has(image.id))].slice(0, 30)
-})
+const viewerDiscovery = useViewerDiscovery(selectedImage, eligibleImages)
+const relatedImages = viewerDiscovery.images
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
 const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
@@ -606,11 +601,6 @@ const openViewer = (id: string) => {
   navigation.push({ ...destination.value, imageId: id }, id)
 }
 
-const openSimilar = (id: string) => {
-  if (pendingTagSaves.value.has(id) || visibilityBusy.value.has(id) || !publicImages.value.some(image => image.id === id)) return
-  if (referenceId.value === id) { navigation.closeViewer(); return }
-  navigation.push({ ...libraryDestination('similar'), referenceId: id })
-}
 const refreshSimilar = () => {
   if (similarity.current.value.busy) return
   similarity.refresh()
@@ -618,8 +608,6 @@ const refreshSimilar = () => {
   document.querySelector<HTMLElement>('[data-similar-heading]')?.focus({ preventScroll: true })
 }
 const retrySimilar = () => similarity.current.value.expired ? refreshSimilar() : similarity.retry()
-const similarHref = computed(() => selectedImage.value && !selectedImage.value.hiddenFromGallery
-  ? libraryDestinationUrl({ ...libraryDestination('similar'), referenceId: selectedImage.value.id }) : null)
 const closeViewer = () => navigation.closeViewer()
 
 const navigateViewer = (id: string | undefined, position: ViewerPosition, related = false) => {
@@ -849,8 +837,9 @@ watch(visibleImages, () => {
     <LightboxViewer
       v-if="selectedImage"
       :image="selectedImage"
-      :similar-href="similarHref"
-      @similar="openSimilar"
+      :discovery-busy="viewerDiscovery.busy.value"
+      :has-more-discovery="viewerDiscovery.hasMore.value"
+      @more-discovery="viewerDiscovery.more"
       :related-images="relatedImages"
       :can-go-back="canGoBack"
       :restoration="viewerRestoration"
