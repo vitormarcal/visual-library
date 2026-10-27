@@ -60,6 +60,19 @@ const emit = defineEmits<{
 
 const viewer = ref<HTMLElement | null>(null)
 const controlsHidden = ref(false)
+const expanded = ref(false)
+const expandButton = ref<HTMLButtonElement | null>(null)
+const expandedClose = ref<HTMLButtonElement | null>(null)
+const closeExpanded = async () => {
+  expanded.value = false
+  await nextTick()
+  expandButton.value?.focus({ preventScroll: true })
+}
+const expandImage = async () => {
+  expanded.value = true
+  await nextTick()
+  expandedClose.value?.focus()
+}
 const closeButton = ref<HTMLButtonElement | null>(null)
 const tagInput = ref<HTMLInputElement | null>(null)
 const tagsPanel = ref<HTMLElement | null>(null)
@@ -80,6 +93,68 @@ const rememberDimensions = (event: Event) => {
     imageDimensions.set(image.getAttribute('src')!, { width: image.naturalWidth, height: image.naturalHeight })
   }
 }
+
+const detailCard = ref<HTMLElement | null>(null)
+let masonryObserver: ResizeObserver | undefined
+let masonryFrame = 0
+const layoutRelatedImages = () => {
+  const container = relatedSection.value
+  const detail = detailCard.value
+  if (!container || !detail) return
+  const width = container.clientWidth
+  const mobile = window.matchMedia('(max-width: 900px)').matches
+  const gap = 8
+  const columns: { left: number; width: number; bottom: number }[] = []
+  const detailBottom = detail.offsetHeight + 16
+  if (mobile) {
+    const columnWidth = (width - gap) / 2
+    columns.push({ left: 0, width: columnWidth, bottom: detailBottom },
+      { left: columnWidth + gap, width: columnWidth, bottom: detailBottom })
+  } else {
+    const centerWidth = detail.offsetWidth
+    const sideWidth = (width - centerWidth - 32) / 2
+    const sideColumns = window.matchMedia('(max-width: 1400px)').matches ? 1 : 2
+    const sideColumnWidth = (sideWidth - gap * (sideColumns - 1)) / sideColumns
+    for (let i = 0; i < sideColumns; i++) {
+      columns.push({ left: i * (sideColumnWidth + gap), width: sideColumnWidth, bottom: 0 })
+    }
+    const centerLeft = sideWidth + 16
+    const centerColumnWidth = (centerWidth - gap) / 2
+    columns.push({ left: centerLeft, width: centerColumnWidth, bottom: detailBottom },
+      { left: centerLeft + centerColumnWidth + gap, width: centerColumnWidth, bottom: detailBottom })
+    for (let i = 0; i < sideColumns; i++) {
+      columns.push({ left: centerLeft + centerWidth + 16 + i * (sideColumnWidth + gap), width: sideColumnWidth, bottom: 0 })
+    }
+  }
+  for (const card of container.querySelectorAll<HTMLElement>('[data-related-card]')) {
+    const image = card.querySelector('img')
+    const [imageWidth, imageHeight] = (image?.style.aspectRatio || '1 / 1').split('/').map(Number)
+    const ratio = imageWidth && imageHeight ? imageHeight / imageWidth : 1
+    const captionHeight = card.offsetHeight - (image?.offsetHeight ?? 0)
+    const projectedBottom = (column: typeof columns[number]) => column.bottom + column.width * ratio + captionHeight
+    const column = columns.reduce((shortest, candidate) => projectedBottom(candidate) < projectedBottom(shortest) ? candidate : shortest)
+    card.style.width = `${column.width}px`
+    card.style.left = `${column.left}px`
+    card.style.top = `${column.bottom}px`
+    column.bottom += card.offsetHeight + gap
+  }
+  container.style.height = `${Math.max(detail.offsetHeight, ...columns.map(column => column.bottom - gap))}px`
+}
+const scheduleMasonry = () => {
+  cancelAnimationFrame(masonryFrame)
+  masonryFrame = requestAnimationFrame(layoutRelatedImages)
+}
+const observeMasonry = async () => {
+  await nextTick()
+  if (disposed || !masonryObserver || !relatedSection.value) return
+  masonryObserver.disconnect()
+  masonryObserver.observe(relatedSection.value)
+  if (detailCard.value) masonryObserver.observe(detailCard.value)
+  for (const card of relatedSection.value.querySelectorAll('[data-related-card]')) masonryObserver.observe(card)
+  scheduleMasonry()
+}
+watch(() => props.relatedImages, observeMasonry, { flush: 'post' })
+
 const capturePosition = (focus?: string): ViewerPosition => ({
   scrollTop: viewer.value?.scrollTop ?? 0,
   focus: focus ?? (document.activeElement instanceof HTMLElement ? document.activeElement.dataset.viewerFocus ?? null : null),
@@ -102,9 +177,9 @@ const exploreTags = async () => {
 }
 const exploreRelated = async (event: MouseEvent) => {
   await nextTick()
-  const destination = event.detail === 0 ? relatedHeading.value : relatedSection.value
-  destination?.focus({ preventScroll: true })
-  relatedSection.value?.scrollIntoView({ block: 'start', behavior: scrollBehavior() })
+  const destination = relatedSection.value?.querySelector<HTMLButtonElement>('[data-related-card]')
+  if (event.detail === 0) destination?.focus({ preventScroll: true })
+  destination?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
 }
 const returnToImage = () => {
   relatedButton.value?.focus({ preventScroll: true })
@@ -144,7 +219,7 @@ const focusableControls = () => {
     return []
   }
 
-  return Array.from(viewer.value.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]:not([aria-disabled="true"])'))
+  return Array.from((expanded.value ? expandedClose.value?.parentElement : viewer.value)?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]:not([aria-disabled="true"])') ?? [])
     .filter((control) => control.getClientRects().length > 0 && getComputedStyle(control).visibility !== 'hidden')
 }
 
@@ -156,12 +231,14 @@ const handleKeydown = (event: KeyboardEvent) => {
   const target = event.target
   const isEditingTagControl = editingTags.value && isTagEditorTarget(target)
   const shouldKeepNavigationInEditor = target instanceof HTMLInputElement || isEditingTagControl
-    || (target instanceof HTMLElement && Boolean(target.closest('[data-related-images]')))
+    || (target instanceof HTMLElement && Boolean(target.closest('[data-related-card]')))
     || savingTags.value
 
   if (event.key === 'Escape') {
     event.preventDefault()
-    if (editingTags.value) {
+    if (expanded.value) {
+      void closeExpanded()
+    } else if (editingTags.value) {
       stopEditingTags()
     } else {
       emit('close')
@@ -293,6 +370,9 @@ onMounted(async () => {
   previousBodyOverflow = document.body.style.overflow
   document.body.style.overflow = 'hidden'
   window.addEventListener('keydown', handleKeydown)
+  masonryObserver = new ResizeObserver(scheduleMasonry)
+  window.addEventListener('resize', scheduleMasonry)
+  await observeMasonry()
 
   await nextTick()
   closeButton.value?.focus()
@@ -300,6 +380,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   disposed = true
+  masonryObserver?.disconnect()
+  cancelAnimationFrame(masonryFrame)
+  window.removeEventListener('resize', scheduleMasonry)
   restorationVersion += 1
   stopRestoration?.()
   document.body.style.overflow = previousBodyOverflow
@@ -308,6 +391,7 @@ onBeforeUnmount(() => {
 
 watch([() => props.image.id, () => props.restoration?.token], async ([imageId]) => {
   controlsHidden.value = false
+  expanded.value = false
   const version = ++restorationVersion
   stopRestoration?.()
   editingTags.value = false
@@ -399,6 +483,23 @@ syncDraftTags()
       @click="goBack"
     ><span aria-hidden="true">←</span> Back</button>
 
+    <div :class="styles.discovery" :inert="expanded || undefined">
+    <section
+      id="related-images"
+      ref="relatedSection"
+      data-related-images
+      tabindex="-1"
+      :class="[styles.relatedSection, { [styles.singleRelated]: relatedImages.length === 1, [styles.pairRelated]: relatedImages.length === 2 }]"
+      aria-labelledby="related-heading"
+    >
+      <div :class="styles.relatedHeader">
+        <div>
+          <h2 id="related-heading" ref="relatedHeading" tabindex="-1">Related images</h2>
+          <p :class="styles.relatedContext">More from your library</p>
+        </div>
+        <button type="button" :class="styles.returnButton" data-viewer-focus="main-image" @click="returnToImage"><span aria-hidden="true">↑</span> Back to main image</button>
+      </div>
+    <div ref="detailCard" :class="styles.detailCard">
     <div :class="styles.mainView">
       <div :class="styles.viewingHeader" aria-hidden="true" />
       <div :class="styles.imageStage" @click.self="$emit('close')">
@@ -410,12 +511,13 @@ syncDraftTags()
           decoding="async"
         >
         <button
+          ref="expandButton"
           type="button"
-          :class="styles.imageToggle"
-          :aria-label="controlsHidden ? 'Show image controls' : 'Hide image controls'"
-          :aria-pressed="controlsHidden"
-          @click="controlsHidden = !controlsHidden"
-        />
+          :class="[styles.control, styles.expandButton]"
+          aria-label="View larger image"
+          data-viewer-focus="expand"
+          @click="expandImage"
+        ><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg></button>
       </div>
       <div :class="styles.viewingFooter">
         <div :class="styles.adjacentNavigation" role="group" aria-label="Browse images">
@@ -581,23 +683,8 @@ syncDraftTags()
       </form>
     </div>
 
-    <section
-      v-if="!editingTags && relatedImages.length"
-      id="related-images"
-      ref="relatedSection"
-      data-related-images
-      tabindex="-1"
-      :class="[styles.relatedSection, { [styles.singleRelated]: relatedImages.length === 1, [styles.pairRelated]: relatedImages.length === 2 }]"
-      aria-labelledby="related-heading"
-    >
-      <div :class="styles.relatedHeader">
-        <div>
-          <h2 id="related-heading" ref="relatedHeading" tabindex="-1">Related images</h2>
-          <p :class="styles.relatedContext">Shared tags · Entire library</p>
-        </div>
-        <button type="button" :class="styles.returnButton" data-viewer-focus="main-image" @click="returnToImage"><span aria-hidden="true">↑</span> Back to main image</button>
-      </div>
-      <div :class="styles.relatedGrid">
+    </div>
+
         <button
           v-for="related in relatedImages"
           data-related-card
@@ -617,8 +704,12 @@ syncDraftTags()
           />
           <span :class="styles.connectionCaption">{{ sharedTagCaption(image, related) }}</span>
         </button>
-      </div>
     </section>
+    </div>
+    <div v-if="expanded" :class="styles.expandedOverlay" role="dialog" aria-modal="true" aria-label="Enlarged image" @click.self="closeExpanded">
+      <button ref="expandedClose" type="button" :class="[styles.control, styles.closeButton]" aria-label="Close enlarged image" @click="closeExpanded"><span aria-hidden="true">×</span></button>
+      <img :class="styles.expandedImage" :src="image.src" :alt="image.originalName || 'Saved image'">
+    </div>
     <p :class="styles.screenReaderOnly" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
   </section>
 </template>

@@ -402,3 +402,42 @@ a.exploreButton { display: inline-flex; align-items: center; justify-content: ce
   .controlsHidden .closeButton,
   .controlsHidden .backButton { visibility: hidden; }
 }
+
+/* Discovery keeps the selected pin in the flow, with masonry on both sides. */
+.overlay { background: var(--color-canvas, #fff); }
+.discovery {
+  max-width: 1920px;
+  margin: auto;
+  padding: 76px 24px 32px;
+}
+.detailCard { position: relative; width: min(640px, 100%); margin: 0 auto; min-width: 0; border-radius: 32px; background: var(--color-surface-card); overflow: hidden; }
+.mainView { display: flex; flex-direction: column; height: auto; padding: 0; gap: 0; }
+.viewingHeader { display: none; }
+.imageStage { width: 100%; height: auto; }
+.image { position: static; width: 100%; height: auto; max-height: 75svh; border-radius: 0; object-fit: contain; }
+.expandButton { position: absolute; right: 16px; bottom: 16px; width: 44px; padding: 0; }
+.viewingFooter { position: static; padding: 12px; background: transparent; pointer-events: auto; gap: 8px; }
+.tagsPanel { width: auto; margin: 0; padding: 16px; flex-direction: column; gap: 12px; }
+.exploreButton, .returnButton, .assetDetails, .filterNotice { color: var(--color-ink); }
+.backButton { background: var(--color-surface-card); }
+.tagsHint { color: var(--color-mute); }
+.relatedSection { position: relative; display: block; width: 100%; max-width: none; margin: 0; color: var(--color-ink); }
+.relatedHeader { display: none; }
+.relatedCard { position: absolute; margin: 0; }
+.connectionCaption { background: transparent; color: var(--color-mute); font-size: 12px; }
+.expandedOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: rgba(38, 38, 34, 0.48);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.expandedImage { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+@media (max-width: 900px) {
+  .discovery { padding: 64px 16px 24px; }
+}

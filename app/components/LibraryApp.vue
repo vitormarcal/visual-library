@@ -257,7 +257,12 @@ const galleryTagSummaries = computed(() => {
   return [...tags.values()]
 })
 
-const relatedImages = computed(() => selectedImage.value ? findRelatedImages(selectedImage.value, eligibleImages.value) : [])
+const relatedImages = computed(() => {
+  if (!selectedImage.value) return []
+  const related = findRelatedImages(selectedImage.value, eligibleImages.value)
+  const seen = new Set([selectedImage.value.id, ...related.map((image) => image.id)])
+  return [...related, ...eligibleImages.value.filter((image) => !seen.has(image.id))].slice(0, 30)
+})
 
 const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
 const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
