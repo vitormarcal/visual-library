@@ -24,6 +24,22 @@ type SaveImageResponse = ImageRecord | DuplicateSaveResponse
 
 const uploadLimit = Number(useRuntimeConfig().public.maxImageSizeBytes)
 const images = ref<ImageRecord[]>([])
+const librarySummary = computed(() => {
+  const tags = new Set<string>()
+  let bytes = 0
+  for (const image of images.value) {
+    bytes += image.sizeBytes
+    for (const tag of image.tags) tags.add(tag.id)
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const unit = bytes > 0 ? Math.min(Math.floor(Math.log10(bytes) / 3), units.length - 1) : 0
+  const numbers = new Intl.NumberFormat('en', { maximumFractionDigits: 1 })
+  return {
+    images: `${numbers.format(images.value.length)} ${images.value.length === 1 ? 'image' : 'images'}`,
+    tags: `${numbers.format(tags.size)} ${tags.size === 1 ? 'tag' : 'tags'}`,
+    size: `${numbers.format(bytes / 1000 ** unit)} ${units[unit]}`,
+  }
+})
 const publicImages = computed(() => discoveryImages(images.value))
 const eligibleImages = computed(() => discoveryImages(images.value, destination.value.hidden))
 const loading = ref(true)
@@ -670,6 +686,11 @@ watch(visibleImages, () => {
         <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ title }}</h1>
         <h1 v-else-if="screen === 'similar'" data-similar-heading tabindex="-1">Similar images</h1>
         <h1 v-else>{{ screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
+        <p v-if="screen === 'library' && !loading && !libraryError" class="librarySummary" title="Entire library, including hidden images. Size of original image files.">
+          <span>{{ librarySummary.images }}</span><span aria-hidden="true">·</span>
+          <span>{{ librarySummary.tags }}</span><span aria-hidden="true">·</span>
+          <span>{{ librarySummary.size }}</span>
+        </p>
       </div>
     </header>
 
@@ -769,6 +790,9 @@ watch(visibleImages, () => {
         />
 
       </fieldset>
+      <p v-if="screen === 'library' && !contentMode && !loading && !libraryError && !destinationBlocked && (galleryQuery.trim() || galleryFilters.length)" class="libraryResultCount" role="status">
+        {{ visibleImages.length.toLocaleString('en') }} of {{ librarySummary.images }}
+      </p>
 
       <section v-if="contentMode" class="contentStatus" role="status" aria-live="polite">
         <p>Experimental search by image content. Results may include unrelated images.</p>
@@ -906,6 +930,18 @@ watch(visibleImages, () => {
   justify-content: space-between;
   min-height: 64px;
   margin-bottom: 16px;
+}
+
+.libraryResultCount { margin: 8px 0; color: var(--color-mute); font-size: 14px; }
+
+.librarySummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 12px 0 0;
+  color: var(--color-mute);
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .eyebrow {
