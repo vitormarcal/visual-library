@@ -57,7 +57,7 @@ export const saveImage = async (input: SaveImageInput, source = 'visual-library'
       try { await unlink(path) } catch (cleanupError) { cleanupFailed = true; console.error('Image upload cleanup failed', cleanupError) }
     }
     if (!cleanupFailed && error instanceof ManagedTagConflict) throw createError({ statusCode: 409, statusMessage: error.message, data: { code: error.code } })
-    if (!cleanupFailed && error instanceof Error && ['Too many tags', 'Tag is too long'].includes(error.message)) {
+    if (!cleanupFailed && error instanceof Error && ['Tag is too long'].includes(error.message)) {
       throw createError({ statusCode: 400, statusMessage: error.message })
     }
     console.error('Image save failed', error)

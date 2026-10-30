@@ -9,7 +9,7 @@ COPY app ./app
 COPY public ./public
 COPY server ./server
 COPY nuxt.config.ts ./nuxt.config.ts
-COPY runtime/similarity/features.mjs runtime/similarity/semantic-features.mjs ./runtime/similarity/
+COPY runtime/similarity/features.mjs runtime/similarity/semantic-features.mjs runtime/similarity/duplicate-features.mjs ./runtime/similarity/
 
 RUN npm run build
 

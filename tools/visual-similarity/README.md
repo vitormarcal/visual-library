@@ -1,5 +1,41 @@
 # Experimento de similaridade visual
 
+## Avaliação de duplicatas com o Immich ML
+
+`duplicate-evaluate.py` compara todas as imagens visíveis de um snapshot, sem alterar o banco ou os originais. Usa o endpoint de inferência já existente, modelo `ViT-B-16-SigLIP2__webli` e distância cosseno máxima inicial de `0.03`. Não usa o ranking de paleta/DINOv2 e não mistura vetores da busca por conteúdo.
+
+Requer Python 3, NumPy e Pillow no ambiente de avaliação. No Mordor esses pacotes já estavam instalados. Não há dependência nova no aplicativo.
+
+```bash
+OPENBLAS_NUM_THREADS=1 python3 -B tools/visual-similarity/duplicate-evaluate.test.py
+OPENBLAS_NUM_THREADS=1 python3 tools/visual-similarity/duplicate-evaluate.py \
+  --data /private/visual-library-data \
+  --out /separate/private/duplicates-report \
+  --ml-url http://127.0.0.1:3003 \
+  --encoder-id 'fingerprint-of-ML-image-weights-and-preprocessing'
+```
+
+Informar o endereço IP correto do serviço de ML no ambiente de execução: todas as imagens visíveis serão enviadas a ele, sequencialmente. A execução registrada em 029 usa a rede interna do Mordor. Não há descoberta automática de serviço, redirects ou proxies de ambiente. O serviço precisa estar com o modelo disponível; a ferramenta não instala modelos, mas o comportamento de cache/download é controlado pelo próprio Immich ML.
+
+O identificador do encoder deve mudar ao trocar pesos, processamento, runtime ou política de precisão. Não trocar essas configurações durante a execução. Modelo/limiar/snapshot ficam em `run.json`; pesos não são copiados. O output precisa ficar fora do repositório e separado da fonte. Reexecutar com o mesmo snapshot/configuração reaproveita vetores válidos, vinculados ao hash dos originais. Para outro snapshot/configuração, usar outra saída.
+
+Abrir `index.html` para comparar os pares e baixar julgamentos JSON antes de fechar. Previews têm até 960 px; não são os originais. Resultados e previews são privados, inclusive após ocultações/exclusões posteriores na biblioteca. Não publicar nem comitar esses arquivos. `results.json` registra cobertura, falhas, custos e pares sem vetores. Código de saída 2 indica cobertura parcial e preserva o relatório. Não avaliados permanecem não avaliados; nenhum descarte é executado.
+
+Este experimento usa inferência real do Immich e comparação exaustiva. Não reproduz todos os filtros, agrupamentos e limites da aplicação Immich; analisar os originais também pode diferir de analisar previews. Mais detalhes em [029](../../docs/specs/029-duplicate-review/plan.md).
+
+### Ampliar o limite sem nova inferência
+
+```bash
+OPENBLAS_NUM_THREADS=1 python3 -B tools/visual-similarity/duplicate-expand.py \
+  --from-report /separate/private/duplicates-report \
+  --out /separate/private/duplicates-expanded \
+  --max-distance 0.1
+```
+
+Usa somente metadados, vetores e previews do relatório original, sem consultar o acervo ou o ML. Cada vetor precisa corresponder ao encoder e hash-fonte registrados. Ausência/cache inválido aborta, sem inferência de fallback. A pasta de saída precisa ser nova; relatório original e julgamentos permanecem intactos. O novo relatório oferece limites 0.03/0.04/0.05/0.06/0.08/0.10, contagens e filtro inicial mostrando apenas novos pares. Marcações anteriores não são importadas nem presumidas. Como o snapshot é o mesmo, não inclui imagens adicionadas depois ou AVIF que falharam anteriormente. Para expandir novamente, usar o relatório original com seu cache de vetores.
+
+## Experimentos anteriores
+
 Ferramenta de desenvolvimento independente do Nuxt. Não altera o acervo e não integra a galeria de produção. Requer Node 26 e runtime Linux com glibc para o ONNX nativo (por exemplo, `node:26-bookworm-slim`); a aplicação atual já usa Debian e similaridade integrada; este harness continua separado do runtime de produção.
 
 ```bash

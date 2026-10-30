@@ -140,7 +140,7 @@ try {
   // Allowed PUT reaches reference validation, rather than failing authentication.
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001/references/tags', { method: 'PUT', headers: { ...bearer, 'content-type': 'application/json' }, body: '{}' })).status, 400)
   assert.equal((await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link')).status, 200)
-  assert.deepEqual(await (await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link')).json(), { url: null })
+  assert.deepEqual(await (await owner('/api/images/00000000-0000-4000-8000-000000000001/public-link')).json(), { url: null, count: 0 })
   const [a, b] = await Promise.all([owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST'), owner('/api/images/00000000-0000-4000-8000-000000000001/public-link', 'POST')])
   const link = (await a.json()).url as string
   assert.equal((await b.json()).url, link)
@@ -208,7 +208,7 @@ try {
     assert.equal((await call(publicationPath, { method, headers: { authorization: `Bearer ${otherCredential.token}` } })).status, 403)
     const response = await call(publicationPath, { method, headers: publisher })
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { url: link })
+    assert.deepEqual(await response.json(), { url: link, count: 1 })
   }
   for (const [path, method] of [[publicationPath, 'DELETE'], [publicationPath, 'PUT'], [publicationPath, 'HEAD'], ['/api/images', 'GET'], ['/api/access/tokens', 'POST'], ['/api/assets', 'DELETE'], ['/api/images/00000000-0000-4000-8000-000000000001', 'DELETE'], [publicationPath + '/extra', 'POST'], ['/api/images/search/public-link', 'POST']]) {
     assert.equal((await call(path!, { method, headers: publisher })).status, 403, `${method} ${path}`)

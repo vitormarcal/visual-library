@@ -91,13 +91,13 @@ try {
   assert.deepEqual(empty.tags,[]);assert.equal(empty.sourceReferences[0].url,null)
   const noUpdate = await (await send(gif,['late tag'],{...emptyRef,url:'https://example.com/new'})).json()
   assert.deepEqual(noUpdate.tags,[]);assert.equal(noUpdate.sourceReferences[0].url,null)
-  // Union overflow rejects references and additions without changing anything.
+  // Union above eight preserves every personal tag and the new reference.
   replaceImageTags(asset.id,Array.from({length:8},(_,i)=>'personal '+i))
+  assert.equal((await send(png,['overflow'],{...ref,entityId:'overflow'})).status,200)
+  assert.equal(names(asset.id).length,9)
   const beforeOverflow = snapshot(), filesBefore = await readdir('data/images')
-  assert.equal((await send(png,['overflow'],{...ref,entityId:'overflow'})).status,400)
-  assert.equal(snapshot(),beforeOverflow);assert.deepEqual(await readdir('data/images'),filesBefore)
   // Reject invalid inputs before storing bytes or references.
-  for(const tags of [null,{},'tag',[1],Array.from({length:9},(_,i)=>'tag'+i),['x'.repeat(49)],Array(33).fill('same')]) {
+  for(const tags of [null,{},'tag',[1],['x'.repeat(49)]]) {
     assert.equal((await send(webp,tags)).status,400)
   }
   for(const reference of [null,[],{}, {entityType:'album',entityId:123}, {...ref,entityId:' 123'}, {...ref,entityId:'x\u0000y'}, {...ref,entityId:'x'.repeat(257)}, {...ref,entityType:'Album'}, {...ref,unexpected:true}, {...ref,url:'file:///tmp/test'}, {...ref,url:'https://user:password@example.com'}, {...ref,url:null}, {...ref,url:'https://example.com/'+'x'.repeat(2050)}]) {
@@ -145,11 +145,11 @@ try {
   assert.equal(independentAssets[0].id,independentAssets[1].id)
   assert.equal(getAssetReferences(independentAssets[0].id).length,2)
   assert.deepEqual(new Set(names(independentAssets[0].id)),new Set(['one','two']))
-  // Concurrent union near limit: one succeeds and the other leaves no reference.
+  // Concurrent additions above the former limit preserve both references.
   replaceImageTags(independentAssets[0].id,Array.from({length:7},(_,i)=>'keep '+i))
   const nearLimit = await Promise.all([send(avif,['last-a'],{entityType:'artwork',entityId:'last-a'}),send(avif,['last-b'],{entityType:'artwork',entityId:'last-b'})])
-  assert.deepEqual(nearLimit.map(r=>r.status).sort(),[200,400])
-  assert.equal(names(independentAssets[0].id).length,8);assert.equal(getAssetReferences(independentAssets[0].id).length,3)
+  assert.deepEqual(nearLimit.map(r=>r.status).sort(),[200,200])
+  assert.equal(names(independentAssets[0].id).length,9);assert.equal(getAssetReferences(independentAssets[0].id).length,4)
   assert.equal((await readdir('data/images')).length,Number(db.prepare('SELECT COUNT(*) AS n FROM images WHERE id != ?').get('legacy')!.n))
   // Hidden assets keep tags but don't become visible tag covers.
   setImageVisibility(asset.id,true)
@@ -164,7 +164,7 @@ try {
   assert.equal(snapshot(),beforeDelete)
   db.exec('DROP TRIGGER fail_delete')
   deleteImageRecord(back.id);assert.deepEqual(getAssetReferences(back.id),[])
-  assert.equal(getAssetReferences(asset.id).length,4)
+  assert.equal(getAssetReferences(asset.id).length,5)
   // Old caller does not accept or persist external enrichment.
   const legacyResponse = await send(png,['ignored'],{entityType:'album',entityId:'ignored'},{},'/api/images')
   assert.deepEqual(await legacyResponse.json(),{duplicate:true,message:'Already saved.'})

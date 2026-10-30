@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Revisar cópias preservando tags e URLs públicas
+
+Solicitado e avaliado em 2026-10-30 em [029](docs/specs/029-duplicate-review/spec.md): o usuário confirmou cópias nos resultados conservadores e relatou variantes de pose/expressão na faixa ampliada. Após planejar e revisar a interface contra DESIGN.md, foi implementada revisão por grupos, sugestões técnicas explicáveis, várias mantidas, destino de tags/links e confirmação inline. Encoder SigLIP2 próprio, sem dependência permanente do Immich; URLs absorvidas permanecem funcionais e o teto de quantidade de tags foi removido. Setenta e oito testes, Nuxt/Docker, navegador desktop/mobile e inferência nativa isolada passaram. Detalhes e limites no [plano](docs/specs/029-duplicate-review/plan.md) e [operação](docs/duplicate-review.md). Sem deploy ou exclusões do acervo real nesta entrega.
+
 ### Usar imagens no blog preservando a biblioteca privada
 
 Revisão posterior de segurança solicitada pelo usuário: [achados e correções](docs/security/review-2026-10-24.md), com reforço de cookies/CSP, correção de DNS rebinding na captura e disponibilidade do login. Sem novo deploy nesta revisão.

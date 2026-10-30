@@ -308,9 +308,7 @@ const saveDraftTags = async () => {
   } catch (error) {
     if (disposed || props.image.id !== imageId) return
     const statusMessage = (error as { data?: { statusMessage?: string } }).data?.statusMessage
-    tagError.value = statusMessage?.startsWith('Too many tags')
-      ? 'Too many tags'
-      : statusMessage?.startsWith('Tag is too long')
+    tagError.value = statusMessage?.startsWith('Tag is too long')
         ? 'Tag is too long'
         : 'Could not save tags'
   } finally {
@@ -329,11 +327,6 @@ const addDraftTag = async (value = pendingTag.value) => {
 
   if (tag.name.length > 48) {
     tagError.value = 'Tag is too long'
-    return
-  }
-
-  if (draftTags.value.length >= 8) {
-    tagError.value = 'Too many tags'
     return
   }
 

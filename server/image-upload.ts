@@ -45,7 +45,7 @@ const parseJsonField = (value: FormDataEntryValue | null, maxBytes: number): unk
 
 export const readCaptureTags = (value: unknown): string[] => {
   if (value === undefined) return []
-  if (!Array.isArray(value) || value.length > 32 || value.some(tag => typeof tag !== 'string')) throw badForm()
+  if (!Array.isArray(value) || value.some(tag => typeof tag !== 'string')) throw badForm()
   try { return normalizeTagValues(value).map(tag => tag.name) }
   catch (error) { throw createError({ statusCode: 400, statusMessage: (error as Error).message }) }
 }
@@ -53,8 +53,8 @@ export const readCaptureTags = (value: unknown): string[] => {
 const readEnrichment = (form: FormData): AssetEnrichment => {
   let tags: string[] = []
   if (form.has('tags')) {
-    const value = parseJsonField(form.get('tags'), 4096)
-    if (!Array.isArray(value) || value.length > 32 || value.some(tag => typeof tag !== 'string')) throw badForm()
+    const value = parseJsonField(form.get('tags'), 64 * 1024)
+    if (!Array.isArray(value) || value.some(tag => typeof tag !== 'string')) throw badForm()
     try { tags = normalizeTagValues(value).map(tag => tag.name) }
     catch (error) { throw createError({ statusCode: 400, statusMessage: (error as Error).message }) }
   }
@@ -114,7 +114,7 @@ export const readImageForm = async (event: H3Event, external = false) => {
     hiddenFromGallery = hidden === 'true'
   }
   if (!external && form.getAll('tags').length > 1) throw badForm()
-  const enrichment = external ? readEnrichment(form) : { tags: readCaptureTags(form.has('tags') ? parseJsonField(form.get('tags'), 4096) : undefined) }
+  const enrichment = external ? readEnrichment(form) : { tags: readCaptureTags(form.has('tags') ? parseJsonField(form.get('tags'), 64 * 1024) : undefined) }
   const data = Buffer.from(await image.arrayBuffer())
   const format = validateImageFormat(data)
   const input: SaveImageInput = { data, originalName: image.name || null, mimeType: format.mimeType, sourceUrl: null }
@@ -125,7 +125,7 @@ export const validateManagedTagGroup = (group: unknown, input: unknown): Managed
   if (typeof group !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(group) || !input || typeof input !== 'object' || Array.isArray(input)) throw badForm()
   const value = input as Record<string, unknown>
   if (Object.keys(value).some(key => !['tags', 'revision'].includes(key)) || !Array.isArray(value.tags)
-    || value.tags.length > 32 || value.tags.some(tag => typeof tag !== 'string')
+    || value.tags.some(tag => typeof tag !== 'string')
     || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw badForm()
   return { tags: value.tags as string[], revision: Number(value.revision) }
 }

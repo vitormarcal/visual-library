@@ -26,7 +26,6 @@ const add = (value = input.value) => {
   if (!name) return true
   if (name.length > 48) { error.value = 'Tag is too long'; return false }
   if (!draft.value.some((tag) => tag.toLowerCase() === name.toLowerCase())) {
-    if (draft.value.length >= 8) { error.value = 'Too many tags'; return false }
     draft.value.push(props.tags.find((tag) => tag.normalizedName === name.toLowerCase())?.name ?? name)
   }
   input.value = ''; error.value = ''

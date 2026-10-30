@@ -126,7 +126,7 @@ try {
     const downloaded = await fetch(base + image.src)
     assert.equal(downloaded.status, 200); assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), await fixture(extension))
   }
-  for (const tags of ['{', 'null', '[1]', JSON.stringify(['x'.repeat(49)]), JSON.stringify(Array.from({length: 9}, (_, i) => `tag${i}`))]) {
+  for (const tags of ['{', 'null', '[1]', JSON.stringify(['x'.repeat(49)])]) {
     assert.equal((await send(png, { tags }, '/api/images')).status, 400)
   }
   // Concurrent uploads preserve the first record and remove the losing file.

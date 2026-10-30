@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     return { images: addTagsToImages(body.imageIds, body.tags) }
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
-    if (['Too many tags', 'Tag is too long', 'Select images and add tags', 'Image not found'].includes(message)) {
+    if (['Tag is too long', 'Select images and add tags', 'Image not found'].includes(message)) {
       throw createError({ statusCode: message === 'Image not found' ? 404 : 400, statusMessage: message })
     }
     throw error

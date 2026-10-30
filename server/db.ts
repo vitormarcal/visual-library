@@ -31,7 +31,6 @@ export type TagSummaryRow = ImageTagRow & {
   cover_image_id: string | null
 }
 
-export const maxTagsPerImage = 8
 export const maxTagLength = 48
 
 const dataDir = join(process.cwd(), 'data')
@@ -103,6 +102,16 @@ export const ensureDataStore = async () => {
       prefix TEXT NOT NULL, created_at TEXT NOT NULL, revoked_at TEXT
     ); CREATE TABLE IF NOT EXISTS image_public_links (
       image_id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
+    );`)
+
+    db.exec(`CREATE TABLE IF NOT EXISTS image_public_link_aliases (
+      token TEXT PRIMARY KEY, image_id TEXT NOT NULL, created_at TEXT NOT NULL
+    ); CREATE INDEX IF NOT EXISTS public_alias_image ON image_public_link_aliases(image_id);
+    CREATE TABLE IF NOT EXISTS image_duplicate_vectors (
+      image_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, source_hash TEXT,
+      status TEXT NOT NULL CHECK(status IN ('ready','failed')), vector_json TEXT
+    ); CREATE TABLE IF NOT EXISTS duplicate_reviews (
+      group_id TEXT PRIMARY KEY, reviewed_at TEXT NOT NULL
     );`)
 
     const tokenColumns = db.prepare('PRAGMA table_info(application_tokens)').all() as Array<{ name: string }>
@@ -189,13 +198,12 @@ export const normalizeTagValues = (values: string[]) => {
     .map((value) => normalizeTagName(value))
     .filter((tag) => tag.normalizedName.length > 0)
 
-  const uniqueTags = cleanedTags.filter((tag, index) => {
-    return cleanedTags.findIndex((candidate) => candidate.normalizedName === tag.normalizedName) === index
+  const seen = new Set<string>()
+  const uniqueTags = cleanedTags.filter(tag => {
+    if (seen.has(tag.normalizedName)) return false
+    seen.add(tag.normalizedName)
+    return true
   })
-
-  if (uniqueTags.length > maxTagsPerImage) {
-    throw new Error('Too many tags')
-  }
 
   if (uniqueTags.some((tag) => tag.name.length > maxTagLength)) {
     throw new Error('Tag is too long')
@@ -294,6 +302,8 @@ export const deleteImageRecord = (imageId: string) => {
   db.exec('BEGIN')
   try {
     db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
+    db.prepare('DELETE FROM image_public_link_aliases WHERE image_id = ?').run(imageId)
+    db.prepare('DELETE FROM image_duplicate_vectors WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_semantic_vectors WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_visual_features WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)

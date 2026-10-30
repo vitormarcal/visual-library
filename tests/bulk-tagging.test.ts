@@ -30,8 +30,9 @@ test('bulk additions preserve tags, deduplicate, and roll back the entire group'
       addTagsToImages(['a', 'b'], ['PLAYBOY', 'mel lisboa']);
       assert.equal(snapshot(), beforeNoop);
       replaceImageTags('full', Array.from({ length: 8 }, (_, i) => 'tag ' + i));
+      addTagsToImages(['a', 'full'], ['new']);
+      assert.equal(getImageTags('full').length, 9);
       const beforeFailures = snapshot();
-      assert.throws(() => addTagsToImages(['a', 'full'], ['new']), /Too many tags/);
       assert.throws(() => addTagsToImages(['a', 'missing'], ['new']), /Image not found/);
       assert.throws(() => addTagsToImages(['a'], ['x'.repeat(49)]), /Tag is too long/);
       assert.throws(() => addTagsToImages(['a'], [' ']), /Select images/);

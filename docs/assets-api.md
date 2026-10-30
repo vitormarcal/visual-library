@@ -64,7 +64,7 @@ curl -i \
   http://visual-library:3000/api/assets
 ```
 
-Tags são aditivas: a união com as atuais deve caber nas oito tags por imagem, com 48 caracteres por tag após limpeza de espaços. Comparação ignora caixa e reutiliza o nome de exibição existente. O JSON aceita até 32 entradas brutas e 4 KiB UTF-8; após normalização, até oito tags distintas. Não há conversão automática de tipos, títulos ou metadados em tags.
+Tags são aditivas e não têm teto de quantidade por imagem, conforme a revisão de duplicatas 029. Cada nome aceita até 48 caracteres após limpeza de espaços. Comparação ignora caixa e reutiliza o nome de exibição existente; valores repetidos são deduplicados. O campo multipart tags aceita JSON de até 64 KiB UTF-8, dentro do orçamento total da requisição. Não há conversão automática de tipos, títulos ou metadados em tags.
 
 A referência permite identificar a entidade sem usar tags. `entityType` usa identificador simples de até 64 caracteres (como source); `entityId` é string opaca de 1–256 caracteres, sem controles/espaços externos. `url` é opcional, HTTP(S) absoluta, até 2048 caracteres e sem credenciais. O objeto aceita apenas esses campos e seu JSON tem limite de 8 KiB. IDs numéricos devem ser enviados como string; `"00123"` e `"123"` continuam distintos. A URL é armazenada sem ser acessada.
 
@@ -146,7 +146,7 @@ Erros seguem o envelope HTTP do H3/Nitro, com `statusCode` e `statusMessage`. De
 
 ## Grupos de classificação vinculados a referências
 
-Esta extensão foi aprovada para correções automáticas de movimentos de obras no Media Pulse. Sem alteração de interface ou novas dependências. Referências agora incluem `managedTags`, um objeto de grupos `{ tags: string[], revision: number }`. Upload pode enviar o campo multipart textual `managedTags`, por exemplo `{"movements":{"tags":["Art Nouveau","Simbolismo"],"revision":1}}`; exige `sourceReference`. Até quatro grupos, identificadores simples de até 64 caracteres, JSON até 8 KiB, 32 entradas brutas por grupo e revisão inteira segura não negativa. A união visível continua limitada a oito tags, com 48 caracteres por tag. Erros de grupo/união são 409 e revertem upload/enriquecimento; não descartar termos silenciosamente. Upload genérico sem esse campo continua igual.
+Esta extensão foi aprovada para correções automáticas de movimentos de obras no Media Pulse. Sem alteração de interface ou novas dependências. Referências agora incluem `managedTags`, um objeto de grupos `{ tags: string[], revision: number }`. Upload pode enviar o campo multipart textual `managedTags`, por exemplo `{"movements":{"tags":["Art Nouveau","Simbolismo"],"revision":1}}`; exige `sourceReference`. Até quatro grupos, identificadores simples de até 64 caracteres, JSON até 8 KiB e revisão inteira segura não negativa. Não há teto de quantidade de tags por grupo/imagem; cada nome continua limitado a 48 caracteres. Erros de grupo/união são 409 e revertem upload/enriquecimento; não descartar termos silenciosamente. Upload genérico sem esse campo continua igual.
 
 `PUT /api/assets/{id}/references/tags` recebe JSON até 16 KiB:
 

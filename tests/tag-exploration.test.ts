@@ -80,8 +80,8 @@ test('tag covers migrate, persist, survive association replacement, and roll bac
       assert.equal(cover(), 'first');
       replaceImageTags('full', Array.from({length: 8}, (_, i) => 'tag' + i));
       const snapshot = () => JSON.stringify([db.prepare('SELECT * FROM tags ORDER BY id').all(), db.prepare('SELECT * FROM image_tags ORDER BY image_id, tag_id').all()]);
+      addTagsToImages(['first', 'full'], ['beyond eight']);
       const before = snapshot();
-      assert.throws(() => addTagsToImages(['first', 'full'], ['rollback']), /Too many tags/);
       assert.equal(snapshot(), before);
       db.exec("CREATE TRIGGER fail_cover BEFORE UPDATE OF cover_image_id ON tags WHEN NEW.name = 'Failure' BEGIN SELECT RAISE(ABORT, 'cover failure'); END");
       assert.throws(() => replaceImageTags('first', ['Failure']), /cover failure/);

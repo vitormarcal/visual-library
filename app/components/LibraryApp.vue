@@ -115,7 +115,7 @@ const resolvingDestination = computed(() => !loading.value && !libraryError.valu
 const destinationError = computed(() => requiredTagIds.value.some((id) => !tagMetadata.value[id] && tagLookups.value[id] === 'error'))
 const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This subject is no longer available.' : null))
 const destinationBlocked = computed(() => Boolean(destinationUnavailable.value || missingFilters.value.length || destinationError.value || resolvingDestination.value))
-const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : 'Saved visuals')
+const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Saved visuals')
 useHead(() => ({ title: `${title.value} · Visual Library` }))
 const navigationHref = (target: 'library' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
@@ -183,8 +183,7 @@ const applyBulkTags = async (tags: string[]) => {
     await loadTags()
   } catch (error) {
     const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
-    const feedback = message === 'Too many tags' ? 'Some images would exceed 8 tags.'
-      : message === 'Tag is too long' ? 'Tag is too long.'
+    const feedback = message === 'Tag is too long' ? 'Tag is too long.'
         : message === 'Image not found' ? 'An image no longer exists. Refresh the library and try again.'
           : 'Could not add tags. Try again.'
     if (navigation.entry.value?.key === operationKey) bulkNotice.value = feedback
@@ -425,6 +424,13 @@ const handleSaveUrl = async (url: string) => {
   }
 }
 
+const applyDuplicateResolution = (result: { removedIds: string[]; images: ImageRecord[] }) => {
+  const removed = new Set(result.removedIds), updated = new Map(result.images.map(image => [image.id, image]))
+  images.value = images.value.filter(image => !removed.has(image.id)).map(image => updated.get(image.id) ?? image)
+  for (const id of removed) { similarity.remove(id); content.remove(id) }
+  void loadTags()
+}
+
 const handleDelete = async (id: string) => {
   try {
     await $fetch(`/api/images/${id}`, { method: 'DELETE' })
@@ -580,11 +586,11 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarIn
     void restorePage(state, selector, pageTransition)
     return
   }
-  if (navigation.mode.value === 'push' && (screen.value === 'subject' || screen.value === 'similar')) {
+  if (navigation.mode.value === 'push' && (screen.value === 'subject' || screen.value === 'similar' || screen.value === 'duplicates')) {
     await nextTick()
     if (navigation.entry.value?.key !== key) return
     window.scrollTo({ top: 0, behavior: 'instant' })
-    document.querySelector<HTMLElement>(screen.value === 'similar' ? '[data-similar-heading]' : '[data-subject-heading]')?.focus({ preventScroll: true })
+    document.querySelector<HTMLElement>(screen.value === 'duplicates' ? '[data-duplicate-page-heading]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-subject-heading]')?.focus({ preventScroll: true })
   } else if (!destination.value.imageId) {
     const selector = state.focusId ? screen.value === 'explore'
       ? `[data-explore-tag-id="${CSS.escape(state.focusId)}"], [data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
@@ -685,7 +691,7 @@ watch(visibleImages, () => {
         <p class="eyebrow">Visual Library</p>
         <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ title }}</h1>
         <h1 v-else-if="screen === 'similar'" data-similar-heading tabindex="-1">Similar images</h1>
-        <h1 v-else>{{ screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
+        <h1 v-else :data-duplicate-page-heading="screen === 'duplicates' ? '' : undefined" :tabindex="screen === 'duplicates' ? -1 : undefined" :class="{ duplicateTitle: screen === 'duplicates' }">{{ screen === 'duplicates' ? 'Review duplicates' : screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
         <p v-if="screen === 'library' && !loading && !libraryError" class="librarySummary" title="Entire library, including hidden images. Size of original image files.">
           <span>{{ librarySummary.images }}</span><span aria-hidden="true">·</span>
           <span>{{ librarySummary.tags }}</span><span aria-hidden="true">·</span>
@@ -697,10 +703,11 @@ watch(visibleImages, () => {
     <nav class="libraryNav" aria-label="Library navigation">
       <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Explore</a>
       <a :href="navigationHref('library')" :aria-current="screen === 'library' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)">Library</a>
+      <a :href="libraryDestinationUrl(libraryDestination('duplicates'))" :aria-current="screen === 'duplicates' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, () => navigation.push(libraryDestination('duplicates')))">Review duplicates</a>
       <LibraryAccessControls />
     </nav>
 
-    <SaveDropzone
+    <SaveDropzone v-if="screen !== 'duplicates'"
       :notice="notice"
       :tags="saving ? batchTags : captureTags"
       :notice-kind="noticeKind"
@@ -730,6 +737,10 @@ watch(visibleImages, () => {
       <a href="/?view=explore" @click="linkAction($event, recoverExplore)">Explore subjects</a>
       <a href="/?view=library" @click="linkAction($event, () => navigation.push(libraryDestination()))">Library</a>
     </section>
+    <DuplicateReview v-else-if="screen === 'duplicates'" :group-id="destination.referenceId" :broad="destination.reviewMode === 'broad'" :back-href="navigation.similarOriginUrl()"
+      @group="id => navigation.replace({ ...destination, referenceId: id })"
+      @mode="broad => navigation.replace({ ...destination, referenceId: null, reviewMode: broad ? 'broad' : 'likely' })"
+      @back="navigation.returnFromSimilar" :apply-resolution="applyDuplicateResolution" />
     <template v-else-if="screen === 'explore'">
       <section class="rediscovery" aria-labelledby="rediscovery-heading">
         <div class="rediscoveryHeader">
@@ -887,6 +898,7 @@ watch(visibleImages, () => {
 </template>
 
 <style>
+.topbar h1.duplicateTitle { font-size: 28px; line-height: 1.2; letter-spacing: -1.2px; font-weight: 700; }
 .contentStatus { margin: var(--space-lg) 0; color: var(--color-mute); font-size: 14px; line-height: 1.4; }
 .contentStatus p { margin: var(--space-sm) 0; }
 .contentStatus button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-weight: 600; }
@@ -902,7 +914,7 @@ watch(visibleImages, () => {
 .visibilityMode { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: var(--color-mute); font-size: 14px; }
 .visibilityMode button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 16px; background: var(--color-surface-card); color: var(--color-ink); font-weight: 600; }
 .filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.libraryNav { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+.libraryNav { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); }
 .libraryNav a, .subjectContext a, .loadError button, .tagsWarning button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 14px; font-weight: 700; }
 .libraryNav a { position: relative; }
 .libraryNav a, .subjectContext a, .destinationProblem a { display: inline-flex; align-items: center; text-decoration: none; }

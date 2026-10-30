@@ -124,5 +124,16 @@ export async function publicImageLink(imageId: string, create = false) {
 }
 export async function revokePublicImageLink(imageId: string) {
   const db = await ensureDataStore()
-  db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
+    db.prepare('DELETE FROM image_public_link_aliases WHERE image_id = ?').run(imageId)
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+export async function publicImageLinkCount(imageId: string) {
+  const db = await ensureDataStore()
+  const row = db.prepare('SELECT (SELECT count(*) FROM image_public_links WHERE image_id=?) + (SELECT count(*) FROM image_public_link_aliases WHERE image_id=?) AS n').get(imageId,imageId) as { n: number }
+  return row.n
 }

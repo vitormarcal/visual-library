@@ -1,5 +1,5 @@
 import { createError, readBody } from 'h3'
-import { ensureDataStore, maxTagsPerImage, maxTagLength, replaceImageTags } from '../../../db'
+import { ensureDataStore, maxTagLength, replaceImageTags } from '../../../db'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -36,13 +36,6 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid tags.'
-
-    if (message === 'Too many tags') {
-      throw createError({
-        statusCode: 400,
-        statusMessage: `Too many tags. Maximum is ${maxTagsPerImage}.`,
-      })
-    }
 
     if (message === 'Tag is too long') {
       throw createError({

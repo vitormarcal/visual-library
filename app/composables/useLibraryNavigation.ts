@@ -78,8 +78,8 @@ export const useLibraryNavigation = () => {
     remember(focusId)
     const value = makeEntry(url, entry.value)
     if (next.imageId) value.parent = snapshot(entry.value!)
-    if (next.screen === 'similar' && !next.imageId) value.origin = snapshot(entry.value!)
-    if (next.screen !== 'similar') value.origin = null
+    if ((next.screen === 'similar' || next.screen === 'duplicates') && !next.imageId) value.origin = snapshot(entry.value!)
+    if (next.screen !== 'similar' && next.screen !== 'duplicates') value.origin = null
     mode.value = 'push'
     destination.value = next
     write(value, true)

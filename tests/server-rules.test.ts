@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { hashImageBytes, maxTagsPerImage, normalizeTagName, normalizeTagValues } from '../server/db.ts'
+import { hashImageBytes, normalizeTagName, normalizeTagValues } from '../server/db.ts'
 import { isPublicIpAddress, isPublicRemoteTarget, parseRemoteUrl } from '../server/image-url.ts'
 
 test('normalizes tag whitespace and comparison key', () => {
@@ -17,11 +17,8 @@ test('normalizes tag values by removing empty values and case-insensitive duplic
   ])
 })
 
-test('enforces tag count and tag length limits', () => {
-  assert.throws(
-    () => normalizeTagValues(Array.from({ length: maxTagsPerImage + 1 }, (_, index) => `tag ${index}`)),
-    /Too many tags/,
-  )
+test('accepts many tags while preserving the name length limit', () => {
+  assert.equal(normalizeTagValues(Array.from({ length: 500 }, (_, index) => `tag ${index}`)).length, 500)
 
   assert.throws(
     () => normalizeTagValues(['x'.repeat(49)]),
