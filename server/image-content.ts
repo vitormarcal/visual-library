@@ -4,7 +4,7 @@ import { createError, getRequestHeader, sendStream, setHeader, setResponseStatus
 import { ensureDataStore, imageDir, type ImageRow } from './db.ts'
 import { detectImageFormat } from './image-format.ts'
 
-export const sendImageContent = async (event: H3Event, row: ImageRow, publicContent = false) => {
+export const sendImageContent = async (event: H3Event, row: ImageRow, publicContent = false, etagOnly = false) => {
   let file
   try { file = await open(`${imageDir}/${row.filename}`, 'r') }
   catch (error) {
@@ -24,7 +24,8 @@ export const sendImageContent = async (event: H3Event, row: ImageRow, publicCont
     const since = getRequestHeader(event, 'if-modified-since')
     const unchanged = match !== undefined
       ? match === '*' || match.split(',').some(value => value.trim().replace(/^W\//, '') === etag.replace(/^W\//, ''))
-      : since !== undefined && Math.floor(stat.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)
+      // A retired asset ID may now serve an older file; its old date cannot prove sameness.
+      : !etagOnly && since !== undefined && Math.floor(stat.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)
     if (unchanged) { setResponseStatus(event, 304); return '' }
     // Legacy MIME came from the client. Sniff only a bounded prefix on delivery.
     const prefix = Buffer.alloc(Math.min(stat.size, 64 * 1024))

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
-import { ensureDataStore } from './db.ts'
+import { ensureDataStore, findAssetImage } from './db.ts'
 
 const derive = promisify(scrypt)
 export const digestSecret = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -116,7 +116,9 @@ export async function validApplicationToken(token: string, requirePublicLinks = 
 }
 export async function publicImageLink(imageId: string, create = false) {
   const db = await ensureDataStore()
-  if (!db.prepare('SELECT 1 FROM images WHERE id = ?').get(imageId)) throw new AccessError(404, 'Image not found.')
+  const image = findAssetImage(imageId)
+  if (!image) throw new AccessError(404, 'Image not found.')
+  imageId = image.id
   if (create) db.prepare('INSERT INTO image_public_links (image_id, token, created_at) VALUES (?, ?, ?) ON CONFLICT(image_id) DO NOTHING')
     .run(imageId, secret(), new Date().toISOString())
   const row = db.prepare('SELECT token FROM image_public_links WHERE image_id = ?').get(imageId) as { token: string } | undefined
@@ -124,6 +126,7 @@ export async function publicImageLink(imageId: string, create = false) {
 }
 export async function revokePublicImageLink(imageId: string) {
   const db = await ensureDataStore()
+  imageId = findAssetImage(imageId)?.id ?? imageId
   db.exec('BEGIN IMMEDIATE')
   try {
     db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
@@ -134,6 +137,7 @@ export async function revokePublicImageLink(imageId: string) {
 
 export async function publicImageLinkCount(imageId: string) {
   const db = await ensureDataStore()
+  imageId = findAssetImage(imageId)?.id ?? imageId
   const row = db.prepare('SELECT (SELECT count(*) FROM image_public_links WHERE image_id=?) + (SELECT count(*) FROM image_public_link_aliases WHERE image_id=?) AS n').get(imageId,imageId) as { n: number }
   return row.n
 }

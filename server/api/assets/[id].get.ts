@@ -1,9 +1,10 @@
 import { createError, getRouterParam, setHeader } from 'h3'
-import { ensureDataStore, toAssetResponse, type ImageRow } from '../../db.ts'
+import { ensureDataStore, toAssetResponse, findAssetImage } from '../../db.ts'
 export default defineEventHandler(async (event) => {
-  const db = await ensureDataStore()
-  const row = db.prepare('SELECT * FROM images WHERE id = ?').get(getRouterParam(event, 'id') ?? '') as ImageRow | undefined
+  await ensureDataStore()
+  const requestedId = getRouterParam(event, 'id') ?? ''
+  const row = findAssetImage(requestedId)
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Image not found.' })
   setHeader(event, 'Cache-Control', 'no-store')
-  return toAssetResponse(row)
+  return toAssetResponse(row, requestedId)
 })

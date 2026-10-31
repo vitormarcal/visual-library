@@ -33,12 +33,12 @@ test('duplicate vectors use cosine distance and components do not repeat images'
   assert.throws(() => duplicateVector(Array(768).fill(NaN)))
 })
 
-test('suggestions keep technical ties, crops, missing dimensions and integration references', () => {
+test('suggestions keep technical ties, crops and missing dimensions without locking referenced images', () => {
   const image = (id: string, width: number | null, height: number | null, sizeBytes = 100) => ({ id, width, height, sizeBytes, publicLinkCount: 0, integrationReferenceCount: 0 }) as any
   const high = image('high', 2000, 3000), low = image('low', 1000, 1500), crop = image('crop', 1600, 1600)
   assert.deepEqual(new Set(suggestedDuplicateKeeps([high, low, crop])), new Set(['high', 'crop']))
   assert.equal(suggestedDuplicateKeeps([high, { ...high, id: 'tie' }]).length, 2)
-  assert.equal(suggestedDuplicateKeeps([high, { ...low, integrationReferenceCount: 1 }]).length, 2)
+  assert.equal(suggestedDuplicateKeeps([high, { ...low, integrationReferenceCount: 1 }]).length, 1)
   assert.equal(suggestedDuplicateKeeps([high, low], true).length, 2)
   assert.equal(suggestedDuplicateKeeps([high, image('missing', null, null)]).length, 2)
 })

@@ -16,8 +16,9 @@ const groups = computed(() => status.value?.groups ?? [])
 const current = computed(() => props.groupId ? groups.value.find(group => group.id === props.groupId) ?? null : groups.value.find(group => !skipped.value.has(group.id)) ?? null)
 const selected = computed(() => current.value?.images.filter(image => kept.value.includes(image.id)) ?? [])
 const removed = computed(() => current.value?.images.filter(image => !kept.value.includes(image.id)) ?? [])
-const needsTarget = computed(() => removed.value.some(image => image.tags.length || image.publicLinkCount))
+const needsTarget = computed(() => removed.value.some(image => image.tags.length || image.publicLinkCount || image.integrationReferenceCount))
 const destination = computed(() => selected.value.find(image => image.id === targetId.value) ?? (!needsTarget.value ? selected.value[0] ?? null : null))
+const transferReferences = computed(() => removed.value.reduce((count, image) => count + image.integrationReferenceCount, 0))
 const transferLinks = computed(() => removed.value.reduce((count, image) => count + image.publicLinkCount, 0))
 const preservedTags = computed(() => {
   if (!destination.value || !removed.value.length) return []
@@ -25,7 +26,7 @@ const preservedTags = computed(() => {
   for (const image of removed.value) for (const tag of image.tags) if (!tags.has(tag.normalizedName)) tags.set(tag.normalizedName, { ...tag, added: true })
   return [...tags.values()]
 })
-const canRemove = computed(() => selected.value.length > 0 && removed.value.length > 0 && Boolean(destination.value) && !removed.value.some(image => image.integrationReferenceCount))
+const canRemove = computed(() => selected.value.length > 0 && removed.value.length > 0 && Boolean(destination.value))
 const suggestions = computed(() => current.value ? suggestedDuplicateKeeps(current.value.images, props.broad) : [])
 const zoomImage = computed(() => zoomIndex.value === null ? null : current.value?.images[zoomIndex.value] ?? null)
 const draftKey = (group: DuplicateGroup) => `${props.broad}:${group.id}`
@@ -52,8 +53,6 @@ watch(() => current.value ? `${current.value.id}:${current.value.revision}:${pro
 }, { immediate: true })
 function choose(id: string, keep: boolean) {
   if (busy.value || !current.value) return
-  const image = current.value.images.find(image => image.id === id)
-  if (!keep && image?.integrationReferenceCount) return
   kept.value = keep ? [...new Set([...kept.value, id])] : kept.value.filter(value => value !== id)
   alignTarget(); confirming.value = false; remember()
 }
@@ -107,7 +106,9 @@ async function resolve(keepAll = false) {
     if (disposed) return
     const code = (cause as { statusCode?: number }).statusCode
     confirming.value = false
-    if (code === 409) { await load(); error.value = 'This group changed. Review the current images and confirm again.' }
+    if ((cause as { data?: { data?: { code?: string } } }).data?.data?.code === 'REFERENCE_REVISION_CONFLICT') {
+      error.value = 'These images have conflicting integration classifications at the same revision. Keep them until the integration resolves the conflict.'
+    } else if (code === 409) { await load(); error.value = 'This group changed. Review the current images and confirm again.' }
     else error.value = 'Could not apply the review. Your choices are still here; refresh before retrying if the connection was interrupted.'
   } finally { if (!disposed) busy.value = false }
 }
@@ -163,10 +164,11 @@ const formatSize = (bytes: number) => `${new Intl.NumberFormat('en', { maximumFr
             <div class="cardBody">
               <p class="reason">{{ duplicateSuggestionReason(image, current.images) }}</p>
               <p class="dimensions">{{ image.width && image.height ? `${image.width} × ${image.height}` : 'Dimensions unavailable' }} <span>· {{ formatSize(image.sizeBytes) }}</span></p>
+              <p v-if="image.integrationReferenceCount" class="reason">{{ image.integrationReferenceCount }} integration {{ image.integrationReferenceCount === 1 ? 'reference' : 'references' }} · IDs preserved</p>
               <p v-if="image.publicLinkCount" class="reason">{{ image.publicLinkCount }} active public {{ image.publicLinkCount === 1 ? 'link' : 'links' }}</p>
               <div class="decision" role="group" :aria-label="`Keep or remove image ${index + 1}`">
                 <button type="button" :disabled="busy" :aria-pressed="kept.includes(image.id)" @click="choose(image.id, true)">{{ kept.includes(image.id) ? '✓ ' : '' }}Keep</button>
-                <button type="button" :disabled="busy || Boolean(image.integrationReferenceCount)" :aria-pressed="!kept.includes(image.id)" @click="choose(image.id, false)">{{ !kept.includes(image.id) ? '− ' : '' }}Remove</button>
+                <button type="button" :disabled="busy" :aria-pressed="!kept.includes(image.id)" @click="choose(image.id, false)">{{ !kept.includes(image.id) ? '− ' : '' }}Remove</button>
               </div>
               <label v-if="kept.includes(image.id) && selected.length > 1 && removed.length && needsTarget" class="destination"><input type="radio" name="duplicate-destination" :checked="targetId === image.id" :disabled="busy" @change="chooseDestination(image.id)">Receives tags and links</label>
               <details><summary>Name and tags</summary><p class="filename">{{ image.originalName || image.filename }}</p><div class="chips"><span v-for="tag in image.tags" :key="tag.id" class="chip">{{ tag.name }}</span></div></details>
@@ -177,19 +179,20 @@ const formatSize = (bytes: number) => `${new Intl.NumberFormat('en', { maximumFr
           <h3>Tags and links preserved</h3>
           <template v-if="removed.length && destination && needsTarget">
             <p>Tags from removed images will be added to image {{ current.images.findIndex(image => image.id === destination?.id) + 1 }}. Its existing tags will stay.</p>
+            <p v-if="transferReferences">{{ transferReferences }} integration {{ transferReferences === 1 ? 'reference will' : 'references will' }} follow this image. Existing asset IDs will keep working for reads and tag updates.</p>
             <div class="chips"><span v-for="tag in (showTags ? preservedTags : preservedTags.slice(0, 8))" :key="tag.id" class="chip" :class="{ added: tag.added }">{{ tag.added ? '+ ' : '' }}{{ tag.name }}</span></div>
             <button v-if="!showTags && preservedTags.length > 8" class="quiet" type="button" @click="showTags = true">Show all {{ preservedTags.length }} tags</button>
             <p class="caption">{{ preservedTags.filter(tag => tag.added).length }} added · {{ preservedTags.length }} tags after review</p>
             <p v-if="transferLinks">{{ transferLinks }} public {{ transferLinks === 1 ? 'link will' : 'links will' }} keep working and show image {{ current.images.findIndex(image => image.id === destination?.id) + 1 }}. Existing URLs will stay the same.</p>
           </template>
-          <p v-else-if="removed.length && !needsTarget">The removed images have no tags or public links to transfer. Kept images will stay unchanged.</p>
-          <p v-else-if="removed.length">{{ selected.length ? 'Choose a kept image to receive tags and public links. Other kept images keep their own tags and links.' : 'Keep at least one image before removing any copies.' }}</p>
+          <p v-else-if="removed.length && !needsTarget">The removed images have no tags or public links to transfer. Kept images will stay unchanged. Original asset IDs will resolve to image {{ current.images.findIndex(image => image.id === destination?.id) + 1 }}.</p>
+          <p v-else-if="removed.length">{{ selected.length ? 'Choose a kept image to receive tags, public links and integration references. Other kept images keep their own.' : 'Keep at least one image before removing any copies.' }}</p>
           <p v-else>All images will stay. No tags or links will be transferred.</p>
         </section>
         <div class="reviewActions"><strong>Keep {{ selected.length }} · Remove {{ removed.length }}</strong><div><button type="button" class="quiet" :disabled="busy" @click="skip">Skip for now</button><button type="button" :disabled="busy" @click="resolve(true)">Keep all</button><button ref="reviewButton" class="primary" type="button" :disabled="busy || !canRemove" @click="confirm">Review removal</button></div></div>
         <section v-if="confirming" class="confirmation" aria-label="Confirm permanent removal">
           <h3 ref="confirmation" tabindex="-1">Remove {{ removed.length }} {{ removed.length === 1 ? 'image' : 'images' }} permanently?</h3>
-          <p>{{ selected.length }} will stay. {{ preservedTags.filter(tag => tag.added).length }} tags and {{ transferLinks }} public links will be preserved in image {{ current.images.findIndex(image => image.id === destination?.id) + 1 }}. Removal cannot be undone.</p>
+          <p>{{ selected.length }} will stay. Image {{ current.images.findIndex(image => image.id === destination?.id) + 1 }} will receive {{ preservedTags.filter(tag => tag.added).length }} additional tags, {{ transferLinks }} public links and {{ transferReferences }} integration references. Existing asset IDs will keep working. Removal cannot be undone.</p>
           <div class="confirmationActions"><button type="button" :disabled="busy" @click="confirming = false; reviewButton?.focus()">Cancel</button><button type="button" class="primary" :disabled="busy || !canRemove" @click="resolve()">{{ busy ? 'Applying…' : `Remove ${removed.length} ${removed.length === 1 ? 'image' : 'images'}` }}</button></div>
         </section>
       </template>

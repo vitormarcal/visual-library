@@ -13,11 +13,10 @@ export function suggestedDuplicateKeeps(images: DuplicateImage[], broad = false)
   const best = ordered[0]
   if (!best) return []
   const ratio = best.width! / best.height!
-  return ordered.filter(image => image.integrationReferenceCount || Math.abs(image.width! / image.height! / ratio - 1) > .03
+  return ordered.filter(image => Math.abs(image.width! / image.height! / ratio - 1) > .03
     || image.width! * image.height! === best.width! * best.height! && image.sizeBytes === best.sizeBytes).map(image => image.id)
 }
 export function duplicateSuggestionReason(image: DuplicateImage, images: DuplicateImage[]) {
-  if (image.integrationReferenceCount) return 'Used by an integration'
   if (!image.width || !image.height || images.some(item => !item.width || !item.height)) return 'Compare before removing'
   const best = [...images].sort((a, b) => b.width! * b.height! - a.width! * a.height! || b.sizeBytes - a.sizeBytes)[0]!
   if (Math.abs(image.width / image.height / (best.width! / best.height!) - 1) > .03) return 'Different crop · compare'

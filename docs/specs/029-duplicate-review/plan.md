@@ -131,3 +131,30 @@ O visualizador existente mostra a contagem de links ativos e o alcance da revoga
 - Comparação nativa e caches privados em `/tmp/visual-library-duplicate-native.hSu2f5br/`. São artefatos de validação, sem importação automática para o produto. `git diff --check` aprovado.
 
 Operação e limites documentados em `docs/duplicate-review.md`. Os testes garantem integração e preservação de metadados/URLs; qualidade sobre o acervo completo continua se apoiando na avaliação e no retorno do usuário, com a ressalva de que variações de conteúdo precisam de revisão humana.
+
+## Ampliação autorizada: IDs e referências de integrações
+
+O caso do Dragon Ball revelou dois assets referenciados: blog 623×900 com URL pública e referência ao post; Media Pulse 346×500 com referências `book/362` e `book_edition/362`. A proteção inicial bloqueava ambos. O usuário concordou com preservar os IDs antigos para permitir consolidar sem modificar o blog ou o Media Pulse.
+
+Plano: tabela aditiva de aliases de asset, sempre apontando diretamente para uma imagem existente, sem cadeias. Consolidar retargeta aliases anteriores e registra IDs removidos. GET de asset mantém o ID solicitado na resposta, com metadados/conteúdo atuais da mantida; PUT de classificações e GET/POST de links públicos resolvem o alias. Exclusão comum da mantida invalida também seus aliases.
+
+Transferir referências e classificações gerenciadas na mesma transação de tags/links/remoções. Para a mesma referência/grupo, usar a maior revisão; conteúdos diferentes na mesma maior revisão bloqueiam a consolidação com conflito explícito. Preservar flags pessoais e contribuições gerenciadas para que futuras correções por IDs antigos continuem removendo apenas a contribuição da referência correta. Tags absorvidas de classificações superadas são preservadas como pessoais.
+
+O destino selecionado recebe tags, links e referências/IDs. Remover a proteção genérica de imagens referenciadas somente após testes de leitura/escrita por alias, consolidações sucessivas, revogação, exclusão, rollback e conflitos. A revisão deve revalidar aliases e revisões de classificações, além dos metadados já cobertos.
+
+Não mudar o contrato de upload por bytes: reenviar bytes retirados ainda pode criar um asset novo, pois o Media Pulse verifica SHA-256 antes de apagar arquivos na migração local. Não deduplicar esses bytes para um arquivo diferente silenciosamente. Não executar consolidação de produção durante a implementação.
+
+### Implementação e resultado da ampliação
+
+- Tabela aditiva `asset_id_aliases` com índice por mantida. `findAssetImage` consulta imagem ou alias direto, sem recursão. Consolidação transfere aliases anteriores e registra cada ID retirado, na transação existente. Exclusão comum da mantida remove seus aliases.
+- GET de metadados mantém o ID solicitado; conteúdo usa os bytes/ETag atuais da mantida. Aliases não usam `If-Modified-Since` isolado para responder 304, pois o arquivo mantido pode ser mais antigo que o retirado; ETag atual continua permitindo 304. PUT de classificações e operações de links públicos também resolvem o ID antigo, preservando as permissões atuais.
+- `asset-consolidation.ts` valida classificações antes de transferir referências/tags. Vence a maior revisão por aplicação/tipo/entidade/grupo; empate com conjuntos equivalentes ignora ordem/caixa. Empate na maior revisão com conteúdo diferente retorna 409 `REFERENCE_REVISION_CONFLICT`, sem alterações. Referências com chave já existente preservam os metadados do destino.
+- Tags pessoais são combinadas com OR das flags; contribuições atuais continuam gerenciadas. Tags exibidas que ficaram fora das classificações vencedoras tornam-se pessoais, preservando a absorção sem impedir futuras correções da contribuição gerenciada correta. Retries, revisões antigas e correções usando IDs antigos foram verificados.
+- Revisão revalida também aliases e revisões das classificações. Imagens referenciadas deixam de ser bloqueadas ou forçadas a manter; a sugestão volta a considerar resolução/proporção. Cartões/resumo/confirmacão explicam a preservação de referências e IDs. Com várias mantidas, referências ativas exigem destino explícito mesmo quando não há tags ou URLs públicas. Conflito recebe mensagem específica, sem limpar as escolhas.
+- Nenhuma alteração no marcal-blog ou Media Pulse, no modelo/embeddings, na versão ou nos dados de produção. O comportamento novo depende de instalar esta alteração; a proteção anterior continua valendo na versão já instalada até lá.
+
+Validação: `npm test` com 79 testes aprovados, sem skips; build Nuxt e Docker aprovados. O novo teste HTTP usa UUIDs, sessão owner e tokens reais de fixture, com cenário post do blog + livro/edição 362. Cobre leitura privada/autorização, ID estável na resposta, conteúdo/validadores por alias, atualizações de séries/procedência, duas consolidações sucessivas sem cadeia, rollback, conflitos/maior revisão/empates equivalentes, idempotência, revogação de URLs sem revogar acesso privado, seleção de destino, reupload com bytes exatos, exclusão e reabertura do banco em outro processo.
+
+Chrome desktop/mobile com referências de blog e Media Pulse nas fixtures: remoção liberada, indicação/destino de referências, escolhas e confirmação, reload/modos/retorno e leitura do asset retirado depois de consolidar. Sem erros JS ou overflow. Artefatos privados em `/tmp/visual-library-duplicates-browser-5r9HGL/`.
+
+Imagem Docker sem rede, dois CPUs/2 GiB, banco de fixtures: token de integração leu metadados/conteúdo pelo ID antigo, atualizou séries, recebeu rejeição de revisão antiga e continuou lendo privadamente após revogar as URLs públicas. Sem sessão/credencial, leitura negada. Contêiner temporário removido ao concluir. `git diff --check` passou. Não houve consolidação do Dragon Ball real nem deploy nesta ampliação.

@@ -104,7 +104,11 @@ export const ensureDataStore = async () => {
       image_id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
     );`)
 
-    db.exec(`CREATE TABLE IF NOT EXISTS image_public_link_aliases (
+    db.exec(`CREATE TABLE IF NOT EXISTS asset_id_aliases (
+      alias_id TEXT PRIMARY KEY, image_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      CHECK(alias_id <> image_id)
+    ); CREATE INDEX IF NOT EXISTS asset_alias_image ON asset_id_aliases(image_id);
+    CREATE TABLE IF NOT EXISTS image_public_link_aliases (
       token TEXT PRIMARY KEY, image_id TEXT NOT NULL, created_at TEXT NOT NULL
     ); CREATE INDEX IF NOT EXISTS public_alias_image ON image_public_link_aliases(image_id);
     CREATE TABLE IF NOT EXISTS image_duplicate_vectors (
@@ -304,6 +308,7 @@ export const deleteImageRecord = (imageId: string) => {
     db.prepare('DELETE FROM image_public_links WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_public_link_aliases WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_duplicate_vectors WHERE image_id = ?').run(imageId)
+    db.prepare('DELETE FROM asset_id_aliases WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_semantic_vectors WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM image_visual_features WHERE image_id = ?').run(imageId)
     db.prepare('DELETE FROM asset_reference_tag_groups WHERE asset_id = ?').run(imageId)
@@ -435,6 +440,13 @@ export class ManagedTagConflict extends Error {
   constructor(message: string, code: string) { super(message); this.code = code }
 }
 
+// Aliases are flattened when consolidating; never follow unbounded ID chains.
+export const findAssetImage = (assetId: string): ImageRow | undefined => {
+  if (!db) return undefined
+  return db.prepare('SELECT * FROM images WHERE id=?').get(assetId) as ImageRow | undefined
+    ?? db.prepare('SELECT i.* FROM images i JOIN asset_id_aliases a ON a.image_id=i.id WHERE a.alias_id=?').get(assetId) as ImageRow | undefined
+}
+
 export const getAssetReferences = (assetId: string) => {
   if (!db) return []
   const rows = db.prepare(`SELECT application, entity_type, entity_id, url, created_at
@@ -487,8 +499,8 @@ export const toImageResponse = (row: ImageRow, tags = getImageTags(row.id)) => (
   hiddenFromGallery: Boolean(row.hidden_from_gallery),
 })
 
-export const toAssetResponse = (row: ImageRow) => ({
-  id: row.id, mimeType: row.mime_type, sizeBytes: row.size_bytes,
+export const toAssetResponse = (row: ImageRow, responseId = row.id) => ({
+  id: responseId, mimeType: row.mime_type, sizeBytes: row.size_bytes,
   createdAt: row.created_at, source: row.source, hiddenFromGallery: Boolean(row.hidden_from_gallery),
   tags: getImageTags(row.id), sourceReferences: getAssetReferences(row.id),
 })
@@ -556,11 +568,14 @@ export const replaceAssetReferenceTagGroup = (
   assetId: string, application: string, reference: SourceReference, group: string, value: ManagedTagGroup,
 ) => {
   if (!db) throw new Error('Data store is not initialized')
-  if (!db.prepare('SELECT 1 FROM images WHERE id = ?').get(assetId) || !db.prepare(`SELECT 1 FROM asset_references
-    WHERE asset_id = ? AND application = ? AND entity_type = ? AND entity_id = ?`).get(assetId, application, reference.entityType, reference.entityId)) return null
-  db.exec('BEGIN')
+  db.exec('BEGIN IMMEDIATE')
   try {
-    const result = replaceReferenceTagGroupWithinTransaction(assetId, application, reference, group, value)
+    const image = findAssetImage(assetId)
+    if (!image || !db.prepare(`SELECT 1 FROM asset_references
+      WHERE asset_id=? AND application=? AND entity_type=? AND entity_id=?`).get(image.id, application, reference.entityType, reference.entityId)) {
+      db.exec('COMMIT'); return null
+    }
+    const result = replaceReferenceTagGroupWithinTransaction(image.id, application, reference, group, value)
     db.exec('COMMIT')
     return result
   } catch (error) { db.exec('ROLLBACK'); throw error }

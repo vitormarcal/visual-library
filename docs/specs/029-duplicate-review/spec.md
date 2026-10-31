@@ -15,6 +15,7 @@ A prevenção atual por SHA-256 reconhece arquivos com bytes idênticos. Cópias
 - Se apenas uma imagem for mantida, preservar nela a união das tags das imagens descartadas.
 - Com várias mantidas, indicar uma delas para receber tags e links públicos das removidas; as outras mantidas conservam suas tags e publicações. Nenhuma tag é descartada silenciosamente.
 - Absorver os links públicos na imagem mantida, preservando as URLs existentes. Não revogar links como efeito colateral da consolidação nem reativar links anteriormente revogados.
+- Preservar IDs antigos de assets como aliases da mantida. Leituras de metadados/conteúdo e atualizações de classificações por esses IDs continuam funcionando, sem alterar os consumidores. Transferir referências e sua procedência/revisões na mesma transação.
 - Remover o limite de quantidade de tags por imagem, conforme autorizado pelo usuário, mantendo normalização, unicidade e validação de cada nome. A regra vale também nos demais fluxos de tags.
 - Informar quando não houver candidatas e distinguir esse estado de análise pendente ou indisponível.
 - Tratar resultados como sugestões: imagens diferentes de um mesmo personagem, assunto ou composição não são necessariamente duplicatas.
@@ -30,7 +31,7 @@ O valor observado no Immich serve como ponto de partida experimental; não presu
 
 Somente imagens visíveis nesta primeira proposta. Sem exclusão automática, bloqueio de upload por similaridade, reorganização automática, substituição da busca por conteúdo ou do ranking de See similar. Sem implantação, alteração de versão, novo serviço permanente ou banco vetorial nesta etapa.
 
-Na integração autorizada, links públicos são absorvidos mantendo suas URLs; a remoção é definitiva, com confirmação inline explícita e sem lixeira fictícia. Referências de aplicações não são migradas e mantêm a imagem protegida neste fluxo. A avaliação inicial não executou exclusões nem consolidações.
+Na integração autorizada, links públicos são absorvidos mantendo suas URLs; a remoção é definitiva, com confirmação inline explícita e sem lixeira fictícia. Após conferir o caso Dragon Ball no marcal-blog/Media Pulse, o usuário autorizou ampliar a consolidação para referências de aplicações e aliases dos IDs antigos. Conflitos de classificações na mesma revisão exigem resolver a origem antes de consolidar, sem perda silenciosa de dados. A avaliação inicial não executou exclusões nem consolidações.
 
 ## Aceitação
 

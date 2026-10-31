@@ -2,7 +2,8 @@ import { Worker } from 'node:worker_threads'
 import { join } from 'node:path'
 import { unlink } from 'node:fs/promises'
 import { createError } from 'h3'
-import { ensureDataStore, getImageTags, toImageResponse, normalizeTagValues, addImageTagsWithinTransaction, reconcileTagCovers, imageDir, type ImageRow } from './db.ts'
+import { ensureDataStore, getImageTags, toImageResponse, reconcileTagCovers, imageDir, type ImageRow } from './db.ts'
+import { consolidateAssetIdentities } from './asset-consolidation.ts'
 import { removeThumbnails } from './thumbnails.ts'
 import { duplicateProgress, duplicatesEnabled, duplicatesPreparing, duplicatesUnavailable } from './duplicate-preparation.ts'
 import { duplicateComponents, duplicateDigest, duplicateFingerprint, duplicateVector } from '../runtime/similarity/duplicate-features.mjs'
@@ -30,6 +31,8 @@ function groupRevision(db: Awaited<ReturnType<typeof ensureDataStore>>, ids: str
     links: db.prepare(`SELECT token,created_at FROM image_public_links WHERE image_id=? UNION ALL
       SELECT token,created_at FROM image_public_link_aliases WHERE image_id=? ORDER BY token`).all(id, id),
     references: db.prepare('SELECT * FROM asset_references WHERE asset_id=? ORDER BY application,entity_type,entity_id').all(id),
+    classifications: db.prepare('SELECT * FROM asset_reference_tag_groups WHERE asset_id=? ORDER BY application,entity_type,entity_id,group_name').all(id),
+    aliases: db.prepare('SELECT alias_id FROM asset_id_aliases WHERE image_id=? ORDER BY alias_id').all(id),
     vector: db.prepare('SELECT fingerprint,source_hash,status FROM image_duplicate_vectors WHERE image_id=?').get(id) ?? null,
   })))
 }
@@ -88,8 +91,7 @@ export async function resolveDuplicateGroup(input: unknown) {
   const ids = group.images.map(image => image.id)
   if (keepIds.some(id => !ids.includes(id))) throw createError({ statusCode: 400, statusMessage: 'Invalid kept image.' })
   const removed = group.images.filter(image => !keepIds.includes(image.id))
-  if (removed.some(image => image.integrationReferenceCount)) throw createError({ statusCode: 409, statusMessage: 'Images used by an integration must be kept.' })
-  const needsTarget = removed.some(image => image.tags.length || image.publicLinkCount)
+  const needsTarget = removed.some(image => image.tags.length || image.publicLinkCount || image.integrationReferenceCount)
   const targetId = keepIds.length === 1 ? keepIds[0]! : (body.targetId as string | null) ?? (!needsTarget ? keepIds[0]! : null)
   if (removed.length && (!targetId || !keepIds.includes(targetId))) throw createError({ statusCode: 400, statusMessage: 'Choose where to preserve tags and public links.' })
   const db = await ensureDataStore(), files: { id: string; filename: string }[] = []
@@ -98,7 +100,7 @@ export async function resolveDuplicateGroup(input: unknown) {
     if (groupRevision(db, ids) !== body.revision || db.prepare('SELECT 1 FROM duplicate_reviews WHERE group_id=?').get(group.id)) throw conflict()
     const affected = new Set(ids.flatMap(id => getImageTags(id).map(tag => tag.id)))
     if (removed.length) {
-      addImageTagsWithinTransaction([targetId!], normalizeTagValues(removed.flatMap(image => getImageTags(image.id).map(tag => tag.name))))
+      consolidateAssetIdentities(db, removed.map(image => image.id), targetId!)
       for (const image of removed) {
         const row = db.prepare('SELECT filename FROM images WHERE id=?').get(image.id) as { filename: string }
         files.push({ id: image.id, filename: row.filename })

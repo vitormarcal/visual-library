@@ -72,8 +72,7 @@ try {
   setImageVisibility('c',false)
   let latest=(await duplicateGroups())[0]!
   db.prepare('INSERT INTO asset_references (asset_id,application,entity_type,entity_id,created_at) VALUES (?,?,?,?,?)').run('c','test','work','1','2026')
-  latest=(await duplicateGroups())[0]!
-  assert.equal((await owner('/api/duplicates/resolve',prepare(latest))).status,409)
+  assert.equal((await owner('/api/duplicates/resolve',prepare(latest))).status,409,'a reference added after opening invalidates the review')
   db.prepare('DELETE FROM asset_references WHERE asset_id=?').run('c')
   latest=(await duplicateGroups())[0]!
   replaceImageTags('c',['third','changed after opening'])

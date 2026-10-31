@@ -170,3 +170,13 @@ Ao corrigir, remover um termo antigo apenas quando ele não é pessoal nem perte
 **Legado:** tags anteriores à procedência são preservadas. A primeira adoção informa `legacyTagsPreserved`; remoções de termos pessoais/compartilhados informam `preservedTags`. A classificação da referência é corrigida, mas essas tags globais não são apagadas automaticamente.
 
 Reenvio de upload conserva sugestões genéricas quando a referência já existe; grupos vinculados são atualizados sob suas regras de revisão. O Visual Library agora exige autenticação; aplicação e referência continuam declarações do cliente, não permissões por asset. Sem fila, sincronização de metadados gerais ou controle de retenção.
+
+## IDs preservados após consolidar duplicatas
+
+IDs de assets removidos pela revisão de duplicatas continuam válidos como aliases diretos da imagem mantida. `GET /api/assets/{id}` preserva o ID solicitado na resposta e retorna os metadados atuais, tags e referências da mantida. `GET /api/assets/{id}/content` serve seus bytes e validadores atuais; não exige regravar URLs no consumidor. `PUT /api/assets/{id}/references/tags` também resolve o ID antigo e mantém as regras de revisão/procedência/idempotência. GET/POST de links públicos por IDs antigos resolvem a mesma imagem, sem ampliar permissões de credenciais.
+
+Revalidação de conteúdo por alias usa ETag; `If-Modified-Since` isolado não produz 304, pois uma consolidação pode apontar para um arquivo mais antigo com bytes diferentes. O ETag retornado pelo destino permite os 304 usuais quando a representação é a mesma.
+
+Referências são reunidas por aplicação/tipo/ID, preservando metadados já existentes no destino quando a chave coincide. Classificações do mesmo grupo usam a maior revisão. Conteúdos diferentes na mesma maior revisão bloqueiam a consolidação com 409 `REFERENCE_REVISION_CONFLICT`; operações de classificação posteriores continuam retornando os códigos existentes. Tags pessoais prevalecem; contribuições gerenciadas permanecem atualizáveis. Excluir a imagem mantida invalida seus aliases.
+
+Consolidações sucessivas reatribuem os aliases diretamente, sem cadeias. Upload continua respeitando a identidade exata dos bytes: não reaproveita um hash retirado para entregar bytes diferentes. Reenviar uma cópia já consolidada pode criar um novo asset, preservando o contrato de verificação de bytes dos consumidores.

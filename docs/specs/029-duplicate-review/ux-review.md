@@ -29,7 +29,7 @@ Priorizar resolução como indício técnico; tamanho em bytes é desempate secu
 
 Comparar tecnicamente imagens de proporções compatíveis. Proporção diferente indica possível recorte/variante: sugerir manter essa candidata também. Empate sem distinção útil e dimensões ausentes não geram um vencedor arbitrário; manter as candidatas empatadas e mostrar `Compare before removing`.
 
-Uma variação de pose/expressão não pode ser identificada com segurança só pelo vetor CLIP. Na revisão ampliada, iniciar todas como `Keep` e exigir que o usuário marque explicitamente o que remover. Não prometer distinguir esses detalhes automaticamente. No modo conservador, pré-selecionar a sugestão técnica somente quando houver comparação clara; manter variantes/empates e imagens protegidas por referências de integração. Links públicos são absorvidos e não impedem a escolha de remover uma cópia.
+Uma variação de pose/expressão não pode ser identificada com segurança só pelo vetor CLIP. Na revisão ampliada, iniciar todas como `Keep` e exigir que o usuário marque explicitamente o que remover. Não prometer distinguir esses detalhes automaticamente. No modo conservador, pré-selecionar a sugestão técnica somente quando houver comparação clara; manter variantes/empates; referências de integração são absorvidas preservando IDs e não forçam manter uma cópia inferior. Links públicos são absorvidos e não impedem a escolha de remover uma cópia.
 
 O usuário pode alterar qualquer seleção elegível, manter duas ou mais e usar `Keep all`. A comparação não exige escolher uma vencedora. Deve restar pelo menos uma imagem a manter para confirmar remoções.
 
@@ -67,7 +67,7 @@ O schema atual permite apenas um token por imagem, então a absorção exige mig
 
 Preservar tags, reatribuir links e remover registros precisa ocorrer em uma única operação de metadados validada pelo servidor. Falha de validação não pode deixar links quebrados ou remover sem absorver. Revalidar publicações e tags no momento de confirmar, incluindo alterações posteriores à abertura do grupo.
 
-Referências de aplicação são distintas de URLs públicas e envolvem IDs, revisões e procedência. Migrá-las automaticamente ainda não foi solicitado. Nesta proposta, imagens com referências ativas de integração ficam mantidas e identificadas como `Used by an integration`; não bloqueá-las apenas por possuírem links públicos.
+Na ampliação autorizada após conferir o caso Dragon Ball, referências de aplicação também são absorvidas. O destino recebe as referências e os IDs antigos passam a resolver para ele, inclusive para atualizações de tags. Cartões indicam a quantidade de referências e `IDs preserved`; referência ativa deixa de bloquear remoção ou de impor manter uma imagem menor. O resumo e a confirmação mostram quantas referências seguirão para o destino. Classificações conflitantes na mesma maior revisão recebem erro específico, preservando as escolhas e os dados para resolver a origem antes de tentar novamente.
 
 ## Estados e acessibilidade
 
