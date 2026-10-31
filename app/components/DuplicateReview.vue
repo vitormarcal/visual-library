@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import viewerStyles from './LightboxViewer.module.css'
 import { interceptLibraryLink } from '../utils/library-navigation'
 import { suggestedDuplicateKeeps, duplicateSuggestionReason, type DuplicateGroup, type DuplicateReviewResponse } from '../utils/duplicate-review'
 import type { ImageRecord } from '../types/image'
@@ -9,6 +10,8 @@ const status = ref<DuplicateReviewResponse | null>(null), loading = ref(true), b
 const skipped = ref(new Set<string>()), confirming = ref(false), showTags = ref(false)
 const kept = ref<string[]>([]), targetId = ref<string | null>(null)
 const zoom = ref<HTMLDialogElement | null>(null), zoomIndex = ref<number | null>(null)
+const zoomClose = ref<HTMLButtonElement | null>(null)
+let zoomOrigin: HTMLElement | null = null, zoomOverflow: string | null = null
 const heading = ref<HTMLElement | null>(null), confirmation = ref<HTMLElement | null>(null), reviewButton = ref<HTMLButtonElement | null>(null)
 const drafts = new Map<string, { revision: string; kept: string[]; target: string | null }>()
 let version = 0, timer: ReturnType<typeof setTimeout> | undefined, disposed = false
@@ -116,14 +119,38 @@ async function confirm() {
   if (!canRemove.value || busy.value) return
   confirming.value = true; await nextTick(); confirmation.value?.focus({ preventScroll: true }); confirmation.value?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
 }
-async function enlarge(index: number) {
+async function enlarge(index: number, event: MouseEvent) {
+  if (busy.value) return
+  zoomOrigin = event.currentTarget as HTMLElement
   zoomIndex.value = index; await nextTick(); zoom.value?.showModal()
-  if (import.meta.client) document.body.style.overflow = 'hidden'
+  if (import.meta.client && zoomOverflow === null) {
+    zoomOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  zoomClose.value?.focus({ preventScroll: true })
+}
+async function finishZoom() {
+  zoomIndex.value = null
+  if (import.meta.client && zoomOverflow !== null) {
+    document.body.style.overflow = zoomOverflow
+    zoomOverflow = null
+  }
+  await nextTick()
+  if (!disposed && zoomOrigin?.isConnected) zoomOrigin.focus({ preventScroll: true })
 }
 function closeZoom() {
-  zoom.value?.close(); zoomIndex.value = null
-  if (import.meta.client) document.body.style.overflow = ''
+  if (zoom.value?.open) zoom.value.close()
+  void finishZoom()
 }
+async function navigateZoom(step: number) {
+  if (zoomIndex.value === null || !current.value) return
+  const next = zoomIndex.value + step
+  if (next < 0 || next >= current.value.images.length) return
+  zoomIndex.value = next
+  await nextTick()
+  if (document.activeElement instanceof HTMLButtonElement && document.activeElement.disabled) zoomClose.value?.focus({ preventScroll: true })
+}
+
 watch(() => props.broad, () => { confirming.value = false; skipped.value = new Set(); status.value = null; void load() })
 onMounted(() => { void load() })
 onBeforeUnmount(() => { disposed = true; version++; if (timer) clearTimeout(timer); closeZoom() })
@@ -157,10 +184,9 @@ const formatSize = (bytes: number) => `${new Intl.NumberFormat('en', { maximumFr
         <div class="duplicateCards">
           <article v-for="(image, index) in current.images" :key="image.id" class="duplicateCard" :class="{ kept: kept.includes(image.id) }">
             <div class="cardLabel"><span>{{ suggestions.includes(image.id) && !broad ? 'Suggested to keep' : 'Possible copy' }}</span><span class="muted">{{ index + 1 }}</span></div>
-            <div class="imageStage">
+            <button class="imageStage imageOpen" type="button" :aria-label="`Open image ${index + 1}`" :disabled="busy" @click="enlarge(index, $event)">
               <ProgressiveImage :src="image.thumbnailSrc || image.src" :alt="`Image ${index + 1} in this group`" :width="image.width" :height="image.height" />
-              <button class="enlarge" type="button" :aria-label="`Enlarge image ${index + 1}`" @click="enlarge(index)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg></button>
-            </div>
+            </button>
             <div class="cardBody">
               <p class="reason">{{ duplicateSuggestionReason(image, current.images) }}</p>
               <p class="dimensions">{{ image.width && image.height ? `${image.width} × ${image.height}` : 'Dimensions unavailable' }} <span>· {{ formatSize(image.sizeBytes) }}</span></p>
@@ -202,11 +228,15 @@ const formatSize = (bytes: number) => `${new Intl.NumberFormat('en', { maximumFr
         <button v-else type="button" @click="load">Refresh review</button>
       </div>
     </template>
-    <dialog ref="zoom" class="zoomDialog" aria-label="Compare enlarged images" @cancel.prevent="closeZoom" @keydown.esc.prevent.stop="closeZoom">
+    <dialog ref="zoom" :class="[viewerStyles.expandedOverlay, 'zoomDialog']" aria-label="Compare enlarged images" @cancel.prevent="closeZoom" @close="finishZoom" @click.self="closeZoom" @keydown.esc.prevent.stop="closeZoom" @keydown.left.prevent="navigateZoom(-1)" @keydown.right.prevent="navigateZoom(1)">
       <template v-if="zoomImage">
-        <div class="zoomHeader"><span>{{ zoomImage.originalName || 'Saved image' }}</span><button type="button" @click="closeZoom">Close ×</button></div>
-        <img class="zoomImage" :src="zoomImage.src" :alt="`Enlarged image ${zoomIndex! + 1}`">
-        <div class="zoomNavigation"><button type="button" :disabled="zoomIndex === 0" @click="zoomIndex = (zoomIndex ?? 0) - 1">← Previous</button><span>{{ zoomIndex! + 1 }} of {{ current?.images.length }}</span><button type="button" :disabled="zoomIndex! === (current?.images.length ?? 0) - 1" @click="zoomIndex = (zoomIndex ?? 0) + 1">Next →</button></div>
+        <button ref="zoomClose" type="button" :class="[viewerStyles.control, viewerStyles.closeButton, 'zoomControl']" aria-label="Close viewer" @click="closeZoom"><span aria-hidden="true">×</span></button>
+        <img :class="[viewerStyles.expandedImage, 'zoomImage']" :src="zoomImage.src" :alt="zoomImage.originalName || `Image ${zoomIndex! + 1} in this group`">
+        <div class="zoomNavigation" role="group" aria-label="Browse duplicate images">
+          <button type="button" :class="[viewerStyles.control, viewerStyles.navButton, 'zoomControl']" aria-label="Previous image" :disabled="zoomIndex === 0" @click="navigateZoom(-1)"><span aria-hidden="true">‹</span></button>
+          <span role="status" aria-live="polite">{{ zoomIndex! + 1 }} of {{ current?.images.length }}</span>
+          <button type="button" :class="[viewerStyles.control, viewerStyles.navButton, 'zoomControl']" aria-label="Next image" :disabled="zoomIndex! === (current?.images.length ?? 0) - 1" @click="navigateZoom(1)"><span aria-hidden="true">›</span></button>
+        </div>
       </template>
     </dialog>
   </section>
@@ -225,7 +255,7 @@ button.quiet { background: transparent; color: var(--color-mute); }
 a { display: inline-flex; align-items: center; text-decoration: none; padding: 8px 0; }
 select { border: 1px solid var(--color-hairline); background: var(--color-canvas); padding: 8px 12px; margin-left: 8px; }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 3px; }
-.reviewNav, .groupHeader, .reviewActions, .zoomHeader, .zoomNavigation { display: flex; justify-content: space-between; align-items: center; gap: var(--space-lg); flex-wrap: wrap; }
+.reviewNav, .groupHeader, .reviewActions { display: flex; justify-content: space-between; align-items: center; gap: var(--space-lg); flex-wrap: wrap; }
 .reviewNav label { font-size: 14px; color: var(--color-mute); }
 .explanation, .reviewState p, .preservation p, .confirmation p { font-size: 14px; line-height: 1.5; color: var(--color-mute); }
 .explanation { max-width: 760px; margin: 12px 0; }
@@ -239,7 +269,9 @@ h3 { font-size: 18px; line-height: 1.3; font-weight: 600; margin: 0 0 12px; }
 .muted, .reason, .dimensions span { color: var(--color-mute); }
 .imageStage { position: relative; height: min(52vh, 520px); background: var(--color-surface-card); border-radius: var(--radius-md); overflow: hidden; }
 .imageStage :deep(.progressiveImage), .imageStage :deep(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.enlarge { position: absolute; bottom: 8px; right: 8px; display: grid; place-items: center; min-width: 44px; border-radius: var(--radius-full); background: var(--color-canvas); }
+.imageOpen { display: block; width: 100%; padding: 0; border: 0; cursor: pointer; }
+.imageOpen:focus-visible { outline-offset: -3px; }
+.imageOpen:active { background: var(--color-surface-card); }
 .cardBody { padding: var(--space-lg) var(--space-sm) 6px; }
 .reason { font-size: 14px; line-height: 1.4; min-height: 19px; margin: 0 0 8px; }
 .dimensions { font-size: 14px; margin: 0 0 14px; }
@@ -262,10 +294,12 @@ summary { cursor: pointer; min-height: 32px; }
 .reviewActions > div, .confirmationActions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 [role=alert] { color: var(--color-error); font-size: 14px; line-height: 1.5; }
 [role=status] { color: var(--color-mute); font-size: 14px; line-height: 1.5; }
-.zoomDialog { border: 0; padding: var(--space-xxl); border-radius: var(--radius-lg); width: min(1100px, 96vw); max-height: 96dvh; background: var(--color-canvas); }
-.zoomDialog::backdrop { background: rgba(0,0,0,.7); }
-.zoomHeader { font-size: 14px; }
-.zoomHeader span { overflow-wrap: anywhere; min-width: 0; flex: 1; }
-.zoomImage { display: block; width: 100%; height: 65dvh; object-fit: contain; margin: 16px 0; }
-@media (max-width: 600px) { .duplicateCards { grid-template-columns: 1fr; } .imageStage { height: 390px; } .reviewActions { align-items: stretch; } .reviewActions > div { width: 100%; } .reviewActions .primary { width: 100%; } .zoomDialog { padding: 16px; } .reviewNav { align-items: flex-start; } }
+.zoomDialog { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+.zoomDialog::backdrop { background: transparent; }
+.zoomDialog:not([open]) { display: none; }
+.zoomDialog .zoomControl { width: 44px; min-height: 44px; padding: 0; border-radius: var(--radius-full); background: rgba(255, 255, 255, 0.92); color: var(--color-ink); font-size: 24px; line-height: 1; }
+.zoomDialog .zoomControl:active { background: var(--color-secondary-pressed); }
+.zoomNavigation { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-sm); padding: 4px; border-radius: var(--radius-full); background: rgba(255, 255, 255, 0.92); }
+.zoomNavigation [role=status] { min-width: 64px; color: var(--color-ink); text-align: center; }
+@media (max-width: 600px) { .duplicateCards { grid-template-columns: 1fr; } .imageStage { height: 390px; } .reviewActions { align-items: stretch; } .reviewActions > div { width: 100%; } .reviewActions .primary { width: 100%; } .reviewNav { align-items: flex-start; } }
 </style>

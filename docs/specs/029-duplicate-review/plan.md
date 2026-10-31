@@ -158,3 +158,12 @@ Validação: `npm test` com 79 testes aprovados, sem skips; build Nuxt e Docker 
 Chrome desktop/mobile com referências de blog e Media Pulse nas fixtures: remoção liberada, indicação/destino de referências, escolhas e confirmação, reload/modos/retorno e leitura do asset retirado depois de consolidar. Sem erros JS ou overflow. Artefatos privados em `/tmp/visual-library-duplicates-browser-5r9HGL/`.
 
 Imagem Docker sem rede, dois CPUs/2 GiB, banco de fixtures: token de integração leu metadados/conteúdo pelo ID antigo, atualizou séries, recebeu rejeição de revisão antiga e continuou lendo privadamente após revogar as URLs públicas. Sem sessão/credencial, leitura negada. Contêiner temporário removido ao concluir. `git diff --check` passou. Não houve consolidação do Dragon Ball real nem deploy nesta ampliação.
+
+
+## Consistência da ampliação com a galeria — 2026-10-31
+
+Solicitado pelo usuário após validar a captura de páginas: aplicar também aos duplicados o padrão de abertura e ampliação da galeria. O cartão inteiro da imagem passa a ser o controle acessível de abertura, substituindo o botão isolado no canto. O diálogo reutiliza `expandedOverlay`, `expandedImage` e controles de `LightboxViewer.module.css`, ocupando o viewport com margens de 8 px/safe areas, sem cabeçalho ou rodapé reservados que reduzam a imagem. Fechamento × e navegação ficam sobrepostos.
+
+Preservados anterior/próxima do grupo, agora com setas do teclado e rótulos acessíveis. Escape, botão fechar e saída do grupo restauram o overflow anterior; ao fechar, foco retorna ao cartão de origem quando ainda existe. Ampliação não muda as escolhas, o destino de tags/links ou a confirmação inline de exclusão.
+
+Validação: build passou; seis testes de duplicatas/aliases passaram; `git diff --check` passou. Chrome desktop 1440×1000 e celular emulado 390×844 verificaram clique direto, largura/altura de viewport, margens mínimas, `contain`, anterior/próxima, teclado, foco ao abrir/fechar, restauração de scroll e escolhas intactas. O smoke isolado também conferiu várias mantidas, destino de tags, modo ampliado, reload, confirmação/cancelamento, preservação de links e retorno ao contexto da biblioteca; nenhuma exceção JavaScript observada. Capturas de tela inspecionadas. Somente dados temporários de teste foram consolidados; sem mudanças no acervo real ou deploy.

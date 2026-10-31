@@ -1,6 +1,6 @@
 # Revisar possíveis cópias
 
-Na Library, abrir **Review duplicates**. A revisão mostra um grupo por vez, com imagens inteiras, ampliação, dimensões e indicação do motivo de cada sugestão. **Likely copies** usa distância máxima 0.03; **Broader review** usa 0.10 e começa mantendo todas, pois pode incluir poses, expressões e recortes diferentes.
+Na Library, abrir **Review duplicates**. A revisão mostra um grupo por vez, com imagens inteiras, ampliação, dimensões e indicação do motivo de cada sugestão. Clicar ou tocar na imagem abre a ampliação no mesmo padrão da galeria, aproveitando a tela com margens mínimas e fechamento × sobreposto. Anterior/próxima e setas do teclado percorrem as candidatas; Escape fecha e devolve o foco ao cartão, preservando as escolhas de manter/remover. **Likely copies** usa distância máxima 0.03; **Broader review** usa 0.10 e começa mantendo todas, pois pode incluir poses, expressões e recortes diferentes.
 
 ## Primeiro preparo
 

@@ -16,7 +16,7 @@ Grade de duas ou três colunas no desktop, cartões com estágio de altura visua
 
 Cada cartão mostra:
 
-1. Imagem grande; uma ação explícita de ampliar abre comparação com navegação entre as imagens do grupo e retorno ao cartão/foco. O clique de ampliar não altera a seleção.
+1. Imagem grande; clicar ou tocar diretamente nela abre a ampliação com o mesmo padrão da galeria: viewport inteiro, margens mínimas, imagem sem recorte e botão × sobreposto. Navegação entre candidatas por anterior/próxima e setas do teclado; Escape e fechar devolvem foco ao cartão de origem. Abrir, navegar e fechar não alteram as escolhas de manter/remover.
 2. Selo opcional `Suggested to keep`, acompanhado de um motivo verificável: `Higher resolution`, `Same resolution · larger file` ou `Different crop · compare`. Não apresentar score, porcentagem de confiança ou diagnóstico de nitidez não medido.
 3. Dimensões em px e tamanho em MB, numa linha discreta. Quando houver publicação, uma indicação curta `2 public links` explica o que será preservado. Nome completo, formato e tags ficam em detalhes expansíveis.
 4. Controle sempre visível `Keep` / `Remove`, com estado textual, ícone e borda. Sugestão é diferente de decisão do usuário. Imagem marcada para remover continua nítida para comparação; não aplicar blur, risco sobre o conteúdo ou opacidade que esconda diferenças.

@@ -33,6 +33,8 @@ Solicitado e avaliado em 2026-10-30 em [029](docs/specs/029-duplicate-review/spe
 
 Ampliação posterior autorizada após conferir o Dragon Ball do blog/Media Pulse: preservar também os IDs retirados, referências e revisões de classificações. Aliases permitem leitura e atualização de séries pelo ID antigo sem modificar os consumidores. Setenta e nove testes, Nuxt/Docker, navegador e HTTP do contêiner isolado passaram; conflitos na mesma revisão são recusados sem alterações. Sem deploy ou consolidação de produção nesta ampliação.
 
+Após validar a captura de páginas em 030, o usuário solicitou uniformizar a ampliação dos duplicados com a galeria: clique direto na imagem, viewport com margens mínimas, fechamento sobreposto, anterior/próxima e setas do teclado, preservando escolhas e foco. Build, seis testes direcionados e Chrome desktop/mobile emulado passaram; sem alterações no acervo real ou deploy.
+
 ### Usar imagens no blog preservando a biblioteca privada
 
 Revisão posterior de segurança solicitada pelo usuário: [achados e correções](docs/security/review-2026-10-24.md), com reforço de cookies/CSP, correção de DNS rebinding na captura e disponibilidade do login. Sem novo deploy nesta revisão.
