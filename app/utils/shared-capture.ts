@@ -24,7 +24,7 @@ export const sharedCaptureMessage = (params: URLSearchParams): string => {
   }
   const saved = count('saved'), duplicates = count('duplicates'), failed = count('failed')
   const summary = [saved ? `${saved} saved` : '', duplicates ? `${duplicates} already saved` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ')
-  return summary + (failed ? '. Could not save some content. Share supported image files or a direct image URL; page and post links are not supported. You can share again to retry.' : '')
+  return summary + (failed ? '. Could not save some content. Share supported image files or a direct image URL; page and post links are not supported through system sharing. Paste a public page URL into Save images to choose its images. You can share again to retry.' : '')
 }
 
 export const sharedCaptureKeys = ['shared', 'saved', 'duplicates', 'failed']

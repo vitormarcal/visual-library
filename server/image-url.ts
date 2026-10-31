@@ -165,7 +165,7 @@ export const remoteImageDispatcher = new Agent({
   },
 })
 
-const readLimitedBody = async (response: Response, limit: number) => {
+export const readLimitedBody = async (response: Response, limit: number) => {
   if (!response.body) {
     throw publicUrlError(502)
   }
@@ -198,7 +198,7 @@ const readLimitedBody = async (response: Response, limit: number) => {
   return Buffer.concat(chunks, size)
 }
 
-export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBytes): Promise<SaveImageInput> => {
+export const fetchRemoteContent = async (sourceUrl: string, limit = maxImageSizeBytes, allowHtml = false): Promise<{ data: Buffer; url: string; html: boolean }> => {
   let currentUrl = parseRemoteUrl(sourceUrl)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), remoteFetchTimeoutMs)
@@ -223,30 +223,29 @@ export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBy
       }
 
       if (!response.ok) {
+        await response.body?.cancel().catch(() => {})
         throw publicUrlError(502)
       }
 
       await assertPublicRemoteTarget(currentUrl)
 
+      const html = allowHtml && /^(text\/html|application\/xhtml\+xml)(?:;|$)/i.test(response.headers.get('content-type') ?? '')
+      const bodyLimit = html ? 2 * 1024 * 1024 : limit
       const contentLength = response.headers.get('content-length')
       const declaredSize = contentLength ? Number.parseInt(contentLength, 10) : 0
 
-      if (declaredSize > limit) {
-        throw sizeError(limit)
+      if (declaredSize > bodyLimit) {
+        await response.body?.cancel().catch(() => {})
+        throw sizeError(bodyLimit)
       }
 
-      const data = await readLimitedBody(response, limit)
+      const data = await readLimitedBody(response, bodyLimit)
 
       if (!data.length) {
         throw publicUrlError()
       }
 
-      return {
-        data,
-        originalName: currentUrl.pathname.split('/').pop() || null,
-        mimeType: validateImageFormat(data).mimeType,
-        sourceUrl,
-      }
+      return { data, url: currentUrl.href, html }
     }
 
     throw publicUrlError()
@@ -260,3 +259,10 @@ export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBy
     clearTimeout(timeout)
   }
 }
+
+export const remoteContentImage = (content: { data: Buffer; url: string }, sourceUrl: string): SaveImageInput => ({
+  data: content.data, originalName: new URL(content.url).pathname.split('/').pop() || null,
+  mimeType: validateImageFormat(content.data).mimeType, sourceUrl,
+})
+export const fetchRemoteImage = async (sourceUrl: string, limit = maxImageSizeBytes): Promise<SaveImageInput> =>
+  remoteContentImage(await fetchRemoteContent(sourceUrl, limit), sourceUrl)

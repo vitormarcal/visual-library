@@ -6,7 +6,7 @@ export default defineNitroPlugin(nitro => {
   initial.unref()
   nitro.hooks.hook('afterResponse', event => {
     if (event.node.res.statusCode < 400 && ((event.method === 'POST' && (['/api/images', '/api/assets'].includes(event.path)
-      || (event.path === '/share' && event.context.sharedImagesCreated === true)))
+      || (['/share', '/api/capture-url'].includes(event.path) && event.context.sharedImagesCreated === true)))
       || (event.method === 'PATCH' && event.path.endsWith('/visibility')))) prepareSimilarity()
   })
   nitro.hooks.hook('close', () => { clearTimeout(initial); stopSimilarityPreparation() })

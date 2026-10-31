@@ -99,3 +99,12 @@ Compartilhamento pelo sistema do celular ainda requer validação física. Sem s
 ## Revisão de segurança
 
 [Achados, correções e limites](security/review-2026-10-24.md): cookie __Host em HTTPS, CSP com nonce para scripts de produção, bloqueio de iframe, HSTS e validação de DNS no socket da captura remota. O proxy precisa preservar esses cabeçalhos. Scripts de terceiros e frames não fazem parte da interface; imagens públicas continuam incorporáveis em outros sites. Capturas por URL recusam DNS misto público/privado, endereços especiais e URLs com credenciais. Isso substitui a validação DNS anterior de melhor esforço.
+
+
+## Captura de imagens de uma página (0.21.0)
+
+Na área **Save images**, colar uma URL pública de blog abre a seleção das imagens encontradas. Nenhuma começa selecionada; é possível ampliar, selecionar todas, desmarcar e salvar somente as escolhidas. A descoberta não grava imagens. O backend fornece prévias privadas e valida novamente cada imagem no salvamento, preservando tags do contexto inicial e a página de origem. Duplicatas existentes permanecem intactas.
+
+Funciona com imagens declaradas no HTML da página; não executa JavaScript nem entra em sites que exigem login. Limites: 2 MiB de HTML, 200 candidatas, cinco redirecionamentos e cinco segundos por download. Cada imagem respeita o limite de tamanho já configurado. Falhas são informadas; as recuperáveis podem ser tentadas novamente sem repetir sucessos. Fechar ou recarregar encerra a seleção pendente.
+
+Essa captura exige sessão do dono e mesma origem, inclusive para prévias; tokens de aplicação não dão acesso às novas rotas. Twitter/Reddit não têm suporte garantido. O menu Compartilhar do sistema continua aceitando arquivos e URLs diretas de imagem; para escolher imagens de um post, colar sua URL na captura da biblioteca.

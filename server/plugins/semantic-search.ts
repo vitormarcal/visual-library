@@ -5,7 +5,7 @@ export default defineNitroPlugin(nitro => {
   nitro.hooks.hook('afterResponse', event => {
     if (!semanticEnabled() || event.node.res.statusCode >= 400) return
     const path = event.path.split('?')[0]
-    if ((event.method === 'POST' && (['/api/images', '/api/assets'].includes(path!) || (path === '/share' && event.context.sharedImagesCreated === true)))
+    if ((event.method === 'POST' && (['/api/images', '/api/assets'].includes(path!) || (['/share', '/api/capture-url'].includes(path!) && event.context.sharedImagesCreated === true)))
       || (event.method === 'PATCH' && path?.endsWith('/visibility'))) void prepareSemanticSearch()
   })
   nitro.hooks.hook('close', () => { clearTimeout(initial); stopSemanticPreparation() })

@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Escolher imagens de um post antes de salvar
+
+Solicitado e implementado localmente em 2026-10-31 na versão 0.21.0 em [030](docs/specs/030-page-image-selection/spec.md): colar URL pública de página apresenta seleção visual, ampliação, selecionar todas e salvamento apenas das escolhidas. Blogs são a prioridade; URLs diretas mantêm salvamento imediato. Prévias privadas, procedência da página, tags de contexto e deduplicação existentes preservadas. O post de referência do Pulp International retorna suas 30 fotos sem logo/barra lateral. 85 testes, build e Chrome desktop/mobile emulado com salvamento de duas fotos em biblioteca temporária passaram; detalhes no [plano](docs/specs/030-page-image-selection/plan.md). Sem deploy, importação no acervo real ou promessa de suporte a Twitter/Reddit. Compartilhamento de páginas pelo sistema continua fora desta entrega.
+
 ### Revisar cópias preservando tags e URLs públicas
 
 Solicitado e avaliado em 2026-10-30 em [029](docs/specs/029-duplicate-review/spec.md): o usuário confirmou cópias nos resultados conservadores e relatou variantes de pose/expressão na faixa ampliada. Após planejar e revisar a interface contra DESIGN.md, foi implementada revisão por grupos, sugestões técnicas explicáveis, várias mantidas, destino de tags/links e confirmação inline. Encoder SigLIP2 próprio, sem dependência permanente do Immich; URLs absorvidas permanecem funcionais e o teto de quantidade de tags foi removido. Setenta e oito testes, Nuxt/Docker, navegador desktop/mobile e inferência nativa isolada passaram. Detalhes e limites no [plano](docs/specs/029-duplicate-review/plan.md) e [operação](docs/duplicate-review.md). Sem deploy ou exclusões do acervo real nesta entrega.

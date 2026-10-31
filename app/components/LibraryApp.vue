@@ -4,6 +4,7 @@ import { createRediscoveryBatches } from '../utils/rediscovery'
 import { discoveryImages } from '../utils/image-visibility'
 import { sharedCaptureKeys, sharedCaptureMessage } from '../utils/shared-capture'
 import { matchesImageSearch } from '../utils/image-search'
+import type { PageDiscovery } from '../utils/page-image-selection'
 import { saveImageBatch, type UploadResult } from '../utils/image-upload'
 import { groupImagesByTag } from '../utils/tag-exploration'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from '../utils/library-navigation'
@@ -22,6 +23,9 @@ type DuplicateSaveResponse = {
 
 type SaveImageResponse = ImageRecord | DuplicateSaveResponse
 
+const readingUrl = ref(false)
+const pageCapture = shallowRef<PageDiscovery | null>(null)
+const closePageCapture = async () => { pageCapture.value = null; await nextTick(); document.querySelector<HTMLElement>('[aria-label="Drop, paste, or upload images"]')?.focus({ preventScroll: true }) }
 const uploadLimit = Number(useRuntimeConfig().public.maxImageSizeBytes)
 const images = ref<ImageRecord[]>([])
 const librarySummary = computed(() => {
@@ -371,6 +375,7 @@ const captureTags = computed(() => screen.value === 'explore' || screen.value ==
 const batchTags = ref<string[]>([])
 
 const handleSave = async (files: File[], retry = false) => {
+  if (pageCapture.value) { showNotice('Save or close the page selection first.', 'error'); return }
   if (saving.value || !files.length) return
   if (!retry) batchTags.value = [...captureTags.value]
   const tags = [...batchTags.value]
@@ -406,21 +411,25 @@ const retryFailedImages = () => {
 }
 
 const handleSaveUrl = async (url: string) => {
+  if (pageCapture.value) { showNotice('Save or close the page selection first.', 'error'); return }
   if (saving.value) return
   const tags = [...captureTags.value]
   batchTags.value = tags
+  readingUrl.value = true
   saving.value = true
   uploadResult.value = null
   clearCaptureNotice()
   try {
-    const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: { url, tags } })
-    applySaveResponse(saved)
+    const response = await $fetch<({ kind: 'image'; result: SaveImageResponse }) | ({ kind: 'page' } & PageDiscovery)>('/api/capture-url', { method: 'POST', body: { url, tags } })
+    if (response.kind === 'page') pageCapture.value = response
+    else applySaveResponse(response.result)
     void loadTags()
   } catch (error) {
     const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     showNotice(message || 'This image URL cannot be saved.', 'error')
   } finally {
     saving.value = false
+    readingUrl.value = false
   }
 }
 
@@ -709,7 +718,9 @@ watch(visibleImages, () => {
 
     <SaveDropzone v-if="screen !== 'duplicates'"
       :notice="notice"
-      :tags="saving ? batchTags : captureTags"
+      :tags="saving || pageCapture ? batchTags : captureTags"
+      :selecting="!!pageCapture"
+      :discovering="readingUrl"
       :notice-kind="noticeKind"
       :saving="saving"
       :progress="uploadProgress"
@@ -720,6 +731,8 @@ watch(visibleImages, () => {
       @save-url="handleSaveUrl"
       @error="showNotice($event, 'error')"
     />
+
+    <PageImageSelection v-if="pageCapture" :page="pageCapture" :tags="batchTags" @close="closePageCapture" @busy="saving = $event" @saved="images = [$event, ...images]; loadTags()" />
 
     <section v-if="sharedNotice" class="destinationProblem" role="status">
       <p>{{ sharedNotice }}</p>

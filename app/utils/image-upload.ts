@@ -60,7 +60,7 @@ export const saveImageBatch = async <T extends LocalFile>(
   return result
 }
 
-export const uploadSummary = (result: UploadResult) => [
+export const uploadSummary = <T>(result: UploadResult<T>) => [
   result.saved ? `${result.saved} saved` : '',
   result.duplicates ? `${result.duplicates} already saved` : '',
   result.failures.length ? `${result.failures.length} failed` : '',

@@ -3,6 +3,8 @@ import styles from './SaveDropzone.module.css'
 import { acceptImageTypes, filesFromTransfer, isImageFile, uploadSummary, type UploadResult } from '../utils/image-upload'
 
 const props = defineProps<{
+  discovering?: boolean
+  selecting?: boolean
   tags: string[]
   notice: string
   noticeKind: 'success' | 'error'
@@ -28,14 +30,17 @@ let dragDepth = 0
 let returnFocusToPicker = false
 const hasRetryableFailures = computed(() => props.result?.failures.some((failure) => failure.retryable) ?? false)
 const statusText = computed(() => {
+  if (props.discovering) return 'Reading URL…'
+  if (props.saving && props.selecting) return 'Saving selected images…'
   if (props.saving) {
     const progress = props.progress
     const message = progress && progress.total > 1 ? `Saving ${progress.current} of ${progress.total}…` : 'Saving image…'
     return busyAttempt.value ? `${message} Please wait before adding more images.` : message
   }
+  if (props.selecting) return 'Choose images below, then save or close the selection.'
   if (props.result) return uploadSummary(props.result)
   if (props.notice) return props.notice
-  return 'Paste an image or image URL, drop files, or choose images'
+  return 'Paste an image, image URL or page URL, drop files, or choose images'
 })
 
 const captureBusy = () => {
@@ -148,7 +153,7 @@ watch(() => props.result, (result) => {
       </div>
     </div>
     <button
-      ref="pickerButton" :class="styles.uploadButton" type="button"
+      ref="pickerButton" :class="[styles.uploadButton, selecting && styles.secondary]" type="button"
       :disabled="saving" @click="fileInput?.click()"
     >Choose images</button>
     <input
