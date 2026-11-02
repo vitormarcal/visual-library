@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import transitionStyles from './ImageTransition.module.css'
 import styles from './LightboxViewer.module.css'
 import { sharedTagCaption } from '../utils/related-images'
 import type { ViewerHistoryEntry, ViewerPosition } from '../utils/viewer-history'
@@ -59,6 +60,12 @@ const emit = defineEmits<{
 }>()
 
 const viewer = ref<HTMLElement | null>(null)
+const { imageLoaded, revealImage } = useImageTransition(() => props.image.src)
+const showImage = (event: Event) => {
+  if ((event.target as HTMLImageElement).getAttribute('src') !== props.image.src) return
+  revealImage(event)
+  scheduleMasonry()
+}
 const controlsHidden = ref(false)
 const expanded = ref(false)
 const expandButton = ref<HTMLButtonElement | null>(null)
@@ -496,11 +503,13 @@ syncDraftTags()
       <div :class="styles.viewingHeader" aria-hidden="true" />
       <div :class="styles.imageStage" @click.self="$emit('close')">
         <img
-          :class="styles.image"
+          :key="image.src"
+          :class="[styles.image, transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]"
           :src="image.src"
           :alt="image.originalName || 'Saved image'"
           :width="image.width || undefined" :height="image.height || undefined"
           decoding="async"
+          @load="showImage"
         >
         <button
           ref="expandButton"
@@ -690,7 +699,7 @@ syncDraftTags()
     </div>
     <div v-if="expanded" :class="styles.expandedOverlay" role="dialog" aria-modal="true" aria-label="Enlarged image" @click.self="closeExpanded">
       <button ref="expandedClose" type="button" :class="[styles.control, styles.closeButton]" aria-label="Close enlarged image" @click="closeExpanded"><span aria-hidden="true">×</span></button>
-      <img :class="styles.expandedImage" :src="image.src" :alt="image.originalName || 'Saved image'">
+      <img :key="image.src" :class="[styles.expandedImage, transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]" @load="revealImage" :src="image.src" :alt="image.originalName || 'Saved image'">
     </div>
     <p :class="styles.screenReaderOnly" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
   </section>

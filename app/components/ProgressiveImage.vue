@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import transitionStyles from './ImageTransition.module.css'
 const props = defineProps<{
   src: string
   alt: string
@@ -10,9 +11,11 @@ const element = ref<HTMLImageElement | null>(null)
 // Shared across remounts in this tab; the browser owns the actual byte cache.
 const activated = useState<Record<string, true>>('activated-library-images', () => ({}))
 const active = computed(() => Boolean(activated.value[props.src]))
+const { imageLoaded, revealImage } = useImageTransition(() => props.src)
 const natural = ref<{ width: number; height: number } | null>(null)
 const dimensions = computed(() => props.width && props.height ? { width: props.width, height: props.height } : natural.value)
 const loaded = (event: Event) => {
+  revealImage(event)
   const image = event.target as HTMLImageElement
   if (image.naturalWidth && image.naturalHeight) natural.value = { width: image.naturalWidth, height: image.naturalHeight }
   emit('load', event)
@@ -38,6 +41,8 @@ onBeforeUnmount(() => observer?.disconnect())
 
 <template>
   <img
+    :key="src"
+    :class="[transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]"
     ref="element" :src="active ? src : undefined" :alt="alt"
     :width="width || undefined" :height="height || undefined"
     :style="{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '1 / 1' }"

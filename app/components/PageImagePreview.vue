@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import transitionStyles from './ImageTransition.module.css'
 const props = defineProps<{
   openLabel?: string; disabled?: boolean; cachedSrc?: string
   url: string; width: number | null; height: number | null
@@ -9,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{ open: [event: MouseEvent, src: string] }>()
 const api = useNuxtApp().$libraryApi
 const root = ref<HTMLElement | null>(null), src = ref(''), failed = ref(false)
+const { imageLoaded, revealImage } = useImageTransition(() => src.value)
 let observer: IntersectionObserver | undefined, controller: AbortController | undefined, mounted = true
 const release = () => {
   controller?.abort(); controller = undefined
@@ -39,10 +41,10 @@ onBeforeUnmount(() => { mounted = false; observer?.disconnect(); release() })
 <template>
   <div ref="root" class="pagePreview" :style="{ aspectRatio: width && height ? `${width}/${height}` : '3/4' }">
     <button v-if="openLabel" class="openImage" type="button" :aria-label="openLabel" :disabled="disabled" @click="emit('open', $event, src)">
-      <img v-if="src" :src="src" alt="" />
+      <img v-if="src" :key="src" :src="src" alt="" :class="[transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]" @load="revealImage" />
       <span v-else>{{ failed ? 'Preview unavailable' : 'Loading preview…' }}</span>
     </button>
-    <img v-else-if="src" :src="src" alt="" />
+    <img v-else-if="src" :key="src" :src="src" alt="" :class="[transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]" @load="revealImage" />
     <span v-else-if="!failed">Loading preview…</span>
     <button v-if="failed" class="retryPreview" type="button" @click.stop="release(); load()">Preview unavailable. Retry</button>
   </div>

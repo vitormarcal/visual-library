@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import transitionStyles from './ImageTransition.module.css'
 import viewerStyles from './LightboxViewer.module.css'
 import { interceptLibraryLink } from '../utils/library-navigation'
 import { suggestedDuplicateKeeps, duplicateSuggestionReason, type DuplicateGroup, type DuplicateReviewResponse } from '../utils/duplicate-review'
@@ -32,6 +33,7 @@ const preservedTags = computed(() => {
 const canRemove = computed(() => selected.value.length > 0 && removed.value.length > 0 && Boolean(destination.value))
 const suggestions = computed(() => current.value ? suggestedDuplicateKeeps(current.value.images, props.broad) : [])
 const zoomImage = computed(() => zoomIndex.value === null ? null : current.value?.images[zoomIndex.value] ?? null)
+const { imageLoaded: zoomImageLoaded, revealImage: revealZoomImage } = useImageTransition(() => zoomImage.value?.src)
 const draftKey = (group: DuplicateGroup) => `${props.broad}:${group.id}`
 function remember() {
   if (current.value) drafts.set(draftKey(current.value), { revision: current.value.revision, kept: [...kept.value], target: targetId.value })
@@ -231,7 +233,7 @@ const formatSize = (bytes: number) => `${new Intl.NumberFormat('en', { maximumFr
     <dialog ref="zoom" :class="[viewerStyles.expandedOverlay, 'zoomDialog']" aria-label="Compare enlarged images" @cancel.prevent="closeZoom" @close="finishZoom" @click.self="closeZoom" @keydown.esc.prevent.stop="closeZoom" @keydown.left.prevent="navigateZoom(-1)" @keydown.right.prevent="navigateZoom(1)">
       <template v-if="zoomImage">
         <button ref="zoomClose" type="button" :class="[viewerStyles.control, viewerStyles.closeButton, 'zoomControl']" aria-label="Close viewer" @click="closeZoom"><span aria-hidden="true">×</span></button>
-        <img :class="[viewerStyles.expandedImage, 'zoomImage']" :src="zoomImage.src" :alt="zoomImage.originalName || `Image ${zoomIndex! + 1} in this group`">
+        <img :key="zoomImage.src" :class="[viewerStyles.expandedImage, 'zoomImage', transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: zoomImageLoaded }]" @load="revealZoomImage" :src="zoomImage.src" :alt="zoomImage.originalName || `Image ${zoomIndex! + 1} in this group`">
         <div class="zoomNavigation" role="group" aria-label="Browse duplicate images">
           <button type="button" :class="[viewerStyles.control, viewerStyles.navButton, 'zoomControl']" aria-label="Previous image" :disabled="zoomIndex === 0" @click="navigateZoom(-1)"><span aria-hidden="true">‹</span></button>
           <span role="status" aria-live="polite">{{ zoomIndex! + 1 }} of {{ current?.images.length }}</span>

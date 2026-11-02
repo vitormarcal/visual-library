@@ -1,0 +1,10 @@
+.imageTransition {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.imageLoaded { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .imageTransition { transition: none; }
+}
