@@ -26,7 +26,7 @@ export function requirePublicLinkPublisher(event: H3Event) {
 }
 export function requireSameOrigin(event: H3Event, config: AccessConfig, share = false) {
   const origin = getRequestHeader(event, 'origin'), site = getRequestHeader(event, 'sec-fetch-site')
-  if ((site && site !== 'same-origin' && site !== 'none') || (origin !== config.origin && !(share && !origin && site === 'same-origin'))) {
+  if ((site && site !== 'same-origin' && site !== 'none') || (!(config.origins ?? [config.origin]).includes(origin ?? '') && !(share && !origin && site === 'same-origin'))) {
     throw createError({ statusCode: 403, statusMessage: 'Request origin rejected.' })
   }
   if (!share && getRequestHeader(event, 'x-library-request') !== '1') throw createError({ statusCode: 403, statusMessage: 'Request intent required.' })

@@ -9,15 +9,21 @@ export class AccessError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }
 }
-export type AccessConfig = { resetKey: string; origin: string }
+export type AccessConfig = { resetKey: string; origin: string; origins?: string[] }
 export function validateAccessConfig(input: AccessConfig): AccessConfig {
   if (input.resetKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.resetKey)) throw new Error('OWNER_RESET_KEY must be a UUID')
-  let url: URL
-  try { url = new URL(input.origin) } catch { throw new Error('Set NUXT_LIBRARY_ORIGIN to the canonical HTTPS origin') }
-  if (url.origin !== input.origin || url.username || url.password || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
-    throw new Error('NUXT_LIBRARY_ORIGIN must be an HTTPS origin (HTTP allowed only on localhost)')
+  const origins = input.origin.split(',').map(origin => origin.trim())
+  for (const origin of origins) {
+    let url: URL
+    try { url = new URL(origin) } catch { throw new Error('Set NUXT_LIBRARY_ORIGIN to comma-separated canonical origins') }
+    if (url.origin !== origin || url.username || url.password || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
+      throw new Error('NUXT_LIBRARY_ORIGIN must contain HTTPS origins (HTTP allowed only on localhost)')
+    }
   }
-  return input
+  if (new Set(origins.map(origin => new URL(origin).protocol)).size !== 1) {
+    throw new Error('NUXT_LIBRARY_ORIGIN origins must use the same protocol')
+  }
+  return { ...input, origin: origins[0]!, origins: [...new Set(origins)] }
 }
 
 type OwnerRow = { password_hash: string | null; setup_generation: string | null }

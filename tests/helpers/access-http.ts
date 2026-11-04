@@ -11,6 +11,10 @@ const store = await import('../../server/access-store.ts')
 assert.throws(() => store.validateAccessConfig({ resetKey: 'invalid', origin }))
 assert.throws(() => store.validateAccessConfig({ resetKey: '', origin: 'http://remote.example' }))
 assert.throws(() => store.validateAccessConfig({ resetKey: '', origin: 'https://example.com/path' }))
+assert.deepEqual(store.validateAccessConfig({ resetKey: '', origin: 'https://library.example, https://visu.mordor.lan' }).origins, ['https://library.example', 'https://visu.mordor.lan'])
+for (const invalid of ['https://library.example,', 'https://library.example,https://bad.example/', 'https://library.example,http://localhost']) {
+  assert.throws(() => store.validateAccessConfig({ resetKey: '', origin: invalid }))
+}
 const accessPlugin = (await import('../../server/plugins/access.ts')).default
 const configuredOrigin = origin
 origin = ''
@@ -277,6 +281,18 @@ try {
   const secureCookie = secureLogin.headers.get('set-cookie')!.split(';')[0]!
   assert.equal((await call('/api/images', { headers: { cookie: secureCookie } })).status, 200)
   assert.equal((await call('/api/images', { headers: { cookie: '__Host-vl_owner_session=' + 'x'.repeat(43) } })).status, 401)
+
+  origin = 'https://library.example, https://visu.mordor.lan'
+  const secondaryLogin = await call('/api/auth/login', { method: 'POST', headers: { origin: 'https://visu.mordor.lan', 'x-library-request': '1', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }, body: JSON.stringify({ password }) })
+  assert.equal(secondaryLogin.status, 200)
+  assert.match(secondaryLogin.headers.get('set-cookie')!, /^__Host-vl_owner_session=/)
+  const secondaryCookie = secondaryLogin.headers.get('set-cookie')!.split(';')[0]!
+  const secondaryLink = await call('/api/images/' + String(other.id) + '/public-link', { headers: { cookie: secondaryCookie } })
+  assert.equal(secondaryLink.status, 200)
+  assert.ok((await secondaryLink.json()).url.startsWith('https://library.example/'))
+  assert.equal((await call('/api/auth/logout', { method: 'POST', headers: { cookie: secondaryCookie, origin: 'https://evil.test', 'x-library-request': '1' } })).status, 403)
+  assert.equal((await call('/api/auth/logout', { method: 'POST', headers: { cookie: secondaryCookie, origin: 'https://visu.mordor.lan', 'x-library-request': '1', 'sec-fetch-site': 'cross-site' } })).status, 403)
+  assert.equal((await call('/api/auth/logout', { method: 'POST', headers: { cookie: secondaryCookie, origin: 'https://visu.mordor.lan', 'x-library-request': '1', 'sec-fetch-site': 'same-origin' } })).status, 200)
 
   origin = savedOrigin
   // Throttle before expensive password derivation.

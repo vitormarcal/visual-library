@@ -11,7 +11,7 @@ NUXT_LIBRARY_ORIGIN=https://biblioteca.exemplo.com
 OWNER_RESET_KEY=11111111-1111-4111-8111-111111111111
 ```
 
-O UUID acima é ilustrativo: gerar um novo, por exemplo com `node -e 'console.log(crypto.randomUUID())'`. `OWNER_RESET_KEY` é um comando de redefinição, não uma senha ou chave solicitada no navegador. A origem deve ser canônica, sem barra final/caminho/query; HTTPS é obrigatório, exceto HTTP em localhost/127.0.0.1/::1 durante desenvolvimento.
+O UUID acima é ilustrativo: gerar um novo, por exemplo com `node -e 'console.log(crypto.randomUUID())'`. `OWNER_RESET_KEY` é um comando de redefinição, não uma senha ou chave solicitada no navegador. É possível informar várias origens separadas por vírgula, por exemplo `NUXT_LIBRARY_ORIGIN=https://visu.marcal.dev,https://visu.mordor.lan`. A primeira é usada nos links públicos. Cada domínio tem sua própria sessão e exige login. Todas as origens devem usar o mesmo protocolo. Cada origem deve ser canônica, sem barra final/caminho/query; HTTPS é obrigatório, exceto HTTP em localhost/127.0.0.1/::1 durante desenvolvimento.
 
 1. Ao iniciar com um UUID ainda não utilizado, o backend apaga o hash da senha do owner e revoga todas as suas sessões. Armazena somente o hash do UUID aplicado e abre uma geração de configuração.
 2. Abrir a biblioteca apresenta **Set your owner password**, sem imagens ou outros dados privados. Não pede o UUID. Informar senha e confirmação, de 12 a 1024 caracteres.
@@ -38,7 +38,7 @@ Em HTTPS, cookie `__Host-vl_owner_session`; em HTTP local de desenvolvimento, `v
 | `POST /api/auth/login` | JSON `{ password }`; emite cookie e retorna `{ authenticated: true }`. |
 | `POST /api/auth/logout` | Invalida sessão e expira cookie; retorna `{ authenticated: false }`. |
 
-Setup/login e alterações com sessão exigem Origin igual à configuração e `X-Library-Request: 1`; Fetch Metadata incompatível é recusado. A interface acrescenta o cabeçalho. Setup não exige cookie ou UUID secreto, por decisão de produto. Tela antiga de setup recebe 409 se outro ciclo começou ou alguém já definiu a senha. Senhas inválidas/confirmações diferentes retornam 400; senha incorreta 401, origem inválida 403, excesso de corpo 413, limite de tentativas 429/Retry-After.
+Setup/login e alterações com sessão exigem Origin presente na configuração e `X-Library-Request: 1`; Fetch Metadata incompatível é recusado. A interface acrescenta o cabeçalho. Setup não exige cookie ou UUID secreto, por decisão de produto. Tela antiga de setup recebe 409 se outro ciclo começou ou alguém já definiu a senha. Senhas inválidas/confirmações diferentes retornam 400; senha incorreta 401, origem inválida 403, excesso de corpo 413, limite de tentativas 429/Retry-After.
 
 Setup e login compartilham limite de dez tentativas por IP da conexão e sessenta globais por minuto, no máximo duas derivações concorrentes. Não confia em cabeçalhos arbitrários de proxy; atrás de proxy o limite por IP pode ser compartilhado. Limites são locais ao processo. Vagas de derivação só são reservadas após ler o JSON; a leitura do corpo de login/setup tem prazo de dez segundos (408 ao exceder). Corpo de login até 4 KiB e setup até 16 KiB, com senha até 1024 caracteres.
 
