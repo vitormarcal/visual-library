@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Abrir o acervo e navegar com menos controles antes das imagens
+
+Solicitado, analisado diretamente no Pinterest autenticado e implementado localmente em 06/11/2026 em [031](docs/specs/031-library-first-navigation/spec.md): Library vira a entrada padrão; busca no topo, barra lateral desktop, navegação inferior móvel e captura sob demanda liberam espaço para imagens. Duas colunas em 390 px, manutenção em menus e filtros/seleção preservados. Detalhe mantém imagens relacionadas ao redor e botão separado de ampliação. Captura e seleção de páginas sobrevivem à navegação; paste em campos continua edição normal. Corrigida disputa entre popstate e URL de saída do Nuxt observada ao recarregar/fechar o viewer. Testes, build e smokes isolados registrados no [plano](docs/specs/031-library-first-navigation/plan.md), com limites de typecheck e de streams em Node 26 explicitados. Sem deploy, mudança de versão, coleções ou alterações no acervo real.
+
 ### Escolher imagens de um post antes de salvar
 
 Solicitado e implementado localmente em 2026-10-31 na versão 0.21.0 em [030](docs/specs/030-page-image-selection/spec.md): colar URL pública de página apresenta seleção visual, ampliação, selecionar todas e salvamento apenas das escolhidas. Blogs são a prioridade; URLs diretas mantêm salvamento imediato. Prévias privadas, procedência da página, tags de contexto e deduplicação existentes preservadas. O post de referência do Pulp International retorna suas 30 fotos sem logo/barra lateral. 85 testes, build e Chrome desktop/mobile emulado com salvamento de duas fotos em biblioteca temporária passaram; detalhes no [plano](docs/specs/030-page-image-selection/plan.md). Sem deploy, importação no acervo real ou promessa de suporte a Twitter/Reddit. Compartilhamento de páginas pelo sistema continua fora desta entrega.

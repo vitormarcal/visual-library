@@ -68,15 +68,11 @@ const open = (event: MouseEvent, id: string) => {
           />
         </component>
         <span v-if="selecting" :class="styles.selectionMark" aria-hidden="true">{{ selectedIds?.includes(image.id) ? '✓' : '○' }}</span>
-        <button
-          v-if="!selecting"
-          :class="styles.deleteButton"
-          type="button"
-          aria-label="Remove image"
-          @click="$emit('delete', image.id)"
-        >
-          Remove
-        </button>
+        <div v-if="!selecting" :class="styles.cardActions">
+          <LibraryMenu :label="`More actions for ${image.originalName || 'saved image'}`">
+            <button type="button" :disabled="busy" @click="$emit('delete', image.id)">Remove image</button>
+          </LibraryMenu>
+        </div>
       </figure>
     </div>
   </section>

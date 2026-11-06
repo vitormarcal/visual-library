@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import styles from './GalleryBulkTags.module.css'
 const props = defineProps<{
+  hideEntry?: boolean
   selecting: boolean
   count: number
   busy: boolean
@@ -44,7 +45,7 @@ watch(() => props.busy, (busy, previous) => {
 </script>
 
 <template>
-  <section :class="styles.wrap" aria-label="Tag selected images" @keydown.esc.prevent.stop="escape">
+  <section v-if="selecting || !hideEntry" :class="styles.wrap" aria-label="Tag selected images" @keydown.esc.prevent.stop="escape">
     <button v-if="!selecting" type="button" :class="styles.button" @click="emit('enter')">Select</button>
     <template v-else>
       <div :class="styles.row">

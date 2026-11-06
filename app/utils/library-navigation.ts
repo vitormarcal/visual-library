@@ -18,9 +18,8 @@ export const libraryDestination = (screen: LibraryDestination['screen'] = 'libra
 
 export const parseLibraryDestination = (url: URL): LibraryDestination => {
   const params = url.searchParams
-  // Preserve older Library links that carried criteria without an explicit view.
-  const legacyLibrary = ['q', 'tag', 'image'].some((key) => params.has(key))
-  const view = params.get('view') ?? (legacyLibrary ? 'library' : 'explore')
+  // The personal library is the default, including older links with criteria.
+  const view = params.get('view') ?? 'library'
   const destination = libraryDestination(view === 'explore' || view === 'subject' || view === 'similar' || view === 'duplicates' ? view : 'library')
   destination.reviewMode = params.get('review') === 'broad' ? 'broad' : 'likely'
   destination.subjectId = params.get('subject')
@@ -53,8 +52,9 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
 export const libraryDestinationUrl = (destination: LibraryDestination, source = '/'): string => {
   const url = new URL(source, 'http://library.local')
   for (const key of ['view', 'subject', 'reference', 'selection', 'mode', 'q', 'tag', 'image', 'visibility', 'review']) url.searchParams.delete(key)
-  // Explore searches need an explicit view to distinguish older Library links.
-  if (destination.screen !== 'explore' || destination.query || destination.selectionId) url.searchParams.set('view', destination.screen)
+  // Explore must be explicit now that the root opens Library. Keep refined
+  // Library URLs explicit too, preserving existing shared-link contracts.
+  if (destination.screen !== 'library' || destination.query || destination.tagIds.length || destination.imageId || destination.hidden || destination.searchMode !== 'text') url.searchParams.set('view', destination.screen)
   if (destination.screen === 'subject' && destination.subjectId) url.searchParams.set('subject', destination.subjectId)
   if ((destination.screen === 'similar' || destination.screen === 'duplicates') && destination.referenceId) url.searchParams.set('reference', destination.referenceId)
   if (destination.screen === 'duplicates' && destination.reviewMode === 'broad') url.searchParams.set('review', 'broad')

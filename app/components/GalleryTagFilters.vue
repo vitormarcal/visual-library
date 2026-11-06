@@ -12,6 +12,7 @@ const props = defineProps<{
   notice: string
   baseTag?: ImageTag | null
   contentSearch?: boolean
+  hideSearch?: boolean
   mode?: 'text' | 'content'
 }>()
 const query = defineModel<string>('query', { default: '' })
@@ -47,7 +48,7 @@ const selectTag = (tag: ImageTag) => {
       <button type="button" :class="[styles.chip, { [styles.activeChip]: mode !== 'content' }]" :aria-pressed="mode !== 'content'" @click="$emit('mode', 'text')">Tags and filename</button>
       <button type="button" :class="[styles.chip, { [styles.activeChip]: mode === 'content' }]" :aria-pressed="mode === 'content'" @click="$emit('mode', 'content')">Content · experimental</button>
     </div>
-    <form :class="styles.searchForm" @submit.prevent="$emit('submit')">
+    <form v-if="!hideSearch" :class="styles.searchForm" @submit.prevent="$emit('submit')">
     <div :class="styles.searchBar">
       <svg :class="styles.searchIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
         <circle cx="10.5" cy="10.5" r="6.5" />

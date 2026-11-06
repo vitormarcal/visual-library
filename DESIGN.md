@@ -596,3 +596,39 @@ All interactive elements meet WCAG AA (≥ 44×44px). `{component.button-primary
 - **Pinterest mobile app screens** not in the system documented here — this is the web-only chrome.
 - **Form validation states** (success / error inline messages) not documented; only the focused-state field is captured.
 
+## Authenticated personal library — 2026-11-06
+
+This addendum defines the target design contract for the personal library. It takes precedence over the marketing navigation, display headings, mobile single-column rule, prohibition on below-image metadata, and omission of hover states above. It does not change the application by itself. Supporting evidence and limits: [Pinterest review](docs/pinterest-ux-review-2026-11-06.md). Scope: [031 spec](docs/specs/031-library-first-navigation/spec.md).
+
+### Hierarchy and navigation
+
+- The default destination is Library, showing saved images. Explore is secondary and retains discovery within the personal collection.
+- Desktop uses a compact navigation rail and a stable top search field. Search is 48px high; the header is approximately 64–72px. Account and maintenance actions belong in secondary menus.
+- Mobile uses visible search and a compact bottom navigation with text labels for Library, Explore and Add. This is a project adaptation, not an assertion about the Pinterest mobile app.
+- Library titles use heading-lg or heading-xl (22–28px). Display sizes of 44–70px belong to marketing, not routine browsing. Storage statistics must not displace images from the first viewport.
+- Add expands capture on demand. Preserve global drop/paste entry points, context tags, page selection and progress. Large capture selections remain in document flow, outside sticky chrome.
+- Use one primary red action per active context. While saving selected page images, that action is Save selected; the general Add action becomes secondary.
+
+### Search, cards and responsive composition
+
+- One primary search field per destination, with explicit scope and an explicit way to broaden from a subject to the whole library. Active filters remain visible and removable; suggestions are contextual.
+- Keep existing canvas, neutral surfaces, red accent, 16px cards, 32px large surfaces and 8px image gutters. Respect the existing approximately 1280px content width while accounting for the rail.
+- Preserve natural image ratios, including landscape. Optional compact metadata or a menu may sit below an image when useful; do not add captions merely to imitate another product.
+- At a 390px viewport, use two masonry columns. Allow one when usable width or zoom requires it. Reserve space and safe areas for bottom navigation so content is not covered.
+- With capture collapsed and no refinements, target the first image row within approximately 180px from the viewport top on a 1440 × 1000 desktop and 220px on a 390 × 844 mobile viewport. These are implementation review targets, not measured Pinterest dimensions.
+
+### Interaction states and accessibility
+
+- Document default, hover, focus-visible, pressed, selected, disabled, loading and error states for changed controls. The earlier exclusion of hover documentation does not apply to the library.
+- Hover may reveal supporting actions, but keyboard focus and touch must offer the same functionality. Destructive actions belong in More actions rather than dominating a browsing card.
+- Every interactive target has a real minimum hit area of 44 × 44px. A smaller visual icon may sit inside that area. Names, labels and active indicators must work without reliance on color alone.
+- Menus close with Escape and restore trigger focus; modal surfaces contain focus and return it on close. Keep document focus visible under fixed chrome and preserve scroll/focus when returning from image detail.
+- Loading reserves image space using known dimensions or stable placeholders. Errors stay near their action and remain reachable when capture is collapsed. Reduced-motion preferences suppress decorative transitions.
+- Image navigation has two distinct stages. A gallery card opens contextual detail with the selected image and related imagery visible beside and below it on desktop, while retaining application navigation and search. On mobile, related imagery follows below. A dedicated button over the selected image opens focused expansion, fitting the image to the viewport without related imagery. Closing expansion restores the same detail, scroll and expand-button focus; leaving detail restores its previous browsing context. Never collapse these stages into a single isolated modal on gallery click.
+
+### Boundaries
+
+The authenticated desktop feed, saved pins, populated board, board search, organize mode and pin detail were directly inspected on 2026-11-06. Narrow desktop viewport inspection is not mobile-app evidence. The previous Known Gaps section describes the original marketing capture, not the expanded evidence of this review.
+
+Collections remain distinct from tags. No collections, social actions, recommendations from outside the library or new data model are introduced by this visual contract.
+

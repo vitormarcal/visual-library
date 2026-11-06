@@ -127,11 +127,13 @@ export const useLibraryNavigation = () => {
   }
   const onPop = (event: PopStateEvent) => {
     closing = false
-    // location already belongs to the destination. Do not replace it with outgoing data.
+    // Our captured entry owns its URL. Nuxt's popstate listener/afterEach may
+    // briefly replace location with the outgoing URL before this listener runs.
+    // Reading that location back would reopen the image we are trying to close.
     if (entry.value) snapshots.set(entry.value.key, { ...entry.value, ...position() })
     const stored = readEntry(event.state)
     let value = stored ? snapshots.get(stored.key) ?? stored : makeEntry(locationUrl())
-    value = { ...value, url: locationUrl() }
+    value = { ...value, url: stored?.url ?? locationUrl() }
     let next = parseLibraryDestination(new URL(value.url, initialUrl))
     if (pendingRefinement?.key === value.key) {
       next = pendingRefinement.destination

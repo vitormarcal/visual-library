@@ -3,6 +3,7 @@ import styles from './SaveDropzone.module.css'
 import { acceptImageTypes, filesFromTransfer, isImageFile, uploadSummary, type UploadResult } from '../utils/image-upload'
 
 const props = defineProps<{
+  expanded?: boolean
   discovering?: boolean
   selecting?: boolean
   tags: string[]
@@ -14,6 +15,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  open: []
+  close: []
   save: [files: File[]]
   saveUrl: [url: string]
   error: [message: string]
@@ -24,6 +27,8 @@ const emit = defineEmits<{
 const fileInput = ref<HTMLInputElement | null>(null)
 const pickerButton = ref<HTMLButtonElement | null>(null)
 const failureDetails = ref<HTMLDetailsElement | null>(null)
+const urlDraft = ref('')
+const submitUrl = () => { if (!captureBusy() && urlDraft.value.trim()) { emit('saveUrl', urlDraft.value.trim()); urlDraft.value = '' } }
 const dragging = ref(false)
 const busyAttempt = ref(false)
 let dragDepth = 0
@@ -84,6 +89,7 @@ const looksLikeUrl = (value: string) => {
   catch { return false }
 }
 const handlePaste = (event: ClipboardEvent) => {
+  if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'))) return
   const file = Array.from(event.clipboardData?.files ?? []).find(isImageFile)
   const text = event.clipboardData?.getData('text/plain')?.trim() ?? ''
   if (!file && !looksLikeUrl(text)) return
@@ -100,14 +106,17 @@ const handleInput = (event: Event) => {
 }
 const dismiss = () => {
   emit('dismiss')
-  pickerButton.value?.focus({ preventScroll: true })
+  if (props.expanded) pickerButton.value?.focus({ preventScroll: true })
+  else emit('close')
 }
 const retry = async () => {
   if (props.saving) return
   returnFocusToPicker = true
+  emit('open')
   emit('retry')
   await nextTick()
   // The retry control disappears during saving; the focusable capture surface remains.
+  captureSurface.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
   captureSurface.value?.focus({ preventScroll: true })
 }
 const captureSurface = ref<HTMLElement | null>(null)
@@ -127,10 +136,17 @@ watch(() => props.saving, async (saving) => {
 watch(() => props.result, (result) => {
   if (failureDetails.value && result) failureDetails.value.open = false
 })
+const viewSelection = () => document.querySelector('[data-page-selection]')?.scrollIntoView({ block: 'start' })
+defineExpose({ handlePaste, handleDrop, focus: () => {
+  captureSurface.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  captureSurface.value?.focus({ preventScroll: true })
+} })
 </script>
 
 <template>
   <section
+    v-show="expanded || saving || discovering"
+    id="library-capture"
     ref="captureSurface"
     :class="[styles.dropzone, dragging && styles.dragging]"
     tabindex="0"
@@ -141,6 +157,7 @@ watch(() => props.result, (result) => {
     @dragleave.capture="handleDragLeave"
     @drop.capture="handleDrop"
   >
+    <button type="button" :class="styles.collapse" aria-label="Collapse capture" :disabled="saving || discovering" @click="emit('close')">×</button>
     <div :class="styles.copy">
       <strong>Save images</strong>
       <span
@@ -152,6 +169,7 @@ watch(() => props.result, (result) => {
         <span v-for="tag in tags" :key="tag" :class="styles.tag">{{ tag }}</span>
       </div>
     </div>
+
     <button
       ref="pickerButton" :class="[styles.uploadButton, selecting && styles.secondary]" type="button"
       :disabled="saving" @click="fileInput?.click()"
@@ -161,8 +179,16 @@ watch(() => props.result, (result) => {
       :accept="acceptImageTypes" :disabled="saving" tabindex="-1" aria-hidden="true"
       @change="handleInput"
     >
+    <form :class="styles.urlForm" @submit.prevent="submitUrl">
+      <label for="capture-url">Image or page URL</label>
+      <input id="capture-url" v-model="urlDraft" type="url" placeholder="https://" :disabled="saving || discovering || selecting" required>
+      <button type="submit" :class="[styles.secondary]" :disabled="saving || discovering || selecting">Continue</button>
+    </form>
   </section>
 
+  <p v-if="!expanded && !saving && !discovering && (notice || result || selecting)" :class="[styles.compactStatus, notice && !result && noticeKind === 'error' && styles.error]" role="status" aria-live="polite">
+    {{ statusText }} <button v-if="selecting" type="button" :class="styles.tertiary" @click="viewSelection()">View selection</button>
+  </p>
   <section v-if="result?.failures.length && !saving" :class="styles.feedback" aria-label="Save failures">
     <div :class="styles.actions">
       <button v-if="hasRetryableFailures" :class="styles.secondary" type="button" @click="retry">Retry failed</button>

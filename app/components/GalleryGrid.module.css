@@ -36,33 +36,9 @@
 
 .openButton:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: -2px; }
 
-.deleteButton {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  min-height: 32px;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--color-ink);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.card:hover .deleteButton,
-.deleteButton:focus-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.deleteButton:active {
-  background: var(--color-secondary-pressed);
-}
+.cardActions { position: absolute; right: 8px; bottom: 8px; opacity: 0; }
+.card:hover .cardActions, .card:focus-within .cardActions { opacity: 1; }
+@media (hover: none) { .cardActions { opacity: 1; } }
 
 .empty {
   margin: 64px 0 0;
@@ -89,7 +65,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 350px) {
   .grid {
     column-count: 1;
   }
@@ -103,3 +79,5 @@
 /* Finite Rediscover block keeps two columns on narrow screens. */
 .compact { column-count: 4; }
 @media (max-width: 640px) { .compact { column-count: 2; } }
+
+.card { margin-left: 0; margin-right: 0; }

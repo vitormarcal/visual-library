@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const $fetch = useNuxtApp().$libraryApi
+import SaveDropzone from './SaveDropzone.vue'
 import { createRediscoveryBatches } from '../utils/rediscovery'
 import { discoveryImages } from '../utils/image-visibility'
 import { sharedCaptureKeys, sharedCaptureMessage } from '../utils/shared-capture'
@@ -10,6 +10,7 @@ import { groupImagesByTag } from '../utils/tag-exploration'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from '../utils/library-navigation'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from '../utils/viewer-history'
 import type { ImageRecord, ImageTag } from '../types/image'
+const $fetch = useNuxtApp().$libraryApi
 type TagSummary = ImageTag & {
   imageCount: number
   lastUsedAt: string
@@ -25,7 +26,13 @@ type SaveImageResponse = ImageRecord | DuplicateSaveResponse
 
 const readingUrl = ref(false)
 const pageCapture = shallowRef<PageDiscovery | null>(null)
-const closePageCapture = async () => { pageCapture.value = null; await nextTick(); document.querySelector<HTMLElement>('[aria-label="Drop, paste, or upload images"]')?.focus({ preventScroll: true }) }
+const focusAddImages = () => Array.from(document.querySelectorAll<HTMLElement>('[data-add-images]')).find(element => element.getClientRects().length)?.focus({ preventScroll: true })
+const closePageCapture = async () => {
+  pageCapture.value = null
+  await nextTick()
+  if (captureOpen.value) captureSurface.value?.focus()
+  else focusAddImages()
+}
 const uploadLimit = Number(useRuntimeConfig().public.maxImageSizeBytes)
 const images = ref<ImageRecord[]>([])
 const librarySummary = computed(() => {
@@ -119,7 +126,7 @@ const resolvingDestination = computed(() => !loading.value && !libraryError.valu
 const destinationError = computed(() => requiredTagIds.value.some((id) => !tagMetadata.value[id] && tagLookups.value[id] === 'error'))
 const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This subject is no longer available.' : null))
 const destinationBlocked = computed(() => Boolean(destinationUnavailable.value || missingFilters.value.length || destinationError.value || resolvingDestination.value))
-const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Saved visuals')
+const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Library')
 useHead(() => ({ title: `${title.value} · Visual Library` }))
 const navigationHref = (target: 'library' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
@@ -665,6 +672,91 @@ const goBackInViewer = () => {
   return true
 }
 
+const captureActionLabel = computed(() => readingUrl.value ? 'Reading URL…' : saving.value ? uploadProgress.value ? `Saving ${uploadProgress.value.current} of ${uploadProgress.value.total}…` : 'Saving…' : 'Add images')
+const captureOpen = ref(false)
+const captureSurface = ref<InstanceType<typeof SaveDropzone> | null>(null)
+const filtersDialog = ref<HTMLDialogElement | null>(null)
+const settingsDialog = ref<HTMLDialogElement | null>(null)
+const infoDialog = ref<HTMLDialogElement | null>(null)
+const dropActive = ref(false)
+let dragDepth = 0
+let captureTrigger: HTMLElement | null = null
+const headerDraft = ref('')
+const viewerSearchDraft = ref<string | null>(null)
+const headerQuery = computed({
+  get: () => screen.value === 'similar' || screen.value === 'duplicates' ? headerDraft.value : viewerSearchDraft.value ?? galleryQuery.value,
+  set: (value: string) => {
+    if (screen.value === 'similar' || screen.value === 'duplicates') { headerDraft.value = value; return }
+    if (destination.value.imageId) {
+      viewerSearchDraft.value = value
+      navigation.closeViewer({ ...destination.value, imageId: null, query: value })
+      return
+    }
+    galleryQuery.value = value
+  },
+})
+const searchScope = computed(() => contentMode.value ? 'Describe an image · content search' : screen.value === 'explore' ? 'Search subjects' : screen.value === 'subject' ? `Search in ${subjectTag.value?.name ?? 'this subject'}` : screen.value === 'similar' || screen.value === 'duplicates' ? 'Search library · press Enter' : destination.value.hidden ? 'Search hidden images' : 'Search your library')
+const searchTags = computed(() => screen.value === 'similar' || screen.value === 'duplicates' ? [] : screen.value === 'explore' ? tagSummaries.value : galleryTagSummaries.value.filter(tag => !effectiveFilters.value.some(active => active.id === tag.id)))
+const submitHeaderSearch = () => {
+  if (screen.value === 'similar' || screen.value === 'duplicates') {
+    navigation.push({ ...libraryDestination(), query: headerDraft.value }); headerDraft.value = ''
+  } else if (contentMode.value) submitContentSearch()
+}
+const selectSearchTag = (tag: ImageTag) => {
+  if (screen.value === 'explore') openSubject(tag)
+  else if (selectedImage.value) handleViewerTagFilter(tag)
+  else if (addTagFilter(tag) && !contentMode.value) galleryQuery.value = ''
+}
+const searchEntireLibrary = () => navigation.push({ ...libraryDestination(), query: galleryQuery.value, tagIds: [...destination.value.tagIds] })
+const revealCapture = async () => {
+  await nextTick()
+  cancelPageRestoration()
+  pageTransition += 1
+  captureSurface.value?.focus()
+}
+const openCapture = async (event?: Event) => {
+  captureTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  captureOpen.value = true
+  if (destination.value.imageId) { navigation.closeViewer(); return }
+  await revealCapture()
+}
+watch(() => destination.value.imageId, async id => {
+  if (id) return
+  if (viewerSearchDraft.value !== null) {
+    galleryQuery.value = viewerSearchDraft.value
+    viewerSearchDraft.value = null
+    await nextTick()
+    document.querySelector<HTMLInputElement>('.libraryHeader input')?.focus({ preventScroll: true })
+  } else if (captureOpen.value) await revealCapture()
+})
+const collapseCapture = () => {
+  if (saving.value || readingUrl.value) return
+  captureOpen.value = false
+  if (captureTrigger?.isConnected && captureTrigger.getClientRects().length) captureTrigger.focus({ preventScroll: true })
+  else focusAddImages()
+}
+const captureTargetBlocked = (event: Event) => event.defaultPrevented || Boolean(document.querySelector('dialog[open], [aria-modal="true"]')) || (event.target instanceof Element && Boolean(event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')))
+const globalPaste = (event: ClipboardEvent) => {
+  if (captureTargetBlocked(event)) return
+  captureSurface.value?.handlePaste(event)
+  if (event.defaultPrevented) { captureOpen.value = true; if (destination.value.imageId) navigation.closeViewer() }
+}
+const globalDrag = (event: DragEvent) => {
+  if (!event.dataTransfer?.types.includes('Files') || captureTargetBlocked(event)) return
+  event.preventDefault()
+  if (event.type === 'dragenter') dragDepth++
+  dropActive.value = true
+}
+const globalDragLeave = () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) dropActive.value = false }
+const globalDrop = (event: DragEvent) => {
+  dragDepth = 0; dropActive.value = false
+  if (!event.dataTransfer?.types.includes('Files') || captureTargetBlocked(event)) return
+  captureOpen.value = true
+  captureSurface.value?.handleDrop(event)
+  if (destination.value.imageId) navigation.closeViewer()
+}
+const resetDrop = () => { dragDepth = 0; dropActive.value = false }
+
 onMounted(() => {
   const url = new URL(location.href)
   if (url.searchParams.has('shared')) {
@@ -672,11 +764,23 @@ onMounted(() => {
     history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }
   navigation.start()
+  document.addEventListener('paste', globalPaste)
+  document.addEventListener('dragenter', globalDrag)
+  document.addEventListener('dragover', globalDrag)
+  document.addEventListener('dragleave', globalDragLeave)
+  document.addEventListener('drop', globalDrop)
+  window.addEventListener('blur', resetDrop)
   void loadImages()
 })
 
 onBeforeUnmount(() => {
   navigation.stop()
+  document.removeEventListener('paste', globalPaste)
+  document.removeEventListener('dragenter', globalDrag)
+  document.removeEventListener('dragover', globalDrag)
+  document.removeEventListener('dragleave', globalDragLeave)
+  document.removeEventListener('drop', globalDrop)
+  window.removeEventListener('blur', resetDrop)
   cancelPageRestoration()
   pageTransition += 1
   tagsRequest += 1
@@ -694,29 +798,47 @@ watch(visibleImages, () => {
 </script>
 
 <template>
-  <main class="page" @keydown.esc="selecting && exitSelection()">
+  <div class="libraryApp" @keydown.esc="selecting && exitSelection()">
+    <a class="librarySkip" href="#library-content">Skip to images</a>
+    <nav class="libraryRail" aria-label="Library navigation">
+      <a class="libraryBrand" :href="libraryDestinationUrl(libraryDestination())" aria-label="Visual Library" @click="linkAction($event, showLibrary)">V</a>
+      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Library" title="Library" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /></a>
+      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Explore" title="Explore" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /></a>
+      <button type="button" aria-label="Add images" title="Add images" @click="openCapture"><LibraryIcon name="add" /></button>
+      <button type="button" class="railSettings" aria-label="Settings" title="Settings" @click="settingsDialog?.showModal()"><LibraryIcon name="settings" /></button>
+    </nav>
+    <header class="libraryHeader">
+      <LibrarySearch v-model="headerQuery" :scope="searchScope" :explore="screen === 'explore'" :content="contentMode" :disabled="applyingTags" :tags="searchTags" @submit="submitHeaderSearch" @select="selectSearchTag" />
+      <button type="button" data-add-images class="shellPrimary headerAdd" :class="{ captureSecondary: pageCapture || captureOpen || saving || readingUrl }" :aria-expanded="captureOpen" aria-controls="library-capture" @click="openCapture"><LibraryIcon name="add" /><span aria-live="polite">{{ captureActionLabel }}</span></button>
+      <button type="button" class="shellIcon headerSettings" aria-label="Settings" @click="settingsDialog?.showModal()"><LibraryIcon name="settings" /></button>
+    </header>
+    <main id="library-content" class="page" tabindex="-1">
+    <div :inert="selectedImage ? true : undefined">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Visual Library</p>
         <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ title }}</h1>
         <h1 v-else-if="screen === 'similar'" data-similar-heading tabindex="-1">Similar images</h1>
-        <h1 v-else :data-duplicate-page-heading="screen === 'duplicates' ? '' : undefined" :tabindex="screen === 'duplicates' ? -1 : undefined" :class="{ duplicateTitle: screen === 'duplicates' }">{{ screen === 'duplicates' ? 'Review duplicates' : screen === 'explore' ? 'Explore' : 'Saved visuals' }}</h1>
-        <p v-if="screen === 'library' && !loading && !libraryError" class="librarySummary" title="Entire library, including hidden images. Size of original image files.">
-          <span>{{ librarySummary.images }}</span><span aria-hidden="true">·</span>
-          <span>{{ librarySummary.tags }}</span><span aria-hidden="true">·</span>
-          <span>{{ librarySummary.size }}</span>
-        </p>
+        <h1 v-else :data-duplicate-page-heading="screen === 'duplicates' ? '' : undefined" :tabindex="screen === 'duplicates' ? -1 : undefined">{{ title }}</h1>
+        <p v-if="screen === 'library' && !loading && !libraryError" class="librarySummary">{{ destination.hidden ? 'Hidden images' : librarySummary.images }}</p>
+      </div>
+      <div class="libraryTools">
+        <button v-if="screen === 'library' || screen === 'subject'" type="button" class="shellSecondary" :disabled="applyingTags" aria-label="Filters and search options" @click="filtersDialog?.showModal()"><LibraryIcon name="filter" /><span class="toolLabel">Filters</span></button>
+        <button v-if="(screen === 'library' || screen === 'subject') && !selecting" type="button" class="shellPlain selectEntry" @click="selecting = true; bulkNotice = ''">Select</button>
+        <LibraryMenu label="More library options">
+          <button v-if="(screen === 'library' || screen === 'subject') && !selecting" type="button" :disabled="applyingTags" @click="selecting = true; bulkNotice = ''">Select images</button>
+          <button type="button" :disabled="applyingTags" @click="navigation.push({ ...libraryDestination(), hidden: !destination.hidden })">{{ destination.hidden ? 'Show gallery' : 'Hidden images' }}</button>
+          <a :href="libraryDestinationUrl(libraryDestination('duplicates'))" :aria-current="screen === 'duplicates' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, () => navigation.push(libraryDestination('duplicates')))">Review duplicates</a>
+          <button type="button" @click="infoDialog?.showModal()">Library information</button>
+        </LibraryMenu>
       </div>
     </header>
+    <div v-if="galleryFilters.length && (screen === 'library' || screen === 'subject')" class="activeLibraryFilters" aria-label="Active filters">
+      <button v-for="tag in galleryFilters" :key="tag.id" type="button" :disabled="applyingTags" :aria-label="`Remove ${tag.name} filter`" @click="removeTagFilter(tag.normalizedName)">{{ tag.name }} ×</button>
+      <button type="button" :disabled="applyingTags" @click="clearTagFilters">Clear filters</button>
+    </div>
+    <p v-if="filterNotice" class="tagsWarning" role="status">{{ filterNotice }}</p>
 
-    <nav class="libraryNav" aria-label="Library navigation">
-      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Explore</a>
-      <a :href="navigationHref('library')" :aria-current="screen === 'library' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)">Library</a>
-      <a :href="libraryDestinationUrl(libraryDestination('duplicates'))" :aria-current="screen === 'duplicates' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, () => navigation.push(libraryDestination('duplicates')))">Review duplicates</a>
-      <LibraryAccessControls />
-    </nav>
-
-    <SaveDropzone v-if="screen !== 'duplicates'"
+    <SaveDropzone ref="captureSurface" :expanded="captureOpen" @close="collapseCapture" @open="openCapture()"
       :notice="notice"
       :tags="saving || pageCapture ? batchTags : captureTags"
       :selecting="!!pageCapture"
@@ -732,7 +854,7 @@ watch(visibleImages, () => {
       @error="showNotice($event, 'error')"
     />
 
-    <PageImageSelection v-if="pageCapture" :page="pageCapture" :tags="batchTags" @close="closePageCapture" @busy="saving = $event" @saved="images = [$event, ...images]; loadTags()" />
+    <PageImageSelection data-page-selection v-if="pageCapture" :page="pageCapture" :tags="batchTags" @close="closePageCapture" @busy="saving = $event" @saved="images = [$event, ...images]; loadTags()" />
 
     <section v-if="sharedNotice" class="destinationProblem" role="status">
       <p>{{ sharedNotice }}</p>
@@ -770,7 +892,7 @@ watch(visibleImages, () => {
           :empty-text="publicImages.length ? 'No images remain in this selection. Choose another selection.' : 'Saved images will appear here.'"
           @open="openViewer" @delete="handleDelete" />
       </section>
-      <TagExploreGrid
+      <TagExploreGrid hide-search
         v-model:query="exploreQuery" :groups="subjects" :has-tags="allSubjects.length > 0"
         :loading="loading || (tagsLoading && !tagSummaries.length)"
         :error="libraryError || (tagsError && !tagSummaries.length)"
@@ -789,31 +911,11 @@ watch(visibleImages, () => {
         @open="openViewer" @delete="handleDelete" @more="similarity.more" @retry="retrySimilar" @refresh="refreshSimilar" @back="navigation.returnFromSimilar" />
     </template>
     <template v-else>
-      <div v-if="screen === 'library'" class="visibilityMode">
-        <button type="button" :aria-pressed="destination.hidden" :disabled="applyingTags" @click="toggleHiddenMode">{{ destination.hidden ? 'Show gallery' : 'Hidden images' }}</button>
-        <span v-if="destination.hidden" role="status">Hidden images</span>
-      </div>
       <div v-if="screen === 'subject'" class="subjectContext">
         <a :href="navigationHref('explore')" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Back to Explore</a>
+        <button type="button" class="shellPlain" :disabled="applyingTags" @click="searchEntireLibrary">Search entire library</button>
         <p>{{ galleryQuery.trim() || galleryFilters.length ? `${visibleImages.length} of ${subjectImages.length}` : subjectImages.length }} {{ subjectImages.length === 1 ? 'image' : 'images' }}</p>
       </div>
-      <fieldset :disabled="applyingTags" :inert="applyingTags" class="filterFieldset">
-        <GalleryTagFilters
-          v-model:query="galleryQuery"
-          :active-filters="galleryFilters"
-          :base-tag="baseTag"
-          :content-search="screen === 'library' && !destination.hidden"
-          :mode="contentMode ? 'content' : 'text'"
-          @mode="setSearchMode" @submit="submitContentSearch"
-          :tags="galleryTagSummaries"
-          :has-library-tags="hasLibraryTags"
-          :notice="filterNotice"
-          @select="addTagFilter"
-          @remove="removeTagFilter"
-          @clear="clearTagFilters"
-        />
-
-      </fieldset>
       <p v-if="screen === 'library' && !contentMode && !loading && !libraryError && !destinationBlocked && (galleryQuery.trim() || galleryFilters.length)" class="libraryResultCount" role="status">
         {{ visibleImages.length.toLocaleString('en') }} of {{ librarySummary.images }}
       </p>
@@ -839,7 +941,7 @@ watch(visibleImages, () => {
         </template>
       </section>
 
-      <GalleryBulkTags
+      <GalleryBulkTags hide-entry
         :selecting="selecting"
         :count="selectedIds.length"
         :busy="applyingTags"
@@ -851,7 +953,7 @@ watch(visibleImages, () => {
         @apply="applyBulkTags"
       />
 
-      <div v-if="resolvingDestination || loading" class="loadError" role="status">Loading {{ screen === 'subject' ? 'subject' : 'library' }}.</div>
+      <div v-if="resolvingDestination || loading" class="librarySkeleton" role="status" aria-label="Loading library"><span v-for="n in 10" :key="n" :style="{ height: `${180 + (n % 3) * 70}px` }" /><span class="srOnly">Loading library.</span></div>
       <div v-else-if="destinationError" class="loadError" role="status">
         <p>Could not load the requested tags.</p>
         <button type="button" @click="resolveDestinationTags(true)">Try again</button>
@@ -882,6 +984,7 @@ watch(visibleImages, () => {
       Could not refresh subjects. <button type="button" @click="loadTags">Try again</button>
     </p>
 
+    </div>
     <LightboxViewer
       v-if="selectedImage"
       :image="selectedImage"
@@ -907,11 +1010,32 @@ watch(visibleImages, () => {
       @next="showNextImage"
       @filter-tag="handleViewerTagFilter"
     />
-  </main>
+    </main>
+    <nav class="libraryBottom" aria-label="Mobile library navigation">
+      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /><span>Library</span></a>
+      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /><span>Explore</span></a>
+      <button type="button" data-add-images :aria-expanded="captureOpen" aria-controls="library-capture" @click="openCapture"><LibraryIcon name="add" /><span aria-live="polite">{{ captureActionLabel }}</span></button>
+    </nav>
+    <dialog ref="filtersDialog" class="libraryDialog" aria-labelledby="filters-title">
+      <div class="dialogHeading"><h2 id="filters-title">Filters and search</h2><button type="button" class="shellIcon" aria-label="Close filters" @click="filtersDialog?.close()">×</button></div>
+      <fieldset :disabled="applyingTags" class="filterFieldset">
+        <GalleryTagFilters hide-search v-model:query="galleryQuery" :active-filters="galleryFilters" :base-tag="baseTag" :content-search="screen === 'library' && !destination.hidden" :mode="contentMode ? 'content' : 'text'" :tags="galleryTagSummaries" :has-library-tags="hasLibraryTags" :notice="filterNotice" @mode="setSearchMode" @submit="submitContentSearch" @select="addTagFilter" @remove="removeTagFilter" @clear="clearTagFilters" />
+      </fieldset>
+      <button type="button" class="shellPrimary" @click="filtersDialog?.close()">View images</button>
+    </dialog>
+    <dialog ref="settingsDialog" class="libraryDialog" aria-labelledby="settings-title">
+      <div class="dialogHeading"><h2 id="settings-title">Settings</h2><button type="button" class="shellIcon" aria-label="Close settings" @click="settingsDialog?.close()">×</button></div>
+      <LibraryAccessControls />
+    </dialog>
+    <dialog ref="infoDialog" class="libraryDialog" aria-labelledby="info-title">
+      <div class="dialogHeading"><h2 id="info-title">Your library</h2><button type="button" class="shellIcon" aria-label="Close information" @click="infoDialog?.close()">×</button></div>
+      <p>{{ librarySummary.images }} · {{ librarySummary.tags }}</p><p>{{ librarySummary.size }} of original image files, including hidden images.</p>
+    </dialog>
+    <div v-if="dropActive" class="libraryDropOverlay" aria-hidden="true">Drop images to save</div>
+  </div>
 </template>
 
 <style>
-.topbar h1.duplicateTitle { font-size: 28px; line-height: 1.2; letter-spacing: -1.2px; font-weight: 700; }
 .contentStatus { margin: var(--space-lg) 0; color: var(--color-mute); font-size: 14px; line-height: 1.4; }
 .contentStatus p { margin: var(--space-sm) 0; }
 .contentStatus button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-weight: 600; }
@@ -924,38 +1048,17 @@ watch(visibleImages, () => {
 .rediscoveryHeader button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-size: 14px; font-weight: 700; }
 .rediscoveryHeader button:active { background: var(--color-secondary-pressed); }
 
-.visibilityMode { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: var(--color-mute); font-size: 14px; }
-.visibilityMode button { min-height: 44px; padding: 8px 14px; border: 0; border-radius: 16px; background: var(--color-surface-card); color: var(--color-ink); font-weight: 600; }
 .filterFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.libraryNav { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); }
-.libraryNav a, .subjectContext a, .loadError button, .tagsWarning button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 14px; font-weight: 700; }
-.libraryNav a { position: relative; }
-.libraryNav a, .subjectContext a, .destinationProblem a { display: inline-flex; align-items: center; text-decoration: none; }
-.libraryNav a:focus-visible, .subjectContext a:focus-visible, .destinationProblem a:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 2px; }
+.subjectContext a, .loadError button, .tagsWarning button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.subjectContext a, .destinationProblem a { display: inline-flex; align-items: center; text-decoration: none; }
+.subjectContext a:focus-visible, .destinationProblem a:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 2px; }
 .destinationProblem { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); color: var(--color-mute); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; margin: var(--space-lg) 0; }
 .destinationProblem p { flex-basis: 100%; margin: 0; }
 .destinationProblem a, .destinationProblem button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); color: var(--color-ink); background: var(--color-secondary-bg); font-size: 14px; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; }
 .destinationProblem a:active, .destinationProblem button:active { background: var(--color-secondary-pressed); }
-.libraryNav a[aria-current] { background: var(--color-surface-card); }
-.libraryNav a[aria-current]::after { content: ""; position: absolute; bottom: 0; left: 12px; right: 12px; height: 2px; background: var(--color-primary); }
-.libraryNav a:active, .subjectContext a:active, .loadError button:active, .tagsWarning button:active { background: var(--color-secondary-pressed); }
-.libraryNav a[aria-disabled], .subjectContext a[aria-disabled] { color: var(--color-ash); cursor: default; }
 .subjectContext { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; }
 .subjectContext p, .tagsWarning, .loadError { color: var(--color-mute); font-size: 14px; line-height: 1.4; }
 .loadError { text-align: center; margin: 48px 0; }
-.page {
-  width: min(100%, 1280px);
-  margin: 0 auto;
-  padding: 24px;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 64px;
-  margin-bottom: 16px;
-}
 
 .libraryResultCount { margin: 8px 0; color: var(--color-mute); font-size: 14px; }
 
@@ -969,26 +1072,61 @@ watch(visibleImages, () => {
   line-height: 1.4;
 }
 
-.eyebrow {
-  margin: 0 0 4px;
-  color: var(--color-mute);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-h1 {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: clamp(32px, 5vw, 54px);
-  font-weight: 700;
-  letter-spacing: -0.8px;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-
+/* Library shell */
+.libraryApp { --shell-rail: 76px; --shell-header: 80px; }
+.librarySkip { position: fixed; top: -100px; left: 16px; z-index: 100; padding: 12px; background: white; }
+.librarySkip:focus { top: 8px; }
+.libraryRail { position: fixed; inset: 0 auto 0 0; z-index: 35; width: var(--shell-rail); padding: 16px 8px; border-right: 1px solid var(--color-hairline); background: var(--color-canvas); display: flex; align-items: center; flex-direction: column; gap: 16px; }
+.libraryRail a, .libraryRail button { width: 52px; height: 52px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); text-decoration: none; }
+.libraryRail .libraryBrand { width: 44px; height: 44px; background: var(--color-primary); color: white; font-size: 24px; font-weight: 700; }
+.libraryRail [aria-current] { background: var(--color-surface-card); box-shadow: inset 3px 0 0 var(--color-ink); }
+.libraryRail .railSettings { margin-top: auto; }
+.libraryHeader { position: sticky; top: 0; z-index: 35; height: var(--shell-header); margin-left: var(--shell-rail); display: flex; align-items: center; gap: 16px; padding: 16px 24px; background: var(--color-canvas); }
+.shellPrimary, .shellSecondary, .shellPlain { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 0; border-radius: var(--radius-md); color: var(--color-ink); font-size: 14px; font-weight: 600; }
+.shellPrimary { background: var(--color-primary); color: white; }
+.shellPrimary:active { background: var(--color-primary-pressed); }
+.shellSecondary, .shellPrimary.captureSecondary { background: var(--color-surface-card); color: var(--color-ink); }
+.shellPlain { background: transparent; }
+.shellIcon { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--color-ink); font-size: 22px; flex-shrink: 0; }
+.shellIcon:hover, .shellPlain:hover, .libraryRail button:hover, .libraryRail a:not(.libraryBrand):hover { background: var(--color-surface-card); }
+.headerSettings { display: none; }
+.libraryApp .page { width: calc(100% - var(--shell-rail)); max-width: 1328px; margin-left: max(76px, calc((100vw - 1328px + 76px)/2)); padding: 0 24px 32px; }
+.libraryApp .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; margin-bottom: 8px; gap: 12px; }
+.libraryApp .topbar h1 { margin: 0; font-weight: 700; overflow-wrap: anywhere; font-size: 24px; line-height: 1.2; letter-spacing: -.6px; }
+.libraryApp .librarySummary { margin: 5px 0 0; font-size: 12px; }
+.libraryTools { display: flex; align-items: center; gap: 8px; }
+.activeLibraryFilters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.activeLibraryFilters button { min-height: 44px; padding: 8px 16px; border: 0; border-radius: var(--radius-full); background: var(--color-ink); color: white; font-size: 14px; font-weight: 600; }
+.activeLibraryFilters button:last-child { background: transparent; color: var(--color-ink); }
+.libraryBottom { display: none; }
+.libraryDialog { width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 0; border-radius: var(--radius-lg); color: var(--color-ink); background: var(--color-canvas); }
+.libraryDialog::backdrop { background: rgba(38,38,34,.48); }
+.dialogHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.dialogHeading h2 { margin: 0; font-size: 22px; }
+.libraryDialog p { color: var(--color-mute); font-size: 14px; line-height: 1.5; }
+.libraryDialog .accessControls { margin: 0; }
+.libraryDropOverlay { position: fixed; inset: 12px; z-index: 80; display: grid; place-items: center; pointer-events: none; border: 3px dashed var(--color-ink); border-radius: var(--radius-lg); background: #fffffff0; font-size: 24px; font-weight: 600; }
+.librarySkeleton { columns: 5; column-gap: 8px; }
+.librarySkeleton > span:not(.srOnly) { display: inline-block; width: 100%; margin-bottom: 8px; border-radius: var(--radius-md); background: var(--color-surface-card); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#library-content, #library-capture, [data-page-selection] { scroll-margin-top: calc(var(--shell-header) + 8px); }
+@media (max-width: 1180px) { .librarySkeleton { columns: 4; } }
+@media (max-width: 900px) { .librarySkeleton { columns: 3; } }
+@media (max-width: 850px) { .toolLabel { display: none; } .libraryTools .shellSecondary { width: 44px; padding: 0; } }
 @media (max-width: 640px) {
-  .page {
-    padding: 16px;
-  }
+  .libraryApp { --shell-rail: 0px; --shell-header: 72px; }
+  .libraryRail, .headerAdd { display: none; }
+  .headerSettings { display: inline-grid; }
+  .libraryHeader { padding: 12px 16px; gap: 8px; }
+  .libraryApp .page { width: 100%; margin: 0; padding: 0 16px calc(96px + env(safe-area-inset-bottom)); }
+  .libraryApp .topbar h1 { margin: 0; font-weight: 700; overflow-wrap: anywhere; font-size: 22px; }
+  .selectEntry { display: none; }
+  .libraryTools { gap: 4px; }
+  .libraryBottom { position: fixed; bottom: 0; left: 0; right: 0; z-index: 35; display: flex; justify-content: space-around; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-hairline); background: var(--color-canvas); }
+  .libraryBottom a, .libraryBottom button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 80px; min-height: 52px; padding: 4px 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font-size: 11px; text-decoration: none; }
+  .libraryBottom [aria-current] { background: var(--color-surface-card); font-weight: 600; }
+  .libraryBottom button { color: var(--color-primary); }
+  .librarySkeleton { columns: 2; }
 }
+@media (max-width: 350px) { .librarySkeleton { columns: 1; } }
 </style>

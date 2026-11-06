@@ -2,6 +2,20 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { libraryDestination, libraryDestinationUrl, parseLibraryDestination } from '../app/utils/library-navigation.ts'
 
+test('Library owns the root while clean Explore and legacy refined links keep their destinations', () => {
+  for (const root of ['/', '/?tracking=keep#saved', '/?view=library']) {
+    assert.deepEqual(parseLibraryDestination(new URL(root, 'http://library.local')), libraryDestination())
+  }
+  const exploreUrl = libraryDestinationUrl(libraryDestination('explore'), '/?tracking=keep#saved')
+  assert.equal(exploreUrl, '/?tracking=keep&view=explore#saved')
+  assert.deepEqual(parseLibraryDestination(new URL(exploreUrl, 'http://library.local')), libraryDestination('explore'))
+  const legacy = parseLibraryDestination(new URL('/?q=quiet&tag=author&image=reference', 'http://library.local'))
+  assert.equal(legacy.screen, 'library')
+  assert.equal(legacy.imageId, 'reference')
+  assert.deepEqual(legacy.tagIds, ['author'])
+  assert.deepEqual(parseLibraryDestination(new URL(libraryDestinationUrl(legacy), 'http://library.local')), legacy)
+})
+
 test('navigation addresses preserve subject identity, refinements and an image beyond the gallery', () => {
   const requested = {
     ...libraryDestination('subject'), subjectId: 'pessoa & obra/é', query: '  Wallpaper azul  ',
@@ -11,9 +25,9 @@ test('navigation addresses preserve subject identity, refinements and an image b
   assert.deepEqual(parseLibraryDestination(new URL(address, 'http://library.local')), requested)
   assert.ok(address.includes('tracking=keep'))
   assert.ok(address.endsWith('#section'))
-  assert.deepEqual(parseLibraryDestination(new URL('http://library.local/')), libraryDestination('explore'))
-  assert.equal(libraryDestinationUrl(libraryDestination('explore')), '/')
-  assert.equal(libraryDestinationUrl(libraryDestination('library')), '/?view=library')
+  assert.deepEqual(parseLibraryDestination(new URL('http://library.local/')), libraryDestination('library'))
+  assert.equal(libraryDestinationUrl(libraryDestination('explore')), '/?view=explore')
+  assert.equal(libraryDestinationUrl(libraryDestination('library')), '/')
   assert.deepEqual(parseLibraryDestination(new URL('http://library.local/?view=library')), libraryDestination('library'))
   assert.equal(parseLibraryDestination(new URL('http://library.local/?q=alpha')).screen, 'library')
   assert.equal(parseLibraryDestination(new URL('http://library.local/?image=a')).screen, 'library')

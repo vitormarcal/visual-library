@@ -4,6 +4,7 @@ import { orderExploreGroups } from '../utils/tag-exploration'
 import { interceptLibraryLink, libraryDestination, libraryDestinationUrl } from '../utils/library-navigation'
 type Group = { id: string; name: string; normalizedName: string; imageCount: number; cover: { id: string; thumbnailSrc?: string | null; src: string; width?: number | null; height?: number | null } | null }
 const props = defineProps<{
+  hideSearch?: boolean
   groups: Group[]
   loading: boolean
   error: boolean
@@ -64,7 +65,7 @@ const resetQuery = async () => {
 
 <template>
   <section aria-label="Explore subjects">
-    <div :class="styles.searchBar">
+    <div v-if="!hideSearch" :class="styles.searchBar">
       <input v-model="query" data-explore-search type="search" aria-label="Search subjects" placeholder="Search subjects" :class="styles.search">
       <button v-if="query" type="button" :class="styles.clear" aria-label="Clear subject search" @click="resetQuery">×</button>
     </div>

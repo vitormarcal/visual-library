@@ -70,7 +70,9 @@ const controlsHidden = ref(false)
 const expanded = ref(false)
 const expandButton = ref<HTMLButtonElement | null>(null)
 const expandedClose = ref<HTMLButtonElement | null>(null)
+const expandedDialog = ref<HTMLDialogElement | null>(null)
 const closeExpanded = async () => {
+  expandedDialog.value?.close()
   expanded.value = false
   await nextTick()
   expandButton.value?.focus({ preventScroll: true })
@@ -78,6 +80,7 @@ const closeExpanded = async () => {
 const expandImage = async () => {
   expanded.value = true
   await nextTick()
+  expandedDialog.value?.showModal()
   expandedClose.value?.focus()
 }
 const closeButton = ref<HTMLButtonElement | null>(null)
@@ -236,6 +239,7 @@ const isTagEditorTarget = (target: EventTarget | null) => {
 
 const handleKeydown = (event: KeyboardEvent) => {
   const target = event.target
+  if (event.defaultPrevented || (!expanded.value && (!(target instanceof Node) || !viewer.value?.contains(target)))) return
   const isEditingTagControl = editingTags.value && isTagEditorTarget(target)
   const shouldKeepNavigationInEditor = target instanceof HTMLInputElement || isEditingTagControl
     || (target instanceof HTMLElement && Boolean(target.closest('[data-related-card]')))
@@ -262,7 +266,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     nextImage()
   }
 
-  if (event.key === 'Tab') {
+  if (event.key === 'Tab' && expanded.value) {
     const controls = focusableControls()
 
     if (controls.length === 0) {
@@ -459,8 +463,7 @@ syncDraftTags()
   <section
     ref="viewer"
     :class="[styles.overlay, { [styles.controlsHidden]: controlsHidden }]"
-    role="dialog"
-    aria-modal="true"
+    role="region"
     aria-label="Image viewer"
     @click.self="$emit('close')"
     @scroll.passive="controlsHidden = false"
@@ -697,10 +700,10 @@ syncDraftTags()
       <button v-else-if="hasMoreDiscovery" type="button" :class="styles.exploreButton" @click="emit('moreDiscovery')">Load more images</button>
     </div>
     </div>
-    <div v-if="expanded" :class="styles.expandedOverlay" role="dialog" aria-modal="true" aria-label="Enlarged image" @click.self="closeExpanded">
+    <dialog v-if="expanded" ref="expandedDialog" :class="styles.expandedOverlay" aria-label="Enlarged image" @cancel.prevent="closeExpanded" @click.self="closeExpanded">
       <button ref="expandedClose" type="button" :class="[styles.control, styles.closeButton]" aria-label="Close enlarged image" @click="closeExpanded"><span aria-hidden="true">×</span></button>
       <img :key="image.src" :class="[styles.expandedImage, transitionStyles.imageTransition, { [transitionStyles.imageLoaded]: imageLoaded }]" @load="revealImage" :src="image.src" :alt="image.originalName || 'Saved image'">
-    </div>
+    </dialog>
     <p :class="styles.screenReaderOnly" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</p>
   </section>
 </template>

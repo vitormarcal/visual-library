@@ -444,3 +444,17 @@ a.exploreButton { display: inline-flex; align-items: center; justify-content: ce
 
 .discoveryMore { min-height: 1px; margin-top: 16px; text-align: center; color: var(--color-mute); font-size: 14px; }
 .discoveryMore p { margin: 0; padding: 12px; }
+
+/* Contextual detail retains the library shell; expansion alone uses the viewport. */
+.overlay { top: 80px; left: 76px; }
+.discovery { padding-top: 64px; }
+.overlay > .closeButton { top: 92px; right: 24px; background: var(--color-surface-card); }
+.backButton { top: 92px; left: 100px; }
+.expandedOverlay { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; }
+.expandedOverlay::backdrop { background: rgba(38,38,34,.48); }
+.expandedOverlay > .closeButton { top: max(16px, env(safe-area-inset-top)); }
+@media (max-width: 640px) {
+  .overlay { top: 72px; left: 0; bottom: calc(69px + env(safe-area-inset-bottom)); }
+  .overlay > .closeButton { top: 84px; right: 16px; }
+  .backButton { top: 84px; left: 16px; }
+}
