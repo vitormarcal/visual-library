@@ -145,3 +145,10 @@ Scripts, logs e capturas de avaliação ficaram em `/tmp/visual-library-031-*.mj
 ### Preparação da release 0.23.0
 
 Após concluir a implementação, o usuário solicitou avançar a versão e fazer a release. package.json e package-lock.json foram sincronizados em 0.23.0. O build Docker passou; o contêiner da imagem final foi validado com setup/login, upload de uma fixture, entrada na Library, detalhe/ampliação, retorno e captura em 390 px, sem exceções JavaScript. Armazenamento isolado em volume anônimo do contêiner, removido ao encerrar a avaliação. Distribuição segue `make release VERSION=0.23.0`, com tags de imagem 0.23.0 e latest. Instalação em produção permanece separada da publicação da imagem. Notas em [0.23.0](../../releases/0.23.0.md).
+
+### Publicação e confirmação em produção
+
+- Código enviado para main no commit `dd98413` (`feat: prioritize library navigation in v0.23.0`).
+- `make release VERSION=0.23.0` concluído. Tags remotas 0.23.0 e latest conferidas com o mesmo digest: `sha256:d162f4c5ac4ffa03f02d27f004c605ecd94944be42064c64d7c38afb81d9d2b6`.
+- O usuário confirmou que testou em produção e que está funcionando. Não relatou nova falha nessa validação; isso não substitui uma auditoria de todos os fluxos ou dos limites técnicos acima.
+- A primeira entrega de navegação está concluída. Próxima prioridade sugerida: investigar os erros locais de FileHandle em streams cancelados durante reload; depois organizar a checagem de tipos. Prévia do original e carga da galeria independente das tags continuam como melhorias posteriores, não como requisitos faltantes da navegação entregue.

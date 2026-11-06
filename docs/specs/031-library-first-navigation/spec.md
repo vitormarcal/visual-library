@@ -1,6 +1,6 @@
 # Navegação centrada na Biblioteca
 
-Status: composição aprovada pelo usuário após a correção do detalhe em contexto e da ampliação separada. Implementação autorizada e concluída localmente em 06/11/2026, sem deploy; resultados e limites no [plano](plan.md). Base: [análise do Pinterest e do projeto](../../pinterest-ux-review-2026-11-06.md).
+Status: composição aprovada pelo usuário após a correção do detalhe em contexto e da ampliação separada. Implementação concluída e publicada na release 0.23.0; o usuário confirmou teste em produção com funcionamento correto. O agente não realizou o deploy. Resultados e limites no [plano](plan.md). Base: [análise do Pinterest e do projeto](../../pinterest-ux-review-2026-11-06.md).
 
 ## Problema e objetivo
 
