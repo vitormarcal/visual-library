@@ -5,6 +5,7 @@ type Snapshot = LibraryPosition & { key: string; index: number; url: string }
 type NavigationEntry = Snapshot & {
   version: 1
   library: Snapshot | null
+  folders?: Snapshot | null
   explore: Snapshot | null
   parent: Snapshot | null
   origin: Snapshot | null
@@ -33,8 +34,11 @@ export const useLibraryNavigation = () => {
   }
   const position = (): LibraryPosition => ({
     scrollTop: window.scrollY,
-    focusId: (document.activeElement as HTMLElement | null)?.dataset.exploreTagId
-      ?? (document.activeElement as HTMLElement | null)?.dataset.lightboxOpenId ?? null,
+    focusId: (document.activeElement as HTMLElement | null)?.dataset.folderTagId
+      ?? (document.activeElement as HTMLElement | null)?.dataset.exploreTagId
+      // Switching views focuses the navigation link, not a content card. Keep
+      // the last content target so returning to that view can restore it.
+      ?? (document.activeElement as HTMLElement | null)?.dataset.lightboxOpenId ?? entry.value?.focusId ?? null,
   })
   const write = (value: NavigationEntry, push = false) => {
     snapshots.set(value.key, value)
@@ -49,6 +53,7 @@ export const useLibraryNavigation = () => {
     if (focusId) value.focusId = focusId
     if (!destination.value.imageId) {
       if (destination.value.screen === 'library') value.library = snapshot(value)
+      if (destination.value.screen === 'folders') value.folders = snapshot(value)
       if (destination.value.screen === 'explore') value.explore = snapshot(value)
     }
     write(value)
@@ -56,7 +61,7 @@ export const useLibraryNavigation = () => {
   const makeEntry = (url: string, previous?: NavigationEntry | null): NavigationEntry => ({
     version: 1, key: crypto.randomUUID(), index: previous ? previous.index + 1 : 0,
     url, scrollTop: 0, focusId: null, library: previous?.library ?? null,
-    explore: previous?.explore ?? null, parent: null, origin: previous?.origin ?? null,
+    folders: previous?.folders ?? null, explore: previous?.explore ?? null, parent: null, origin: previous?.origin ?? null,
   })
   const replace = (next: LibraryDestination) => {
     if (!entry.value || closing || next.problem) return
@@ -65,18 +70,20 @@ export const useLibraryNavigation = () => {
     if (next.screen !== destination.value.screen) { value.parent = null; value.origin = null }
     if (!next.imageId) {
       if (next.screen === 'library') value.library = snapshot(value)
+      if (next.screen === 'folders') value.folders = snapshot(value)
       if (next.screen === 'explore') value.explore = snapshot(value)
     }
     mode.value = 'replace'
     destination.value = next
     write(value)
   }
-  const push = (next: LibraryDestination, focusId?: string) => {
+  const push = (next: LibraryDestination, focusId?: string, restore?: LibraryPosition | null) => {
     if (!entry.value || closing) return
     const url = libraryDestinationUrl(next, entry.value.url)
     if (url === entry.value.url && !destination.value.problem) return
     remember(focusId)
     const value = makeEntry(url, entry.value)
+    if (restore) { value.scrollTop = restore.scrollTop; value.focusId = restore.focusId }
     if (next.imageId) value.parent = snapshot(entry.value!)
     if ((next.screen === 'similar' || next.screen === 'duplicates') && !next.imageId) value.origin = snapshot(entry.value!)
     if (next.screen !== 'similar' && next.screen !== 'duplicates') value.origin = null
@@ -102,18 +109,21 @@ export const useLibraryNavigation = () => {
     closing = true
     history.back()
   }
-  const savedDestination = (screen: 'library' | 'explore') => {
+  const savedDestination = (screen: 'library' | 'folders' | 'explore') => {
     const saved = entry.value?.[screen]
     return saved ? { ...parseLibraryDestination(new URL(saved.url, initialUrl)), imageId: null } : libraryDestination(screen)
   }
-  const returnToExplore = () => {
+  const openSaved = (screen: 'library' | 'folders' | 'explore') => {
+    push(savedDestination(screen), undefined, entry.value?.[screen])
+  }
+  const returnToFolders = () => {
     if (!entry.value || closing) return
-    const origin = entry.value.explore
+    const origin = entry.value.folders
     if (origin && origin.index < entry.value.index) {
       remember()
       closing = true
-      history.go(origin.index - entry.value!.index)
-    } else push(libraryDestination('explore'))
+      history.go(origin.index - entry.value.index)
+    } else openSaved('folders')
   }
   const similarOriginUrl = () => entry.value?.origin?.url ?? libraryDestinationUrl(libraryDestination())
   const returnFromSimilar = () => {
@@ -174,5 +184,5 @@ export const useLibraryNavigation = () => {
     window.removeEventListener('pagehide', rememberOnExit)
     history.scrollRestoration = previousScrollRestoration
   }
-  return { destination, entry, mode, start, stop, push, replace, remember, ensureViewerParent, closeViewer, savedDestination, returnToExplore, similarOriginUrl, returnFromSimilar }
+  return { destination, entry, mode, start, stop, push, replace, remember, ensureViewerParent, closeViewer, savedDestination, openSaved, returnToFolders, similarOriginUrl, returnFromSimilar }
 }

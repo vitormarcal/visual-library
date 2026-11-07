@@ -115,7 +115,7 @@ Avoid:
 - admin-panel feeling;
 - table-heavy interfaces.
 
-## Collections and tags have distinct purposes
+## Folders, collections and tags have distinct purposes
 
 Tags:
 - optional, freeform personal memory cues;
@@ -123,12 +123,16 @@ Tags:
 - may identify authors, characters, works, publications, people, themes, or any useful association;
 - do not require descriptive analysis, mood/style labels, or a mandatory taxonomy.
 
-Collections:
-- curated;
-- intentional;
-- human-organized.
+Folders / collections:
+- visual units for browsing a group of saved images;
+- may be automatic or intentionally curated;
+- initially, one automatic folder groups images associated with one tag;
+- automatic membership follows the tag associations, without copying images or maintaining a second membership list;
+- other folder criteria, including manual curation, may be introduced when real usage justifies them.
 
-Do not collapse both concepts into a single abstraction.
+Tags remain associations on images; a folder is a way to present a collection of images. A tag-based folder is the initial behavior, not a restriction that every future folder must be a tag.
+
+Do not require tags or folders to save an image. Do not introduce a generic folder engine, type system, or speculative infrastructure merely to accommodate possible future criteria.
 
 
 ---

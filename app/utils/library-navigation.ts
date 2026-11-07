@@ -1,5 +1,5 @@
 export type LibraryDestination = {
-  screen: 'library' | 'explore' | 'subject' | 'similar' | 'duplicates'
+  screen: 'library' | 'folders' | 'explore' | 'subject' | 'similar' | 'duplicates'
   subjectId: string | null
   referenceId: string | null
   selectionId: string | null
@@ -20,7 +20,7 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
   const params = url.searchParams
   // The personal library is the default, including older links with criteria.
   const view = params.get('view') ?? 'library'
-  const destination = libraryDestination(view === 'explore' || view === 'subject' || view === 'similar' || view === 'duplicates' ? view : 'library')
+  const destination = libraryDestination(view === 'folders' || view === 'explore' || view === 'subject' || view === 'similar' || view === 'duplicates' ? view : 'library')
   destination.reviewMode = params.get('review') === 'broad' ? 'broad' : 'likely'
   destination.subjectId = params.get('subject')
   destination.referenceId = params.get('reference')
@@ -33,7 +33,7 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
   if ((params.has('visibility') && (params.get('visibility') !== 'hidden' || destination.screen !== 'library'))
     || (params.has('mode') && (params.get('mode') !== 'content' || destination.screen !== 'library' || destination.hidden))
     || (destination.searchMode === 'content' && destination.query.length > 500)
-    || !['library', 'explore', 'subject', 'similar', 'duplicates'].includes(view)
+    || !['library', 'folders', 'explore', 'subject', 'similar', 'duplicates'].includes(view)
     || ['view', 'subject', 'reference', 'selection', 'mode', 'q', 'image', 'visibility', 'review'].some((key) => params.getAll(key).length > 1)
     || (destination.screen === 'subject' ? !destination.subjectId : destination.subjectId !== null)
     || (destination.screen === 'similar' ? !destination.referenceId || Boolean(destination.query || destination.tagIds.length) : destination.screen === 'duplicates' ? Boolean(params.has('reference') && (!destination.referenceId || !/^[a-f0-9]{64}$/.test(destination.referenceId))) || Boolean(destination.query || destination.tagIds.length || destination.imageId) : destination.referenceId !== null)
@@ -41,6 +41,7 @@ export const parseLibraryDestination = (url: URL): LibraryDestination => {
     || destination.tagIds.some((id) => !id)
     || (params.has('image') && !destination.imageId)
     || (destination.selectionId !== null && (destination.screen !== 'explore' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(destination.selectionId)))
+    || (destination.screen === 'folders' && Boolean(destination.tagIds.length || destination.imageId))
     || (destination.screen === 'explore' && ((destination.imageId && !destination.selectionId) || destination.tagIds.length))) {
     destination.problem = 'This address does not identify a valid library destination.'
   } else if (destination.tagIds.length + (destination.screen === 'subject' ? 1 : 0) > 3) {

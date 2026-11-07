@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Pastas automáticas para navegar pelas tags
+
+Implementado em [032](docs/specs/032-automatic-tag-folders/spec.md), após a decisão do usuário de começar com uma pasta automática por tag, sem limitar futuras modalidades de coleção. Biblioteca ganha Images/Folders; os assuntos existentes passam a ser pastas com capa composta, nome e contagem, em ordem alfabética. Explore mantém redescoberta. Associações e capas existentes são reaproveitadas, sem cópias de arquivos ou tabelas novas. Testes e smokes isolados registrados no [plano](docs/specs/032-automatic-tag-folders/plan.md). Após a entrega local, o usuário solicitou a release 0.24.0. Implantação em produção permanece separada; pastas manuais/combinações de tags continuam fora do escopo.
+
 ### Abrir o acervo e navegar com menos controles antes das imagens
 
 Solicitado, analisado diretamente no Pinterest autenticado e implementado localmente em 06/11/2026 em [031](docs/specs/031-library-first-navigation/spec.md): Library vira a entrada padrão; busca no topo, barra lateral desktop, navegação inferior móvel e captura sob demanda liberam espaço para imagens. Duas colunas em 390 px, manutenção em menus e filtros/seleção preservados. Detalhe mantém imagens relacionadas ao redor e botão separado de ampliação. Captura e seleção de páginas sobrevivem à navegação; paste em campos continua edição normal. Corrigida disputa entre popstate e URL de saída do Nuxt observada ao recarregar/fechar o viewer. Testes, build e smokes isolados registrados no [plano](docs/specs/031-library-first-navigation/plan.md), com limites de typecheck e de streams em Node 26 explicitados. Sem deploy, mudança de versão, coleções ou alterações no acervo real.

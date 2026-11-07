@@ -6,7 +6,7 @@ import { sharedCaptureKeys, sharedCaptureMessage } from '../utils/shared-capture
 import { matchesImageSearch } from '../utils/image-search'
 import type { PageDiscovery } from '../utils/page-image-selection'
 import { saveImageBatch, type UploadResult } from '../utils/image-upload'
-import { groupImagesByTag } from '../utils/tag-exploration'
+import { automaticTagFolders } from '../utils/tag-exploration'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from '../utils/library-navigation'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from '../utils/viewer-history'
 import type { ImageRecord, ImageTag } from '../types/image'
@@ -116,7 +116,6 @@ const galleryQuery = computed({
     else navigation.replace({ ...destination.value, query })
   },
 })
-const exploreQuery = galleryQuery
 const galleryFilters = computed(() => destination.value.tagIds.map((id) => tagMetadata.value[id]).filter((tag): tag is ImageTag => Boolean(tag)))
 const baseTag = subjectTag
 const effectiveFilters = computed(() => baseTag.value ? [baseTag.value, ...galleryFilters.value] : galleryFilters.value)
@@ -124,16 +123,16 @@ const requiredTagIds = computed(() => [...(destination.value.subjectId ? [destin
 const missingFilters = computed(() => destination.value.tagIds.filter((id) => tagLookups.value[id] === 'missing' && !tagMetadata.value[id]))
 const resolvingDestination = computed(() => !loading.value && !libraryError.value && requiredTagIds.value.some((id) => !tagMetadata.value[id] && !['missing', 'error'].includes(tagLookups.value[id] ?? 'loading')))
 const destinationError = computed(() => requiredTagIds.value.some((id) => !tagMetadata.value[id] && tagLookups.value[id] === 'error'))
-const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This subject is no longer available.' : null))
+const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This folder is no longer available.' : null))
 const destinationBlocked = computed(() => Boolean(destinationUnavailable.value || missingFilters.value.length || destinationError.value || resolvingDestination.value))
-const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Subject' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Library')
+const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Folder' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Library')
 useHead(() => ({ title: `${title.value} · Visual Library` }))
-const navigationHref = (target: 'library' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
+const navigationHref = (target: 'library' | 'folders' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
 const linkAction = (event: MouseEvent, action: () => void) => { if (interceptLibraryLink(event) && !applyingTags.value) action() }
 const subjectImages = computed(() => subjectTag.value ? publicImages.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
-const allSubjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value))
-const subjects = computed(() => groupImagesByTag(publicImages.value, tagSummaries.value, exploreQuery.value))
+const allFolders = computed(() => automaticTagFolders(images.value, tagSummaries.value))
+const folders = computed(() => automaticTagFolders(images.value, tagSummaries.value, galleryQuery.value))
 const rediscoveryBatches = createRediscoveryBatches()
 const rediscovery = computed(() => rediscoveryBatches.get(destination.value.selectionId))
 const rediscoveredImages = computed(() => {
@@ -378,7 +377,7 @@ const clearCaptureNotice = () => {
   notice.value = ''
 }
 
-const captureTags = computed(() => screen.value === 'explore' || screen.value === 'similar' || destinationBlocked.value ? [] : effectiveFilters.value.map(tag => tag.name))
+const captureTags = computed(() => screen.value === 'explore' || screen.value === 'folders' || screen.value === 'similar' || destinationBlocked.value ? [] : effectiveFilters.value.map(tag => tag.name))
 const batchTags = ref<string[]>([])
 
 const handleSave = async (files: File[], retry = false) => {
@@ -519,7 +518,7 @@ const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> =>
 const restorePage = async (position: PagePosition, selector: string, transition: number) => {
   await nextTick()
   if (transition !== pageTransition) return
-  const fallback = screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
+  const fallback = screen.value === 'folders' ? '[data-folder-search]' : screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
   const origin = document.querySelector<HTMLElement>(selector) ?? document.querySelector<HTMLElement>(fallback)
   origin?.focus({ preventScroll: true })
   const correctScroll = () => window.scrollTo({ top: Math.min(position.scrollTop, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'instant' })
@@ -551,12 +550,13 @@ const resetPageInteraction = () => {
   viewerFilterNotice.value = ''
 }
 
-const showExplore = () => {
+const showExplore = () => { if (!applyingTags.value) navigation.openSaved('explore') }
+const showLibrary = () => { if (!applyingTags.value) navigation.openSaved('library') }
+const showFolders = () => {
   if (applyingTags.value) return
-  if (screen.value === 'subject') navigation.returnToExplore()
-  else navigation.push(navigation.savedDestination('explore'))
+  if (screen.value === 'subject') navigation.returnToFolders()
+  else navigation.openSaved('folders')
 }
-const showLibrary = () => { if (!applyingTags.value) navigation.push(navigation.savedDestination('library')) }
 const openSubject = (tag: ImageTag) => {
   if (applyingTags.value) return
   tagMetadata.value[tag.id] = tag
@@ -578,7 +578,6 @@ const resolveDestinationTags = async (retry = false) => {
 }
 const removeUnavailableFilter = (id: string) => navigation.replace({ ...destination.value, tagIds: destination.value.tagIds.filter((tagId) => tagId !== id) })
 const clearAddressRefinements = () => navigation.push(destination.value.subjectId ? { ...libraryDestination('subject'), subjectId: destination.value.subjectId } : libraryDestination())
-const recoverExplore = () => navigation.push(libraryDestination('explore'))
 watch([() => destination.value.subjectId, () => destination.value.tagIds.join('\u0000'), loading], () => { void resolveDestinationTags() })
 
 let interactionKey: string | null = null
@@ -608,8 +607,8 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarIn
     window.scrollTo({ top: 0, behavior: 'instant' })
     document.querySelector<HTMLElement>(screen.value === 'duplicates' ? '[data-duplicate-page-heading]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-subject-heading]')?.focus({ preventScroll: true })
   } else if (!destination.value.imageId) {
-    const selector = state.focusId ? screen.value === 'explore'
-      ? `[data-explore-tag-id="${CSS.escape(state.focusId)}"], [data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
+    const selector = state.focusId ? screen.value === 'folders'
+      ? `[data-folder-tag-id="${CSS.escape(state.focusId)}"], [data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
       : `[data-lightbox-open-id="${CSS.escape(state.focusId)}"]`
       : screen.value === 'explore' ? '[data-rediscovery-heading]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
     void restorePage(state, selector, pageTransition)
@@ -681,12 +680,14 @@ const infoDialog = ref<HTMLDialogElement | null>(null)
 const dropActive = ref(false)
 let dragDepth = 0
 let captureTrigger: HTMLElement | null = null
-const headerDraft = ref('')
+const headerDraft = ref(destination.value.query)
+const searchesLibrary = computed(() => screen.value === 'explore' || screen.value === 'similar' || screen.value === 'duplicates')
+watch(screen, () => { headerDraft.value = destination.value.query })
 const viewerSearchDraft = ref<string | null>(null)
 const headerQuery = computed({
-  get: () => screen.value === 'similar' || screen.value === 'duplicates' ? headerDraft.value : viewerSearchDraft.value ?? galleryQuery.value,
+  get: () => searchesLibrary.value ? headerDraft.value : viewerSearchDraft.value ?? galleryQuery.value,
   set: (value: string) => {
-    if (screen.value === 'similar' || screen.value === 'duplicates') { headerDraft.value = value; return }
+    if (searchesLibrary.value) { headerDraft.value = value; return }
     if (destination.value.imageId) {
       viewerSearchDraft.value = value
       navigation.closeViewer({ ...destination.value, imageId: null, query: value })
@@ -695,15 +696,15 @@ const headerQuery = computed({
     galleryQuery.value = value
   },
 })
-const searchScope = computed(() => contentMode.value ? 'Describe an image · content search' : screen.value === 'explore' ? 'Search subjects' : screen.value === 'subject' ? `Search in ${subjectTag.value?.name ?? 'this subject'}` : screen.value === 'similar' || screen.value === 'duplicates' ? 'Search library · press Enter' : destination.value.hidden ? 'Search hidden images' : 'Search your library')
-const searchTags = computed(() => screen.value === 'similar' || screen.value === 'duplicates' ? [] : screen.value === 'explore' ? tagSummaries.value : galleryTagSummaries.value.filter(tag => !effectiveFilters.value.some(active => active.id === tag.id)))
+const searchScope = computed(() => contentMode.value ? 'Describe an image · content search' : screen.value === 'folders' ? 'Search folders' : screen.value === 'subject' ? `Search in ${subjectTag.value?.name ?? 'this subject'}` : searchesLibrary.value ? 'Search library · press Enter' : destination.value.hidden ? 'Search hidden images' : 'Search your library')
+const searchTags = computed(() => searchesLibrary.value ? [] : screen.value === 'folders' ? allFolders.value : galleryTagSummaries.value.filter(tag => !effectiveFilters.value.some(active => active.id === tag.id)))
 const submitHeaderSearch = () => {
-  if (screen.value === 'similar' || screen.value === 'duplicates') {
+  if (searchesLibrary.value) {
     navigation.push({ ...libraryDestination(), query: headerDraft.value }); headerDraft.value = ''
   } else if (contentMode.value) submitContentSearch()
 }
 const selectSearchTag = (tag: ImageTag) => {
-  if (screen.value === 'explore') openSubject(tag)
+  if (screen.value === 'folders') openSubject(tag)
   else if (selectedImage.value) handleViewerTagFilter(tag)
   else if (addTagFilter(tag) && !contentMode.value) galleryQuery.value = ''
 }
@@ -802,13 +803,13 @@ watch(visibleImages, () => {
     <a class="librarySkip" href="#library-content">Skip to images</a>
     <nav class="libraryRail" aria-label="Library navigation">
       <a class="libraryBrand" :href="libraryDestinationUrl(libraryDestination())" aria-label="Visual Library" @click="linkAction($event, showLibrary)">V</a>
-      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Library" title="Library" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /></a>
-      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Explore" title="Explore" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /></a>
+      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'folders' || screen === 'subject' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Library" title="Library" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /></a>
+      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" aria-label="Explore" title="Explore" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /></a>
       <button type="button" aria-label="Add images" title="Add images" @click="openCapture"><LibraryIcon name="add" /></button>
       <button type="button" class="railSettings" aria-label="Settings" title="Settings" @click="settingsDialog?.showModal()"><LibraryIcon name="settings" /></button>
     </nav>
     <header class="libraryHeader">
-      <LibrarySearch v-model="headerQuery" :scope="searchScope" :explore="screen === 'explore'" :content="contentMode" :disabled="applyingTags" :tags="searchTags" @submit="submitHeaderSearch" @select="selectSearchTag" />
+      <LibrarySearch v-model="headerQuery" :scope="searchScope" :explore="screen === 'explore'" :folders="screen === 'folders'" :content="contentMode" :disabled="applyingTags" :tags="searchTags" @submit="submitHeaderSearch" @select="selectSearchTag" />
       <button type="button" data-add-images class="shellPrimary headerAdd" :class="{ captureSecondary: pageCapture || captureOpen || saving || readingUrl }" :aria-expanded="captureOpen" aria-controls="library-capture" @click="openCapture"><LibraryIcon name="add" /><span aria-live="polite">{{ captureActionLabel }}</span></button>
       <button type="button" class="shellIcon headerSettings" aria-label="Settings" @click="settingsDialog?.showModal()"><LibraryIcon name="settings" /></button>
     </header>
@@ -819,8 +820,13 @@ watch(visibleImages, () => {
         <h1 v-if="screen === 'subject'" data-subject-heading tabindex="-1">{{ title }}</h1>
         <h1 v-else-if="screen === 'similar'" data-similar-heading tabindex="-1">Similar images</h1>
         <h1 v-else :data-duplicate-page-heading="screen === 'duplicates' ? '' : undefined" :tabindex="screen === 'duplicates' ? -1 : undefined">{{ title }}</h1>
+        <p v-if="screen === 'folders' && !loading && !libraryError" class="librarySummary">{{ allFolders.length }} {{ allFolders.length === 1 ? 'folder' : 'folders' }}</p>
         <p v-if="screen === 'library' && !loading && !libraryError" class="librarySummary">{{ destination.hidden ? 'Hidden images' : librarySummary.images }}</p>
       </div>
+      <nav v-if="screen === 'library' || screen === 'folders' || screen === 'subject'" class="libraryViews" aria-label="Library views">
+        <a :href="navigationHref('library')" :aria-current="screen === 'library' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)">Images</a>
+        <a :href="navigationHref('folders')" :aria-current="screen === 'folders' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showFolders)">Folders</a>
+      </nav>
       <div class="libraryTools">
         <button v-if="screen === 'library' || screen === 'subject'" type="button" class="shellSecondary" :disabled="applyingTags" aria-label="Filters and search options" @click="filtersDialog?.showModal()"><LibraryIcon name="filter" /><span class="toolLabel">Filters</span></button>
         <button v-if="(screen === 'library' || screen === 'subject') && !selecting" type="button" class="shellPlain selectEntry" @click="selecting = true; bulkNotice = ''">Select</button>
@@ -869,7 +875,7 @@ watch(visibleImages, () => {
     <section v-if="destinationUnavailable" class="destinationProblem" role="status">
       <p>{{ destinationUnavailable }}</p>
       <button v-if="destination.problem && screen !== 'explore'" type="button" @click="clearAddressRefinements">Open without refinements</button>
-      <a href="/?view=explore" @click="linkAction($event, recoverExplore)">Explore subjects</a>
+      <a :href="navigationHref('folders')" @click="linkAction($event, showFolders)">Folders</a>
       <a href="/?view=library" @click="linkAction($event, () => navigation.push(libraryDestination()))">Library</a>
     </section>
     <DuplicateReview v-else-if="screen === 'duplicates'" :group-id="destination.referenceId" :broad="destination.reviewMode === 'broad'" :back-href="navigation.similarOriginUrl()"
@@ -892,14 +898,15 @@ watch(visibleImages, () => {
           :empty-text="publicImages.length ? 'No images remain in this selection. Choose another selection.' : 'Saved images will appear here.'"
           @open="openViewer" @delete="handleDelete" />
       </section>
-      <TagExploreGrid hide-search
-        v-model:query="exploreQuery" :groups="subjects" :has-tags="allSubjects.length > 0"
-        :loading="loading || (tagsLoading && !tagSummaries.length)"
-        :error="libraryError || (tagsError && !tagSummaries.length)"
-        :dimensions="coverDimensions" :library-href="navigationHref('library')"
-        @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
-      />
     </template>
+    <FolderGrid v-else-if="screen === 'folders'"
+      v-model:query="galleryQuery" :groups="folders" :has-tags="allFolders.length > 0"
+      :restore-focus-id="navigation.entry.value?.focusId"
+      :loading="loading || (tagsLoading && !tagSummaries.length)"
+      :error="libraryError || (tagsError && !tagSummaries.length)"
+      :dimensions="coverDimensions" :library-href="navigationHref('library')"
+      @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
+    />
     <template v-else-if="screen === 'similar'">
       <div v-if="libraryError" class="loadError" role="status"><p>Could not load the library.</p><button type="button" @click="loadImages">Try again</button></div>
       <SimilarGallery v-else :reference="referenceImage" :images="visibleImages"
@@ -912,7 +919,7 @@ watch(visibleImages, () => {
     </template>
     <template v-else>
       <div v-if="screen === 'subject'" class="subjectContext">
-        <a :href="navigationHref('explore')" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)">Back to Explore</a>
+        <a :href="navigationHref('folders')" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showFolders)">Back to Folders</a>
         <button type="button" class="shellPlain" :disabled="applyingTags" @click="searchEntireLibrary">Search entire library</button>
         <p>{{ galleryQuery.trim() || galleryFilters.length ? `${visibleImages.length} of ${subjectImages.length}` : subjectImages.length }} {{ subjectImages.length === 1 ? 'image' : 'images' }}</p>
       </div>
@@ -974,14 +981,14 @@ watch(visibleImages, () => {
         :busy="applyingTags"
         @toggle="toggleSelection"
         :loading="loading || contentInitialLoading"
-        :empty-text="screen === 'subject' && !subjectImages.length ? 'This subject has no images now. You can return to Explore.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
+        :empty-text="screen === 'subject' && !subjectImages.length ? 'This folder has no images now. You can return to Folders.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
         @open="openViewer"
         @delete="handleDelete"
       />
     </template>
 
     <p v-if="tagsError && tagSummaries.length" class="tagsWarning" role="status">
-      Could not refresh subjects. <button type="button" @click="loadTags">Try again</button>
+      Could not refresh folders. <button type="button" @click="loadTags">Try again</button>
     </p>
 
     </div>
@@ -1012,8 +1019,8 @@ watch(visibleImages, () => {
     />
     </main>
     <nav class="libraryBottom" aria-label="Mobile library navigation">
-      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /><span>Library</span></a>
-      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' || screen === 'subject' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /><span>Explore</span></a>
+      <a :href="navigationHref('library')" :aria-current="screen === 'library' || screen === 'folders' || screen === 'subject' || screen === 'similar' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showLibrary)"><LibraryIcon name="library" /><span>Library</span></a>
+      <a :href="navigationHref('explore')" :aria-current="screen === 'explore' ? 'page' : undefined" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showExplore)"><LibraryIcon name="explore" /><span>Explore</span></a>
       <button type="button" data-add-images :aria-expanded="captureOpen" aria-controls="library-capture" @click="openCapture"><LibraryIcon name="add" /><span aria-live="polite">{{ captureActionLabel }}</span></button>
     </nav>
     <dialog ref="filtersDialog" class="libraryDialog" aria-labelledby="filters-title">
@@ -1129,4 +1136,16 @@ watch(visibleImages, () => {
   .librarySkeleton { columns: 2; }
 }
 @media (max-width: 350px) { .librarySkeleton { columns: 1; } }
+</style>
+
+<style>
+.libraryViews { display: flex; align-items: center; flex-shrink: 0; gap: 8px; margin-left: 16px; margin-right: auto; }
+.libraryViews a { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 10px 12px; color: var(--color-ink); font-size: 14px; font-weight: 600; text-decoration: none; border-radius: var(--radius-md); }
+.libraryViews a[aria-current]::after { content: ''; position: absolute; bottom: 2px; left: 12px; right: 12px; height: 2px; background: var(--color-ink); }
+.libraryViews a[aria-disabled] { color: var(--color-ash); }
+@media (max-width: 640px) {
+  .libraryApp .topbar { flex-wrap: wrap; row-gap: 4px; padding-top: 8px; }
+  .libraryViews { order: 1; flex: 0 0 100%; margin: 0; }
+  .libraryTools { margin-left: auto; }
+}
 </style>

@@ -630,5 +630,15 @@ This addendum defines the target design contract for the personal library. It ta
 
 The authenticated desktop feed, saved pins, populated board, board search, organize mode and pin detail were directly inspected on 2026-11-06. Narrow desktop viewport inspection is not mobile-app evidence. The previous Known Gaps section describes the original marketing capture, not the expanded evidence of this review.
 
-Collections remain distinct from tags. No collections, social actions, recommendations from outside the library or new data model are introduced by this visual contract.
+Collections remain distinct from tags. The 031 release introduces no collections, social actions, recommendations from outside the library or new data model. The subsequent folder proposal in [032](docs/specs/032-automatic-tag-folders/spec.md) extends the product direction: folders may be automatic or curated, with one automatic folder per tag as the initial behavior. It does not retroactively add that scope to 031.
+
+## Automatic tag folders — 032
+
+- Library offers Images and Folders as linked views. Images remains the default destination. Folder detail stays within Library; Explore retains rediscovery without duplicating the folder directory.
+- Folder cards use a regular grid rather than image masonry. The cover has a consistent 3:2 ratio, a 16px radius and up to three distinct previews: a larger stable main image on the left and two complementary images on the right. One or two available images use the space without repeated copies or empty decorative slots.
+- Cover tiles may crop thumbnails with object-fit: cover; images inside the folder and viewer retain natural ratios. Use existing neutral surfaces, typography and spacing. Name and image count remain visible below the cover; long names wrap.
+- Folder ordering is alphabetical and stable. Automatic membership follows a tag; hidden images do not contribute to covers or counts. Tags and folder associations remain optional when saving.
+- At 390px, folder cards use two columns; at narrow usable widths, one. The Library view links wrap below the compact title/tools on mobile, keeping search at the top and leaving the bottom navigation accessible.
+- Folder-name search, image search within a folder, and explicit search across Library have different scopes. Switching views and returning from detail preserves their own query, scroll and content focus. Restoring a later folder renders the required list depth before restoring focus.
+- Capturing, selection, contextual detail and focused expansion retain the contracts of 031. No manual folders, generic rule engine or controls for hypothetical future folder kinds are introduced here.
 

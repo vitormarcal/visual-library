@@ -51,6 +51,19 @@ test('malformed destinations and unavailable filter identities are not silently 
   assert.deepEqual(reopened, destination)
 })
 
+test('folder directory URLs search names while legacy subject URLs remain folder detail destinations', () => {
+  const folders = { ...libraryDestination('folders'), query: '  Éditions & autores  ' }
+  assert.equal(libraryDestinationUrl(libraryDestination('folders')), '/?view=folders')
+  assert.deepEqual(parseLibraryDestination(new URL(libraryDestinationUrl(folders), 'http://library.local')), folders)
+  const legacy = parseLibraryDestination(new URL('/?view=subject&subject=author&q=quiet&tag=book&image=reference', 'http://library.local'))
+  assert.equal(legacy.subjectId, 'author')
+  assert.equal(legacy.query, 'quiet')
+  assert.deepEqual(parseLibraryDestination(new URL(libraryDestinationUrl(legacy), 'http://library.local')), legacy)
+  for (const address of ['/?view=folders&tag=a', '/?view=folders&image=a', '/?view=folders&subject=a', '/?view=folders&mode=content', '/?view=folders&visibility=hidden', '/?view=folders&selection=67f9d1a5-207a-409b-9653-0be9c51c2dca']) {
+    assert.ok(parseLibraryDestination(new URL(address, 'http://library.local')).problem, address)
+  }
+})
+
 test('closing the viewer retains gallery criteria and clean card entries remain independent', () => {
   const refined = parseLibraryDestination(new URL('http://library.local/?view=subject&subject=manara&q=alpha&tag=publication&image=c'))
   const closed = { ...refined, imageId: null }

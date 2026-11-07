@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { groupImagesByTag, orderExploreGroups } from '../app/utils/tag-exploration.ts'
+import { groupImagesByTag, automaticTagFolders } from '../app/utils/tag-exploration.ts'
 
 test('visual subjects keep exact identities, count unique images, and search names independently', () => {
   const a = { id: 'a', name: 'Été', normalizedName: 'été' }
@@ -27,24 +27,45 @@ test('visual subjects keep exact identities, count unique images, and search nam
   assert.deepEqual(groupImagesByTag(images, covers).map((group) => group.id), ['a', 'b', 'c'])
 })
 
-test('Explore varies by day, preserves every subject, and favors larger subjects', () => {
-  const groups = Array.from({ length: 100 }, (_, index) => ({ id: `tag-${index}`, imageCount: index < 50 ? 1 : 25 }))
-  const ordered = orderExploreGroups(groups, '2026-10-17')
-  assert.deepEqual(ordered, orderExploreGroups(groups, '2026-10-17'))
-  assert.deepEqual(ordered, orderExploreGroups([...groups].reverse(), '2026-10-17'))
-  assert.notDeepEqual(ordered, orderExploreGroups(groups, '2026-10-18'))
-  assert.equal(new Set(ordered.map(group => group.id)).size, groups.length)
-  assert.equal(groups[0]?.id, 'tag-0')
-  let large = 0
-  let small = 0
-  for (let day = 1; day <= 100; day++) {
-    for (const group of orderExploreGroups(groups, `day-${day}`).slice(0, 20)) {
-      if (group.imageCount > 1) large++
-      else small++
-    }
-  }
-  assert.ok(large > small * 2, 'larger subjects should appear near the start more often')
-  assert.ok(small > 0, 'small subjects should also appear near the start')
+test('automatic folders are alphabetical, use unique visible members and preserve a stable main cover', () => {
+  const a = { id: 'a', name: 'Árvore', normalizedName: 'árvore' }
+  const b = { id: 'b', name: 'Books', normalizedName: 'books' }
+  const c = { id: 'c', name: 'Hidden only', normalizedName: 'hidden only' }
+  const images = [
+    { id: '3', src: '/3', tags: [a, b, a], createdAt: '2026-03-01' },
+    { id: '1', src: '/1', tags: [a], createdAt: '2026-01-01' },
+    { id: '2', src: '/2', tags: [a, b], createdAt: '2026-02-01' },
+    { id: '4', src: '/4', tags: [a], createdAt: '2026-04-01' },
+    { id: '5', src: '/5', tags: [a, c], hiddenFromGallery: true },
+    { id: '3', src: '/3', tags: [a, b] },
+    { id: '6', src: '/6', tags: [] },
+  ]
+  const covers = [{ ...a, coverImageId: '3' }, { ...b, coverImageId: '2' }, { ...c, coverImageId: '5' }]
+  const result = automaticTagFolders(images, covers)
+  assert.deepEqual(result.map(group => group.id), ['a', 'b'])
+  assert.equal(result[0]?.imageCount, 4)
+  assert.equal(result[1]?.imageCount, 2)
+  assert.deepEqual(result[0]?.previews.map(image => image.id), ['3', '1', '2'])
+  assert.deepEqual(result[1]?.previews.map(image => image.id), ['2', '3'])
+  assert.deepEqual(automaticTagFolders(images.slice(0, 5).reverse(), covers).map(group => group.previews.map(image => image.id)), result.map(group => group.previews.map(image => image.id)))
+  assert.equal(automaticTagFolders(images, covers, ' ARVORE ')[0]?.id, 'a')
+  assert.equal(automaticTagFolders(images, covers, '/3').length, 0)
+  assert.equal(automaticTagFolders([...images, { id: '7', src: '/7', tags: [a], createdAt: '2026-05-01' }], covers)[0]?.previews[0]?.id, '3')
+})
+
+test('folders follow association/visibility changes without copying images or inventing preview slots', () => {
+  const a = { id: 'a', name: 'A', normalizedName: 'a' }
+  const b = { id: 'b', name: 'B', normalizedName: 'b' }
+  const one = { id: 'one', src: '/one', tags: [a, b] }
+  const two = { id: 'two', src: '/two', tags: [a] }
+  assert.deepEqual(automaticTagFolders([one], [])[0]?.previews.map(image => image.id), ['one'])
+  assert.equal(automaticTagFolders([one], []).length, 2)
+  const withoutB = { ...one, tags: [a] }
+  assert.deepEqual(automaticTagFolders([withoutB, two], []).map(group => group.id), ['a'])
+  assert.equal(automaticTagFolders([{ ...withoutB, hiddenFromGallery: true }, two], [])[0]?.imageCount, 1)
+  assert.deepEqual(automaticTagFolders([{ ...withoutB, tags: [] }], []), [])
+  assert.equal(one.tags.length, 2, 'folder derivation must not mutate the source image')
+  assert.equal(automaticTagFolders([one, two], [{ ...a, coverImageId: 'missing' }])[0]?.previews.length, 2)
 })
 
 test('tag covers migrate, persist, survive association replacement, and roll back with group changes', () => {

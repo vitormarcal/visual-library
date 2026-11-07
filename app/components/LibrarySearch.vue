@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { normalizeSearch } from '../utils/image-search'
-const props = defineProps<{ scope: string; explore?: boolean; content?: boolean; disabled?: boolean; tags: { id: string; name: string; normalizedName: string }[] }>()
+const props = defineProps<{ scope: string; explore?: boolean; folders?: boolean; content?: boolean; disabled?: boolean; tags: { id: string; name: string; normalizedName: string }[] }>()
 const query = defineModel<string>({ default: '' })
 const emit = defineEmits<{ submit: []; select: [tag: { id: string; name: string; normalizedName: string }] }>()
 const root = ref<HTMLElement | null>(null)
@@ -17,12 +17,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOutside))
   <form ref="root" class="librarySearch" role="search" @focusout="leave" @keydown.esc.stop.prevent="showing = false" @submit.prevent="showing = false; emit('submit')">
     <div class="librarySearchField">
       <LibraryIcon name="search" />
-      <input ref="input" v-model="query" :data-library-search="!explore ? '' : undefined" :data-explore-search="explore ? '' : undefined" type="search" :aria-label="scope" :placeholder="scope" :disabled="disabled" :maxlength="content ? 500 : undefined" autocomplete="off" @click="showing = true" @input="showing = true" @keydown.down.prevent="showing = true" @keyup.tab="showing = true">
+      <input ref="input" v-model="query" :data-folder-search="folders ? '' : undefined" :data-library-search="!explore && !folders ? '' : undefined" :data-explore-search="explore ? '' : undefined" type="search" :aria-label="scope" :placeholder="scope" :disabled="disabled" :maxlength="content ? 500 : undefined" autocomplete="off" @click="showing = true" @input="showing = true" @keydown.down.prevent="showing = true" @keyup.tab="showing = true">
       <button v-if="query" type="button" aria-label="Clear search" :disabled="disabled" @click="query = ''; input?.focus()">×</button>
     </div>
     <button v-if="content" type="submit" class="searchSubmit" :disabled="disabled">Search</button>
     <div v-if="showing && suggestions.length && !disabled" class="librarySuggestions" aria-label="Suggested subjects">
-      <p>{{ explore ? 'Explore a subject' : 'Filter by tag' }}</p>
+      <p>{{ folders ? 'Open a folder' : 'Filter by tag' }}</p>
       <button v-for="tag in suggestions" :key="tag.id" type="button" @click="choose(tag)">{{ tag.name }}</button>
     </div>
   </form>
