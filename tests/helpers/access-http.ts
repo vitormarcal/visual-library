@@ -34,6 +34,7 @@ const routes = [
   ['get', '/api/access/tokens', 'api/access/tokens.get.ts'], ['post', '/api/access/tokens', 'api/access/tokens.post.ts'], ['delete', '/api/access/tokens/:id', 'api/access/tokens/[id].delete.ts'],
   ['get', '/api/images/:id/public-link', 'api/images/[id]/public-link.get.ts'], ['post', '/api/images/:id/public-link', 'api/images/[id]/public-link.post.ts'], ['delete', '/api/images/:id/public-link', 'api/images/[id]/public-link.delete.ts'],
   ['get', '/api/images', 'api/images.get.ts'], ['post', '/api/assets', 'api/assets.post.ts'], ['get', '/api/assets/:id', 'api/assets/[id].get.ts'], ['get', '/api/assets/:id/content', 'api/assets/[id]/content.get.ts'],
+  ['post', '/api/assets/lookup', 'api/assets/lookup.post.ts'],
   ['put', '/api/assets/:id/references/tags', 'api/assets/[id]/references/tags.put.ts'],
   ['get', '/images/:filename', 'routes/images/[filename].get.ts'], ['get', '/thumbnails/:id', 'routes/thumbnails/[id].get.ts'], ['post', '/share', 'routes/share.post.ts'],
   ['get', '/shared-images/:token', 'routes/shared-images/[token].get.ts'],
@@ -127,6 +128,16 @@ try {
   const credential = await (await owner('/api/access/tokens', 'POST', { name: 'Media Pulse' })).json()
   assert.equal(credential.publishPublicLinks, false)
   const bearer = { authorization: `Bearer ${credential.token}` }
+  const lookupBody = JSON.stringify({ hashes: ['0'.repeat(64)] })
+  const lookupRequest = (headers: Record<string, string> = {}) => call('/api/assets/lookup', {
+    method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: lookupBody,
+  })
+  assert.equal((await lookupRequest()).status, 401)
+  assert.equal((await lookupRequest({ authorization: 'Bearer invalid' })).status, 401)
+  assert.equal((await lookupRequest(bearer)).status, 200)
+  assert.equal((await owner('/api/assets/lookup', 'POST', JSON.parse(lookupBody))).status, 200)
+  assert.equal((await call('/api/assets/lookup', { headers: bearer })).status, 403)
+
   const otherCredential = await (await owner('/api/access/tokens', 'POST', { name: 'Blog' })).json()
   assert.notEqual(otherCredential.id, credential.id)
   const row = db.prepare('SELECT token_hash FROM application_tokens WHERE id = ?').get(credential.id)!
@@ -197,6 +208,7 @@ try {
   setImageVisibility('00000000-0000-4000-8000-000000000001', true)
   assert.equal((await call(publicPath)).status, 200)
   await owner(`/api/access/tokens/${credential.id}`, 'DELETE')
+  assert.equal((await lookupRequest(bearer)).status, 401)
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: bearer })).status, 401)
   assert.equal((await call(publicPath)).status, 200)
   assert.equal((await call('/api/assets/00000000-0000-4000-8000-000000000001', { headers: { authorization: 'Bearer ' + otherCredential.token } })).status, 200)

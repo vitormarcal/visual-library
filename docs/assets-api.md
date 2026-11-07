@@ -9,10 +9,43 @@ A API exige sessão do dono ou token Bearer revogável de aplicação. Configura
 | Método e caminho | Resposta |
 | --- | --- |
 | `POST /api/assets` | 201 para criação; 200 para bytes já existentes, com o mesmo contrato. |
+| `POST /api/assets/lookup` | Consulta em lote por SHA-256, sem salvar ou enriquecer imagens. |
 | `GET /api/assets/{id}` | Metadados; 404 se o registro não existe. |
 | `GET /api/assets/{id}/content` | Original por streaming; 404 se o registro ou arquivo não existe. |
 
 Há também `PUT /api/assets/{id}/references/tags` para atualizar um grupo de classificação de uma referência existente. Não há listagem externa, exclusão externa, importação por URL externa ou miniaturas. A interface continua usando os endpoints existentes de imagens e tags e a rota `/images/{filename}`.
+
+## Consultar existência antes de selecionar imagens
+
+`POST /api/assets/lookup` exige sessão do dono (com as proteções de mesma origem usuais) ou Bearer de aplicação. Enviar `Content-Type: application/json` com somente `hashes`: array de 1–100 hashes SHA-256 hexadecimais de 64 caracteres. O corpo tem limite de 16 KiB. Maiúsculas são aceitas e normalizadas para minúsculas; espaços e prefixos não são aceitos.
+
+```http
+POST /api/assets/lookup
+Authorization: Bearer TOKEN
+Content-Type: application/json
+
+{"hashes":["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]}
+```
+
+Resposta 200, inclusive quando nenhum hash existe:
+
+```json
+{
+  "results": [
+    {
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "exists": true,
+      "asset": { "id": "c0902e4d-6d90-4f0b-a544-d6822fbf052d" }
+    }
+  ]
+}
+```
+
+Ausência retorna `exists: false` e `asset: null`. Há um resultado por entrada, na mesma ordem, preservando repetições. A resposta usa `Cache-Control: no-store` e não expõe caminhos internos. Erros: 400 para JSON/estrutura/hash/quantidade inválidos, 413 para corpo acima do limite, 415 para tipo de conteúdo diferente de JSON, 401 para credencial ausente/inválida/revogada.
+
+O Media Pulse pode baixar os originais candidatos, calcular SHA-256 dos bytes completos no backend e consultar em lotes antes de apresentar a seleção. Não calcular o hash da miniatura quando ela difere do original. O ID retornado permite marcar ou ocultar opções já existentes; consultar não cria associação ao jogo, tags ou referência de origem. Para registrar a referência e sugestões, continuar usando o upload existente, que deduplica e enriquece conforme suas regras. Não há mudança no Media Pulse nesta entrega.
+
+A consulta inclui imagens ocultas e de qualquer origem e reutiliza o índice de `content_hash`, sem ler arquivos, baixar URLs ou alterar o acervo. Existência significa registro com esse hash, não verificação de integridade/disponibilidade do arquivo. Legados sem hash não são encontrados. Hashes de cópias removidas por consolidação não são resolvidos como similares ou aliases: somente bytes exatos ainda registrados correspondem. A consulta é uma fotografia do momento; exclusões/envios posteriores podem mudar o resultado e o upload continua deduplicando independentemente dela.
 
 ## Upload
 

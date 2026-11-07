@@ -26,7 +26,7 @@ export default defineEventHandler(async event => {
     const token = /^Bearer (\S+)$/.exec(authorization)?.[1]
     if (!token || !await validApplicationToken(token)) throw createError({ statusCode: 401, statusMessage: 'Invalid integration credential.' })
     const canPublish = ['GET', 'POST'].includes(method) && publicLink.test(path) && await validApplicationToken(token, true)
-    const allowed = canPublish || method === 'POST' && path === '/api/assets'
+    const allowed = canPublish || method === 'POST' && ['/api/assets', '/api/assets/lookup'].includes(path)
       || method === 'GET' && assetRead.test(path)
       || method === 'PUT' && assetTags.test(path)
     if (!allowed) throw createError({ statusCode: 403, statusMessage: 'Operation not allowed for integration.' })

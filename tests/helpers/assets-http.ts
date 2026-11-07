@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { createServer, request } from 'node:http'
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
@@ -22,6 +23,7 @@ const png = await fixture('png')
 await writeFile('data/images/legacy.png', png)
 const router = createRouter()
 for (const [method, path, file] of [
+  ['post', '/api/assets/lookup', '../../server/api/assets/lookup.post.ts'],
   ['post', '/api/assets', '../../server/api/assets.post.ts'],
   ['get', '/api/assets/:id', '../../server/api/assets/[id].get.ts'],
   ['get', '/api/assets/:id/content', '../../server/api/assets/[id]/content.get.ts'],
@@ -57,6 +59,31 @@ try {
   assert.equal(response.headers.get('location'), `/api/assets/${asset.id}`)
   const duplicate = await send(png, { source: 'other', hiddenFromGallery: 'false' })
   assert.equal(duplicate.status, 200); assert.deepEqual(await duplicate.json(), asset)
+  const hash = createHash('sha256').update(png).digest('hex')
+  const missingHash = '0'.repeat(64)
+  const lookup = (body: unknown, contentType = 'application/json') => fetch(base + '/api/assets/lookup', {
+    method: 'POST', headers: { 'content-type': contentType }, body: JSON.stringify(body),
+  })
+  const beforeLookupCount = db.prepare('SELECT COUNT(*) AS count FROM images').get()!.count
+  const found = await lookup({ hashes: [missingHash, hash.toUpperCase(), hash] })
+  assert.equal(found.status, 200)
+  assert.equal(found.headers.get('cache-control'), 'no-store')
+  assert.deepEqual(await found.json(), { results: [
+    { sha256: missingHash, exists: false, asset: null },
+    { sha256: hash, exists: true, asset: { id: asset.id } },
+    { sha256: hash, exists: true, asset: { id: asset.id } },
+  ] })
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM images').get()!.count, beforeLookupCount)
+  for (const body of [null, [], {}, { hashes: [] }, { hashes: [null] }, { hashes: ['a'.repeat(63)] },
+    { hashes: ['g'.repeat(64)] }, { hashes: [hash], extra: true }, { hashes: Array(101).fill(hash) }]) {
+    assert.equal((await lookup(body)).status, 400, JSON.stringify(body))
+  }
+  const maximum = await lookup({ hashes: Array(100).fill(hash) })
+  assert.equal(maximum.status, 200)
+  assert.equal((await maximum.json()).results.length, 100)
+  assert.equal((await lookup({ hashes: [hash] }, 'text/plain')).status, 415)
+  assert.equal((await lookup({ hashes: ['x'.repeat(17000)] })).status, 413)
+  assert.equal((await fetch(base + '/api/assets/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' })).status, 400)
   const legacyDuplicate = await send(png, {}, '/api/images')
   assert.deepEqual(await legacyDuplicate.json(), { duplicate: true, message: 'Already saved.' })
   assert.deepEqual(await (await fetch(`${base}/api/assets/${asset.id}`)).json(), asset)
