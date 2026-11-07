@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { automaticTagFolders, sharedSingleImageFolderCards } from '../app/utils/tag-exploration.ts'
 
-test('shared single-image cards preserve every folder and alphabetical order without changing inputs', () => {
+test('shared single-image cards prioritize image counts and preserve alphabetical ties without changing inputs', () => {
   const groups = [
     { id: 'z', name: 'Zulu', imageCount: 1, previews: [{ id: 'x', src: '/same' }] },
     { id: 'a', name: 'Alpha', imageCount: 1, previews: [{ id: 'x', src: '/same' }] },
@@ -12,10 +12,10 @@ test('shared single-image cards preserve every folder and alphabetical order wit
   ]
   const before = structuredClone(groups)
   const result = sharedSingleImageFolderCards(groups)
-  assert.deepEqual(result.map(card => card.key), ['image:x', 'folder:b', 'image:different-id', 'folder:d'])
-  assert.deepEqual(result[0]?.folders.map(folder => folder.id), ['a', 'z'])
-  assert.equal(result[0]?.previews.length, 1)
-  assert.equal(result[1]?.folders.length, 1, 'same main cover must not group different contents')
+  assert.deepEqual(result.map(card => card.key), ['folder:b', 'image:x', 'image:different-id', 'folder:d'])
+  assert.deepEqual(result[1]?.folders.map(folder => folder.id), ['a', 'z'])
+  assert.equal(result[1]?.previews.length, 1)
+  assert.equal(result[0]?.folders.length, 1, 'same main cover must not group different contents')
   assert.equal(result.flatMap(card => card.folders).length, groups.length)
   assert.deepEqual(groups, before)
   assert.deepEqual(sharedSingleImageFolderCards([...groups].reverse()), result)
@@ -32,9 +32,9 @@ test('membership changes split shared covers and filtered search keeps only matc
   assert.deepEqual(initial[0]?.folders.map(folder => folder.id), ['a', 'b', 'c'])
   const split = sharedSingleImageFolderCards(automaticTagFolders([image, extra], []))
   assert.equal(split.length, 2)
-  assert.deepEqual(split[0]?.folders.map(folder => folder.id), ['a', 'c'])
-  assert.equal(split[1]?.folders[0]?.id, 'b')
-  assert.equal(split[1]?.folders[0]?.imageCount, 2)
+  assert.deepEqual(split[1]?.folders.map(folder => folder.id), ['a', 'c'])
+  assert.equal(split[0]?.folders[0]?.id, 'b')
+  assert.equal(split[0]?.folders[0]?.imageCount, 2)
   assert.equal(sharedSingleImageFolderCards(automaticTagFolders([image, { ...extra, hiddenFromGallery: true }], [])).length, 1)
   const search = sharedSingleImageFolderCards(automaticTagFolders([image], [], ' BETA '))
   assert.equal(search.length, 1)

@@ -27,3 +27,13 @@ Não alterar a conta de produção nem suas tags/imagens durante a validação. 
 - Falha controlada de thumbnails preservou nomes e links. Busca e acesso à pasta continuaram funcionando no viewport móvel. Rodadas funcionais finais sem exceções JavaScript.
 
 Scripts e capturas em `/tmp/visual-library-033-*.mjs`, `/tmp/visual-library-033-*.log` e no diretório da fixture. Não foram importadas imagens privadas para o repositório nem executadas mutações no acervo real. A avaliação móvel é por viewport emulado; não constitui teste em celular físico nem auditoria completa de acessibilidade. As pendências de tipagem/streams já registradas nas entregas anteriores não fazem parte deste ajuste.
+
+## Ajuste posterior — ordenar por quantidade
+
+Solicitado pelo usuário após uso da 0.25.0: priorizar pastas maiores na busca, pois há predominância de tags com uma imagem. Aplicar a mesma ordem no diretório sem consulta para manter consistência. Reaproveitar a ordenação por membros visíveis únicos já calculada em `groupImagesByTag`; na composição dos cartões, ordenar por quantidade decrescente, nome e ID. O número de tags numa capa compartilhada não soma imagens. Sem controles novos, persistência ou alteração da ordem das imagens dentro das pastas.
+
+Testes focados: oito aprovados, incluindo consulta vazia e preenchida, contagens distintas, empate por nome, duplicatas/ocultas e separação de capa compartilhada quando uma pasta ganha outro membro.
+
+Validação da entrega: suíte completa com 92 testes aprovados; build local aprovado.
+
+Entrega do ajuste na versão 0.26.0, com commit, push e publicação das tags Docker `0.26.0` e `latest` autorizados pelo usuário. Deploy em produção permanece separado.

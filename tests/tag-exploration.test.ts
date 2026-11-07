@@ -27,7 +27,7 @@ test('visual subjects keep exact identities, count unique images, and search nam
   assert.deepEqual(groupImagesByTag(images, covers).map((group) => group.id), ['a', 'b', 'c'])
 })
 
-test('automatic folders are alphabetical, use unique visible members and preserve a stable main cover', () => {
+test('automatic folders prioritize image counts, use unique visible members and preserve a stable main cover', () => {
   const a = { id: 'a', name: 'Árvore', normalizedName: 'árvore' }
   const b = { id: 'b', name: 'Books', normalizedName: 'books' }
   const c = { id: 'c', name: 'Hidden only', normalizedName: 'hidden only' }
@@ -146,4 +146,20 @@ test('tag covers migrate, persist, survive association replacement, and roll bac
       db.close();
     `)
   } finally { rmSync(directory, { recursive: true, force: true }) }
+})
+
+test('folder search ranks visible unique image counts before names and shared tag counts', () => {
+  const tags = ['Topic Alpha', 'Topic Zulu', 'Topic Beta', 'Topic Gamma'].map((name, i) => ({ id: String(i), name, normalizedName: name.toLowerCase() }))
+  const images = [
+    { id: 'one', src: '/one', tags },
+    { id: 'two', src: '/two', tags: [tags[1]!, tags[2]!, tags[3]!] },
+    { id: 'three', src: '/three', tags: [tags[1]!] },
+    { id: 'three', src: '/three', tags: [tags[1]!] },
+    { id: 'hidden', src: '/hidden', tags: [tags[0]!], hiddenFromGallery: true },
+  ]
+  for (const query of ['', ' TOPIC ']) {
+    const folders = automaticTagFolders(images, [], query)
+    assert.deepEqual(folders.map(folder => folder.name), ['Topic Zulu', 'Topic Beta', 'Topic Gamma', 'Topic Alpha'])
+    assert.deepEqual(folders.map(folder => folder.imageCount), [3, 2, 2, 1])
+  }
 })

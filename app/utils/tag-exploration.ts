@@ -32,12 +32,11 @@ export const groupImagesByTag = <T extends Image>(images: T[], covers: TagCover[
 // Folders currently derive their contents from one tag. No parallel membership list.
 export const automaticTagFolders = <T extends Image & { hiddenFromGallery?: boolean; createdAt?: string }>(images: T[], covers: TagCover[], query = '') =>
   groupImagesByTag(images.filter(image => !image.hiddenFromGallery), covers, query)
-    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 
 // This only compacts the directory. Each folder keeps its identity and tag scope.
 export const sharedSingleImageFolderCards = <T extends { id: string; name: string; imageCount: number; previews: { id: string }[] }>(folders: T[]) => {
   const cards = new Map<string, { key: string; folders: T[]; previews: T['previews'] }>()
-  for (const folder of [...folders].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
+  for (const folder of [...folders].sort((a, b) => b.imageCount - a.imageCount || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))) {
     const onlyImage = folder.imageCount === 1 && folder.previews.length === 1 ? folder.previews[0] : null
     const key = onlyImage ? `image:${onlyImage.id}` : `folder:${folder.id}`
     const existing = cards.get(key)

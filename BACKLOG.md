@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Priorizar pastas com mais imagens
+
+Ajuste solicitado após uso da 0.25.0: a maioria das tags tem apenas uma imagem. Diretório e busca de pastas passam a ordenar por quantidade de imagens visíveis únicas, decrescente, com desempate por nome e ID. Capas compartilhadas continuam valendo uma imagem; os nomes internos ficam em ordem alfabética. Sem seletor adicional, mudança de associações ou ordenação das imagens dentro das pastas. Entrega na versão 0.26.0, com commit, push e release autorizados pelo usuário; deploy permanece separado.
+
 ### Evitar capas repetidas para pastas com a mesma imagem única
 
 Implementado localmente em [033](docs/specs/033-shared-single-image-folder-covers/spec.md), após observação do usuário em produção: pastas cujo único membro visível é a mesma imagem compartilham uma capa e mantêm nomes/links independentes. A busca continua por pasta, o salvamento respeita a tag escolhida e uma pasta que ganhe outra imagem volta a ter cartão próprio. Listas longas expandem explicitamente; retorno e paginação preservam o nome selecionado. 91 testes, build e smokes isolados registrados no [plano](docs/specs/033-shared-single-image-folder-covers/plan.md). Sem migração ou alteração do acervo real. Após a validação local, o usuário autorizou a release 0.25.0; implantação em produção permanece separada.

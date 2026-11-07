@@ -20,7 +20,7 @@ Pastas com conteúdos distintos continuam separadas, mesmo quando sua capa princ
 
 - Toda pasta mantém nome, URL e critério. A escolha de um nome abre aquela pasta; o agrupamento visual não abre automaticamente a primeira tag.
 - A busca por nome continua encontrando cada pasta. Se apenas um nome corresponder à busca, pode aparecer como cartão individual, sem outros nomes que não correspondam ao termo.
-- A ordenação permanece previsível. Posicionar a capa compartilhada pela primeira pasta correspondente na ordem alfabética e manter os nomes internos em ordem alfabética.
+- Ajuste solicitado após uso da 0.25.0: diretório e busca priorizam pastas com mais imagens visíveis únicas, em ordem decrescente. Desempatar por nome e ID. Capas compartilhadas continuam com quantidade um, independentemente do número de nomes; manter os nomes internos em ordem alfabética.
 - Se uma pasta receber uma segunda imagem, ela deixa o cartão compartilhado e volta a ter cartão próprio. As demais continuam agrupadas se ainda houver mais de uma com o mesmo membro único.
 - Ocultação, remoção e edição de tags recalculam a apresentação a partir dos mesmos membros visíveis da versão 0.24.0. Sem persistência de uma segunda lista de grupos.
 - Restauração de foco usa a identidade da pasta escolhida, mesmo quando seu link estiver dentro de uma capa compartilhada. Preservar busca, scroll, histórico, reload e retorno do visualizador.
