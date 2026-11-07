@@ -642,3 +642,11 @@ Collections remain distinct from tags. The 031 release introduces no collections
 - Folder-name search, image search within a folder, and explicit search across Library have different scopes. Switching views and returning from detail preserves their own query, scroll and content focus. Restoring a later folder renders the required list depth before restoring focus.
 - Capturing, selection, contextual detail and focused expansion retain the contracts of 031. No manual folders, generic rule engine or controls for hypothetical future folder kinds are introduced here.
 
+## Shared single-image folder covers — 033
+
+- When several automatic folders have exactly one visible member with the same image ID, show one cover with separate folder-name links beneath it. The visual card is not a new folder and does not merge tags or memberships. The Library count continues to describe logical folders, not the number of cover blocks.
+- Normal folders keep their full-card link. Clicking a shared cover presents the folder choices without opening an arbitrary tag. Each name remains a link to that folder, with its own tag context for saving.
+- Show at most three folder names initially and an explicit control for additional names. Keep the expansion control before the additional links so expansion does not move its trigger below a long list. Name links have real 44px targets, visible focus and wrapping text.
+- Search groups only the names matching the current query. Regroup automatically when members change; folders with several images or different image IDs remain separate even when their covers look alike.
+- Preserve the chosen folder ID when restoring focus, rendering the corresponding cover block and expanding its names as needed after reload. Pagination measures visual blocks while retaining access to every folder.
+

@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Evitar capas repetidas para pastas com a mesma imagem única
+
+Implementado localmente em [033](docs/specs/033-shared-single-image-folder-covers/spec.md), após observação do usuário em produção: pastas cujo único membro visível é a mesma imagem compartilham uma capa e mantêm nomes/links independentes. A busca continua por pasta, o salvamento respeita a tag escolhida e uma pasta que ganhe outra imagem volta a ter cartão próprio. Listas longas expandem explicitamente; retorno e paginação preservam o nome selecionado. 91 testes, build e smokes isolados registrados no [plano](docs/specs/033-shared-single-image-folder-covers/plan.md). Sem migração ou alteração do acervo real. Após a validação local, o usuário autorizou a release 0.25.0; implantação em produção permanece separada.
+
 ### Pastas automáticas para navegar pelas tags
 
 Implementado em [032](docs/specs/032-automatic-tag-folders/spec.md), após a decisão do usuário de começar com uma pasta automática por tag, sem limitar futuras modalidades de coleção. Biblioteca ganha Images/Folders; os assuntos existentes passam a ser pastas com capa composta, nome e contagem, em ordem alfabética. Explore mantém redescoberta. Associações e capas existentes são reaproveitadas, sem cópias de arquivos ou tabelas novas. Testes e smokes isolados registrados no [plano](docs/specs/032-automatic-tag-folders/plan.md). Após a entrega local, o usuário solicitou a release 0.24.0. Implantação em produção permanece separada; pastas manuais/combinações de tags continuam fora do escopo.

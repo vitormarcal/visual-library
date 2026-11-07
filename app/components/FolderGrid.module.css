@@ -1,21 +1,22 @@
 .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 16px; margin-bottom: 24px; }
 .card { display: block; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-md); color: var(--color-ink); text-align: left; text-decoration: none; }
-.mosaic { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; aspect-ratio: 3 / 2; overflow: hidden; border-radius: var(--radius-md); background: var(--color-surface-card); }
-.tile { display: block; min-width: 0; min-height: 0; overflow: hidden; }
-.primary { grid-row: 1 / -1; }
-.tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.pair { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
 .label { display: grid; gap: 4px; padding: 10px 4px 0; }
 .name { min-width: 0; font-size: 16px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .count { color: var(--color-mute); font-size: 12px; line-height: 1.4; }
-.placeholder { display: grid; place-items: center; height: 100%; padding: 8px; color: var(--color-mute); font-size: 12px; line-height: 1.3; text-align: center; }
 .skeleton { display: block; aspect-ratio: 3 / 2; margin-bottom: 40px; border-radius: var(--radius-md); background: var(--color-surface-card); }
 .empty { margin: 48px 0; color: var(--color-mute); text-align: center; font-size: 14px; line-height: 1.5; }
 .action { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 0; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
 .action:active { background: var(--color-secondary-pressed); }
-.card:focus-visible, .action:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 3px; }
+.folderLink:focus-visible, .folderChoice:focus-visible, .coverButton:focus-visible, .expandNames:focus-visible, .action:focus-visible { outline: 2px solid var(--color-focus-outer); outline-offset: 3px; }
 .more { margin: var(--space-lg) 0; text-align: center; }
 @media (max-width: 900px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 740px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 350px) { .grid { grid-template-columns: 1fr; } }
+
+.folderLink { display: block; border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+.coverButton { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; }
+.sharedCount { margin: 10px 4px 6px; color: var(--color-mute); font-size: 12px; line-height: 1.4; }
+.folderChoices { display: grid; gap: 2px; }
+.folderChoice { scroll-margin-top: calc(var(--shell-header, 80px) + 8px); scroll-margin-bottom: calc(80px + env(safe-area-inset-bottom)); display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border-radius: var(--radius-md); color: var(--color-ink); font-size: 14px; line-height: 1.4; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.folderChoice:hover, .coverButton:hover, .expandNames:hover { background: var(--color-surface-card); }
+.expandNames { min-height: 44px; padding: 8px 10px; margin-top: 4px; border: 0; border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: 14px; font-weight: 600; }
