@@ -227,3 +227,24 @@ A correção fica em `server/image-format.ts`: após validar frame, scan e EOI d
 Fixtures sintéticas em `tests/helpers/sef-jpeg.ts` reproduzem os dois tamanhos observados sem incluir imagens ou metadados pessoais no repositório. Testes de formato cobrem aceitação sem mutação, truncamento, JPEG incompleto, trailer arbitrário e diretórios forjados. O teste HTTP verifica upload, tamanho, hash/deduplicação e download do arquivo completo. As três cópias reais também passam no validador corrigido.
 
 Validação final: `npm test` passou com 51 testes, sem skips; `npm run build` concluiu. Permanecem os avisos conhecidos de sourcemap do Nuxt e externalização de `node:sqlite`. Um servidor H3/SQLite isolado recebeu as três cópias reais por HTTP (201, 201, 200), preservou todos os bytes no download e produziu dois assets pela deduplicação das duas cópias idênticas. Nenhum arquivo ou banco de produção foi alterado; publicação da correção é uma etapa separada.
+
+## Correção de compatibilidade JPEG/AFCP e padding nulo
+
+Escopo aprovado pelo usuário após investigar três cópias do Plex recusadas pelo Visual Library 0.27.0. Dois arquivos tinham AFCP (`AXS!`) com entradas IPTC, miniatura e prévia; outro tinha uma imagem completa seguida de 6.619 bytes nulos. O JPEG principal termina antes das imagens de prévia: localizar apenas o último `FF D9` não é uma forma válida de separar o trailer.
+
+Implementação em `server/image-format.ts`, preservando o validador SEF existente: reconhecer AFCP com as duas ordens de bytes, versão 1, campos reservados zero, diretório imediatamente após o fluxo JPEG principal, ponteiro de rodapé correspondente, contagem positiva, identificadores imprimíveis, tamanhos positivos, limites e cobertura contígua sem lacunas ou sobreposição. Padding aceito somente se inteiramente nulo e com até 64 KiB após um JPEG completo; nenhuma mudança nos outros formatos. Qualquer reparo de offsets, conversão, truncamento, recompressão ou aceitação de sufixos desconhecidos fica fora do escopo.
+
+Fixtures sintéticas em `tests/helpers/afcp-jpeg.ts` incluem JPEGs de prévia embutidos e as duas ordens de bytes. Testes verificam arquivos completos sem mutação, falsificação de assinatura/versão/reservados/contagem/offset/tamanho, sobreposição, lacunas, truncamento, JPEG sem frame/scan/EOI e limite do padding. O harness HTTP existente cobre upload, tamanho, download byte a byte, repetição, ID e lookup SHA-256 do arquivo completo. As imagens reais ficam fora do repositório e são usadas somente como cópias locais de diagnóstico.
+
+Sem alteração de interface, banco, dependências, autenticação ou Media Pulse. Publicação da correção na versão 0.27.1 autorizada posteriormente pelo usuário; deploy em produção permanece separado.
+
+Referência do layout AFCP: [parser do ExifTool](https://github.com/exiftool/exiftool/blob/master/lib/Image/ExifTool/AFCP.pm).
+
+### Validação da correção AFCP/padding
+
+- `node --test tests/image-format.test.ts`: 15 testes aprovados, incluindo as três novas regras de compatibilidade/recusa.
+- `node --test tests/assets-api.test.ts` e `npm test`: harness HTTP aprovado e suíte completa com 95 testes aprovados, zero falhas/skips.
+- `npm run build` e `git diff --check`: aprovados.
+- As três cópias reais (237.718, 16.384 e 1.017.186 bytes) passam no validador corrigido. Em outro processo, handlers HTTP reais e SQLite/filesystem temporários confirmaram 201 no upload, 200 no reenvio com mesmo ID, tamanho/MIME corretos, download idêntico byte a byte e SHA-256 original preservado. A biblioteca temporária foi removida ao terminar; as cópias de diagnóstico continuam fora do repositório.
+- Testes negativos cobrem assinaturas alteradas, versão/reservados inválidos, contagem inexistente/excessiva, offsets na imagem/diretório/fora do arquivo, tamanho zero/excessivo, lacunas, sobreposição, truncamento, falta de frame/scan/EOI, conteúdo arbitrário e padding não nulo ou acima de 64 KiB. A regressão de SEF e dos demais formatos permanece aprovada.
+- Não foram alterados os dados pessoais, o container do Mordor, as dependências, o schema ou os arquivos não relacionados já presentes no workspace. A correção foi preparada para a release 0.27.1; nenhum deploy foi executado nessa validação.

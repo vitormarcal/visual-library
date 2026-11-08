@@ -47,7 +47,7 @@ test('accepts complete JPEGs with bounded SEF metadata without changing original
 test('rejects arbitrary JPEG trailers and forged SEF directories or incomplete JPEGs', async () => {
   const { withSefMetadata } = await import('./helpers/sef-jpeg.ts')
   const jpeg = readFileSync(new URL('./fixtures/images/tiny.jpg', import.meta.url))
-  for (const tail of [Buffer.from('<script>invalid</script>'), Buffer.alloc(140), Buffer.from('SEFHSEFT')]) {
+  for (const tail of [Buffer.from('<script>invalid</script>'), Buffer.alloc(64 * 1024 + 1), Buffer.from('SEFHSEFT')]) {
     assert.throws(() => validateImageFormat(Buffer.concat([jpeg, tail])))
   }
   assert.throws(() => validateImageFormat(withSefMetadata(jpeg.subarray(0, -2))))
@@ -71,4 +71,69 @@ test('rejects arbitrary JPEG trailers and forged SEF directories or incomplete J
     const data = Buffer.from(source); mutate(data)
     assert.throws(() => validateImageFormat(data))
   }
+})
+
+
+test('accepts complete JPEGs with bounded AFCP metadata in either byte order without changing bytes', async () => {
+  const { withAfcpMetadata } = await import('./helpers/afcp-jpeg.ts')
+  const jpeg = readFileSync(new URL('./fixtures/images/tiny.jpg', import.meta.url))
+  for (const little of [false, true]) {
+    const data = withAfcpMetadata(jpeg, little), original = Buffer.from(data)
+    assert.ok(data.lastIndexOf(Buffer.from([255, 217])) > jpeg.length, 'metadata contains embedded JPEG previews')
+    assert.equal(validateImageFormat(data).mimeType, 'image/jpeg')
+    assert.deepEqual(data, original)
+    for (const amount of [1, 4, 8, 12, 24]) assert.throws(() => validateImageFormat(data.subarray(0, -amount)))
+  }
+})
+
+test('rejects AFCP headers with broken versions counts offsets bounds coverage or signatures', async () => {
+  const { withAfcpMetadata } = await import('./helpers/afcp-jpeg.ts')
+  const jpeg = readFileSync(new URL('./fixtures/images/tiny.jpg', import.meta.url)), start = jpeg.length
+  for (const little of [false, true]) {
+    const source = withAfcpMetadata(jpeg, little), footer = source.length - 12
+    const u16 = (b: Buffer, value: number, offset: number) => little ? b.writeUInt16LE(value, offset) : b.writeUInt16BE(value, offset)
+    const u32 = (b: Buffer, value: number, offset: number) => little ? b.writeUInt32LE(value, offset) : b.writeUInt32BE(value, offset)
+    const mutations = [
+      (b: Buffer) => { b[start] = b[start]! | 128 },
+      (b: Buffer) => { b[footer] = b[footer]! | 128 },
+      (b: Buffer) => u16(b, 2, start + 4),
+      (b: Buffer) => u16(b, 0, start + 6),
+      (b: Buffer) => u16(b, 65535, start + 6),
+      (b: Buffer) => u32(b, 1, start + 8),
+      (b: Buffer) => u32(b, 1, footer + 8),
+      (b: Buffer) => u32(b, 0xffffffff, footer + 4),
+      (b: Buffer) => u32(b, start - 1, footer + 4),
+      (b: Buffer) => { b[start + 12] = 0 },
+      (b: Buffer) => u32(b, 0, start + 16),
+      (b: Buffer) => u32(b, 0xffffffff, start + 16),
+      (b: Buffer) => u32(b, start - 1, start + 20),
+      (b: Buffer) => u32(b, start + 12, start + 20),
+      (b: Buffer) => u32(b, start + 49, start + 20), // Gap before first value.
+      (b: Buffer) => u32(b, start + 48, start + 32), // Overlapping values.
+      (b: Buffer) => u32(b, footer, start + 44),
+    ]
+    for (const mutate of mutations) {
+      const data = Buffer.from(source); mutate(data)
+      assert.throws(() => validateImageFormat(data))
+    }
+  }
+  assert.throws(() => validateImageFormat(withAfcpMetadata(jpeg.subarray(0, -2))))
+  assert.throws(() => validateImageFormat(withAfcpMetadata(Buffer.from([255, 216, 255, 217]))))
+  assert.throws(() => validateImageFormat(withAfcpMetadata(Buffer.concat([jpeg, Buffer.from('gap')]))))
+})
+
+test('accepts only bounded NUL padding after a complete JPEG', () => {
+  const jpeg = readFileSync(new URL('./fixtures/images/tiny.jpg', import.meta.url))
+  for (const length of [1, 140, 6619, 64 * 1024]) {
+    const data = Buffer.concat([jpeg, Buffer.alloc(length)]), original = Buffer.from(data)
+    assert.equal(validateImageFormat(data).mimeType, 'image/jpeg')
+    assert.deepEqual(data, original)
+  }
+  assert.throws(() => validateImageFormat(Buffer.concat([jpeg, Buffer.alloc(64 * 1024 + 1)])))
+  for (const byte of [1, 32, 255]) {
+    const data = Buffer.concat([jpeg, Buffer.alloc(6619)])
+    data[data.length - 1] = byte
+    assert.throws(() => validateImageFormat(data))
+  }
+  assert.throws(() => validateImageFormat(Buffer.concat([jpeg.subarray(0, -2), Buffer.alloc(6619)])))
 })

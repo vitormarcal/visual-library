@@ -27,10 +27,8 @@ export const detectImageFormat = (b: Buffer): ImageFormat => {
   throw invalid()
 }
 
-// Some JPEGs carry SEF metadata after EOI. Validate that directory rather than
-// accepting arbitrary appended bytes; storage and hashing keep the full original.
-const validJpegEnd = (b: Buffer, imageEnd: number): boolean => {
-  if (imageEnd === b.length) return true
+// Validate known trailers without changing the bytes used for storage or hashing.
+const validSefTrailer = (b: Buffer, imageEnd: number): boolean => {
   if (b.length - imageEnd < 32 || b.toString('latin1', b.length - 4) !== 'SEFT') return false
   const directorySize = b.readUInt32LE(b.length - 8)
   const directory = b.length - 8 - directorySize
@@ -54,6 +52,42 @@ const validJpegEnd = (b: Buffer, imageEnd: number): boolean => {
     end = record.end
   }
   return end === directory
+}
+
+// AFCP v1: AXS! is big endian, AXS* is little endian. The footer points to
+// the directory immediately after the main JPEG, not an EOI inside a preview.
+const validAfcpTrailer = (b: Buffer, imageEnd: number): boolean => {
+  const footer = b.length - 12
+  if (footer < imageEnd + 12) return false
+  const signature = b.toString('latin1', footer, footer + 4)
+  if (!['AXS!', 'AXS*'].includes(signature) || b.toString('latin1', imageEnd, imageEnd + 4) !== signature) return false
+  const u16 = (offset: number) => signature === 'AXS!' ? b.readUInt16BE(offset) : b.readUInt16LE(offset)
+  const u32 = (offset: number) => signature === 'AXS!' ? b.readUInt32BE(offset) : b.readUInt32LE(offset)
+  if (u32(footer + 4) !== imageEnd || u16(imageEnd + 4) !== 1 || u32(imageEnd + 8) !== 0 || u32(footer + 8) !== 0) return false
+  const count = u16(imageEnd + 6), directoryEnd = imageEnd + 12 + count * 12
+  if (!count || directoryEnd > footer) return false
+  const records: { start: number; end: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const entry = imageEnd + 12 + i * 12
+    const tag = b.toString('latin1', entry, entry + 4), size = u32(entry + 4), start = u32(entry + 8)
+    if (!/^[\x20-\x7e]{4}$/.test(tag) || !size || start < directoryEnd || start + size > footer) return false
+    records.push({ start, end: start + size })
+  }
+  records.sort((a, c) => a.start - c.start)
+  let end = directoryEnd
+  for (const record of records) {
+    if (record.start !== end) return false
+    end = record.end
+  }
+  return end === footer
+}
+
+const validJpegEnd = (b: Buffer, imageEnd: number): boolean => {
+  if (imageEnd === b.length) return true
+  // Complete JPEGs may be followed by a zero-filled buffer. Only NUL bytes,
+  // with a fixed bound; never skip an arbitrary suffix or search for a later EOI.
+  if (b.length - imageEnd <= 64 * 1024 && b.subarray(imageEnd).every(byte => byte === 0)) return true
+  return validAfcpTrailer(b, imageEnd) || validSefTrailer(b, imageEnd)
 }
 
 export const validateImageFormat = (b: Buffer): ImageFormat => {

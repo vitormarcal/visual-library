@@ -4,6 +4,7 @@ import { createServer, request } from 'node:http'
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
 import { withSefMetadata } from './sef-jpeg.ts'
+import { withAfcpMetadata } from './afcp-jpeg.ts'
 import { createApp, createRouter, defineEventHandler, getRouterParam, toNodeListener } from 'h3'
 
 // Build a pre-feature database to verify migration against real old rows.
@@ -340,6 +341,30 @@ try {
   assert.equal((await send(Buffer.concat([jpeg, Buffer.from('arbitrary trailer')]))).status, 415)
   const incompleteJpeg = await send(withSefMetadata(jpeg.subarray(0, -2)))
   assert.equal(incompleteJpeg.status, 415)
+  limit = 128 * 1024
+  for (const complete of [withAfcpMetadata(jpeg), withAfcpMetadata(jpeg, true), Buffer.concat([jpeg, Buffer.alloc(6619)])]) {
+    const response = await send(complete, {
+      source: 'media-pulse',
+      sourceReference: JSON.stringify({ entityType: 'movie', entityId: '77' }),
+    }, '/api/assets', 'movie.jpg', 'image/jpeg')
+    assert.equal(response.status, 201)
+    const stored = await response.json()
+    assert.equal(stored.mimeType, 'image/jpeg')
+    assert.equal(stored.sizeBytes, complete.length)
+    const repeat = await send(complete)
+    assert.equal(repeat.status, 200)
+    assert.equal((await repeat.json()).id, stored.id)
+    assert.deepEqual(Buffer.from(await (await fetch(`${base}/api/assets/${stored.id}/content`)).arrayBuffer()), complete)
+    const hash = createHash('sha256').update(complete).digest('hex')
+    const found = await (await lookup({ hashes: [hash] })).json()
+    assert.equal(found.results[0].asset.id, stored.id, 'deduplication and lookup hash the full original')
+    const original = await send(jpeg)
+    assert.notEqual((await original.json()).id, stored.id)
+  }
+  assert.equal((await send(Buffer.concat([jpeg, Buffer.alloc(64 * 1024 + 1)]))).status, 415)
+  assert.equal((await send(Buffer.concat([jpeg, Buffer.alloc(6619), Buffer.from('<script>invalid</script>')]))).status, 415)
+  const incompleteAfcp = await send(withAfcpMetadata(jpeg.subarray(0, -2)))
+  assert.equal(incompleteAfcp.status, 415)
   console.log('All isolated asset HTTP and database assertions passed')
 } finally {
   server.closeAllConnections()
