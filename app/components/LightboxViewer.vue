@@ -524,6 +524,7 @@ syncDraftTags()
         ><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg></button>
       </div>
       <div :class="styles.viewingFooter">
+        <ImageFileActions :key="image.id" :src="image.src" :filename="image.filename" :original-name="image.originalName" :mime-type="image.mimeType" />
         <div :class="styles.adjacentNavigation" role="group" aria-label="Browse images">
           <button
             :class="[styles.control, styles.navButton, styles.previousButton]"
