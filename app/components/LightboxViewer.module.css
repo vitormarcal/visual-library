@@ -458,3 +458,19 @@ a.exploreButton { display: inline-flex; align-items: center; justify-content: ce
   .overlay > .closeButton { top: 84px; right: 16px; }
   .backButton { top: 84px; left: 16px; }
 }
+
+/* Keep organization first and secondary image details quiet. */
+.tagsPanel { padding: 8px 24px 24px; gap: 12px; }
+.detailHeading { margin: 0; color: var(--color-ink); font-size: 14px; font-weight: 700; line-height: 1.4; }
+.tagsPanel .tagList { justify-content: flex-start; }
+.tagsPanel .tagChip { background: var(--color-secondary-bg); }
+.tagsPanel .addTagButton { background: transparent; border: 1px dashed var(--color-stone); }
+.assetDetails { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.assetRow { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; width: 100%; font-size: 12px; line-height: 1.5; color: var(--color-mute); }
+.sourceLabel { overflow-wrap: anywhere; min-width: 0; }
+.sourceLabel span { color: var(--color-body); margin-left: 6px; }
+.visibilityButton { min-height: 44px; padding: 8px 12px; border: 1px solid var(--color-hairline); border-radius: var(--radius-md); background: transparent; color: var(--color-ink); font: inherit; font-size: 13px; font-weight: 600; }
+.visibilityButton:active { background: var(--color-secondary-bg); }
+.visibilityButton:disabled { opacity: .55; }
+.detailNotice { margin: 0; color: var(--color-mute); font-size: 13px; line-height: 1.5; }
+@media (max-width: 640px) { .tagsPanel { padding: 8px 16px 20px; } }

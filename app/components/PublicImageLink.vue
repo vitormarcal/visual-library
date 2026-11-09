@@ -40,19 +40,35 @@ async function revoke() {
 </script>
 
 <template>
-  <div class="publicLink">
-    <p>Anyone with a public link can view this image.</p>
-    <p v-if="count > 1">{{ count }} active public links. All show this image.</p>
-    <button type="button" :disabled="busy || !loaded" @click="copy">{{ url ? 'Copy public link' : 'Create and copy public link' }}</button>
-    <button v-if="url" type="button" :disabled="busy" @click="revoke">{{ count > 1 ? 'Revoke all public links' : 'Revoke public link' }}</button>
-    <input v-if="url" :value="url" readonly aria-label="Public image link" @focus="($event.target as HTMLInputElement).select()">
-    <p v-if="notice" role="status">{{ notice }}</p>
-  </div>
+  <section class="publicLink" aria-label="Public sharing" :aria-busy="busy">
+    <div class="heading">
+      <h3>Public link</h3>
+      <span class="sharingState">{{ !loaded ? (busy ? 'Checking…' : 'Unavailable') : url ? 'Link active' : 'Not shared' }}</span>
+    </div>
+    <p>{{ url ? 'Anyone with this link can view this image.' : 'Create a link to share this image with anyone.' }}</p>
+    <p v-if="count > 1">{{ count }} active links share this image. Revoking disables all of them.</p>
+    <div class="linkActions">
+      <input v-if="url" :value="url" readonly aria-label="Public image link" @focus="($event.target as HTMLInputElement).select()">
+      <button class="copyButton" type="button" :disabled="busy || !loaded" @click="copy">{{ busy && loaded ? 'Working…' : url ? 'Copy link' : 'Create & copy link' }}</button>
+    </div>
+    <button v-if="url" class="revokeButton" type="button" :disabled="busy" @click="revoke">{{ count > 1 ? 'Revoke all links' : 'Revoke link' }}</button>
+    <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+  </section>
 </template>
 
 <style scoped>
-.publicLink { margin: 16px 0; max-width: 100%; }
-p { color: var(--color-mute); font-size: 14px; line-height: 1.5; }
-button { border: 0; border-radius: var(--radius-full); background: var(--color-surface-card); padding: 10px 14px; margin: 0 8px 8px 0; color: var(--color-ink); }
-input { display: block; width: 100%; min-width: 0; border: 1px solid var(--color-hairline); border-radius: var(--radius-md); padding: 10px; }
+.publicLink { min-width: 0; padding: 20px 0; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline); }
+.heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+h3 { margin: 0; color: var(--color-ink); font-size: 14px; font-weight: 700; line-height: 1.4; }
+.sharingState { color: var(--color-mute); font-size: 12px; }
+p { margin: 6px 0 12px; color: var(--color-mute); font-size: 14px; line-height: 1.5; }
+.linkActions { display: flex; flex-wrap: wrap; gap: 8px; }
+button { min-height: 44px; border: 0; border-radius: var(--radius-md); padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.copyButton { background: var(--color-secondary-bg); color: var(--color-ink); }
+.copyButton:active { background: var(--color-secondary-pressed); }
+.revokeButton { margin-top: 8px; padding-inline: 8px; background: transparent; color: var(--color-mute); font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
+button:disabled { opacity: .55; cursor: default; }
+input { flex: 1 1 180px; width: 0; min-width: 0; min-height: 44px; border: 1px solid var(--color-hairline); border-radius: var(--radius-md); padding: 10px 12px; background: var(--color-canvas); color: var(--color-body); font: inherit; font-size: 16px; }
+.notice { margin: 10px 0 0; color: var(--color-ink); overflow-wrap: anywhere; }
+@media (max-width: 400px) { .linkActions input { flex-basis: 100%; width: 100%; } .copyButton { width: 100%; } }
 </style>

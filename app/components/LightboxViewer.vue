@@ -562,12 +562,7 @@ syncDraftTags()
     </div>
 
     <div id="viewer-tags" ref="tagsPanel" :class="styles.tagsPanel">
-      <PublicImageLink :image-id="image.id" />
-      <div :class="styles.assetDetails">
-        <span>Source: {{ image.source }}</span>
-        <button type="button" :class="styles.exploreButton" :disabled="savingTags" @click="$emit('visibility', image.id, !image.hiddenFromGallery)">{{ image.hiddenFromGallery ? 'Show in gallery' : 'Hide from gallery' }}</button>
-        <p v-if="visibilityNotice" role="status">{{ visibilityNotice }}</p>
-      </div>
+      <h3 :class="styles.detailHeading">Tags</h3>
       <div
         v-if="!editingTags"
         :class="styles.tagList"
@@ -591,7 +586,7 @@ syncDraftTags()
           :disabled="savingTags"
           @click="startEditingTags"
         >
-          {{ image.tags.length === 0 ? '+ Add tag' : '+' }}
+          {{ image.tags.length === 0 ? '+ Add tags' : '+ Edit tags' }}
         </button>
 
 
@@ -672,6 +667,15 @@ syncDraftTags()
           Done
         </button>
       </form>
+      <PublicImageLink :image-id="image.id" />
+      <div :class="styles.assetDetails">
+        <div :class="styles.assetRow">
+          <span :class="styles.sourceLabel">Source <span>{{ image.source }}</span></span>
+          <span :class="styles.visibilityLabel">{{ image.hiddenFromGallery ? 'Hidden from gallery' : 'Visible in gallery' }}</span>
+        </div>
+        <button type="button" :class="styles.visibilityButton" :disabled="savingTags" @click="$emit('visibility', image.id, !image.hiddenFromGallery)">{{ visibilityBusy ? 'Saving…' : image.hiddenFromGallery ? 'Show in gallery' : 'Hide from gallery' }}</button>
+        <p v-if="visibilityNotice" :class="styles.detailNotice" role="status">{{ visibilityNotice }}</p>
+      </div>
     </div>
 
     </div>

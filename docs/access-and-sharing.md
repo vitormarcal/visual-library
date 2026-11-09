@@ -71,7 +71,7 @@ Credenciais fixas da implementação anterior são migradas para a lista, preser
 
 ## Links públicos
 
-No visualizador, **Create and copy public link** publica somente aquela imagem. A URL funciona em img do blog, sem login, e não oferece galeria, tags ou navegação. Copiar novamente reutiliza o mesmo link. Se clipboard falhar, copiar o campo exibido.
+No visualizador, **Create & copy link** publica somente aquela imagem. A URL funciona em img do blog, sem login, e não oferece galeria, tags ou navegação. Copiar novamente reutiliza o mesmo link. Se clipboard falhar, copiar o campo exibido.
 
 **Revoke public link** impede novas entregas pelo servidor; publicar novamente gera outro endereço. Cópias já armazenadas em navegadores/CDNs podem continuar disponíveis por até um ano, ou enquanto forem conservadas pelo cliente. Revogação não purga esses caches. Exclusão também remove o vínculo. Ocultar/mostrar na galeria e uploads por aplicações não publicam nem revogam. Redefinir o owner preserva os tokens das aplicações e links públicos, inclusive enquanto a senha está pendente.
 
