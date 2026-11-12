@@ -25,9 +25,13 @@ Excluir uma imagem pela aplicação remove seu diretório de previews. Previews 
 
 ## Limites
 
-640 px é uma política inicial, não otimização comprovada para toda imagem/tela/DPR. Validar nitidez com o uso real, especialmente em celular de alta densidade. Arquivos pequenos podem não economizar bytes; o objetivo é reduzir originais grandes. Não há alteração do TTFB do documento público, paginação ou virtualização. A decisão e a sequência das próximas entregas estão no [roadmap](ROADMAP-redescoberta-desempenho.md).
+640 px é uma política inicial, não otimização comprovada para toda imagem/tela/DPR. Validar nitidez com o uso real, especialmente em celular de alta densidade. Arquivos pequenos podem não economizar bytes; o objetivo é reduzir originais grandes. A entrega 021 não alterou TTFB do documento público, paginação ou virtualização. A entrega 036 acrescenta paginação pessoal; virtualização continua fora do escopo. A decisão e a sequência das próximas entregas estão no [roadmap](ROADMAP-redescoberta-desempenho.md).
 
 
 ## Autenticação (026)
 
-Miniaturas e originais exigem sessão pessoal; tokens de aplicações acessam conteúdo somente pela API de assets. Cache atual é `no-store`, com validação de acesso antes de 304. Isso substitui a política anterior de cache privado immutable. Links públicos individuais entregam o original, sem miniatura pública. Ver [acesso e compartilhamento](access-and-sharing.md).
+Miniaturas e originais exigem sessão pessoal; tokens de aplicações acessam conteúdo somente pela API de assets. A entrega 026 adotou `no-store`, com validação de acesso antes de 304. A revisão 036, descrita abaixo, permite cache privado com revalidação obrigatória. Links públicos individuais entregam o original, sem miniatura pública. Ver [acesso e compartilhamento](access-and-sharing.md).
+
+## Revisão de desempenho — 036
+
+Miniaturas bem-sucedidas passam a usar `private, no-cache`: o navegador pode armazenar os bytes, mas deve revalidar antes de reutilizar. A autenticação continua anterior ao 304. Fallback e erros continuam `no-store`. Arquivos persistidos no servidor mantêm a mesma versão, limite e qualidade; não houve preparo do acervo no startup nem aumento de concorrência.

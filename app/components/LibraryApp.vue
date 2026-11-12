@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import SaveDropzone from './SaveDropzone.vue'
-import { createRediscoveryBatches } from '../utils/rediscovery'
+import { useLibraryCatalog } from '../composables/useLibraryCatalog'
+import { useRemoteViewerDiscovery } from '../composables/useRemoteViewerDiscovery'
 import { discoveryImages } from '../utils/image-visibility'
 import { sharedCaptureKeys, sharedCaptureMessage } from '../utils/shared-capture'
 import { matchesImageSearch } from '../utils/image-search'
 import type { PageDiscovery } from '../utils/page-image-selection'
 import { saveImageBatch, type UploadResult } from '../utils/image-upload'
-import { automaticTagFolders } from '../utils/tag-exploration'
+import { normalizeSearch } from '../utils/image-search'
 import { libraryDestination, libraryDestinationUrl, interceptLibraryLink } from '../utils/library-navigation'
 import { recordViewerVisit, popViewerVisit, type ViewerHistoryEntry, type ViewerPosition } from '../utils/viewer-history'
 import type { ImageRecord, ImageTag } from '../types/image'
@@ -34,26 +35,25 @@ const closePageCapture = async () => {
   else focusAddImages()
 }
 const uploadLimit = Number(useRuntimeConfig().public.maxImageSizeBytes)
-const images = ref<ImageRecord[]>([])
+const images = shallowRef<ImageRecord[]>([])
+const summary = ref({ images: 0, tags: 0, bytes: 0, visible: 0 })
 const librarySummary = computed(() => {
-  const tags = new Set<string>()
-  let bytes = 0
-  for (const image of images.value) {
-    bytes += image.sizeBytes
-    for (const tag of image.tags) tags.add(tag.id)
-  }
+  const bytes = summary.value.bytes
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const unit = bytes > 0 ? Math.min(Math.floor(Math.log10(bytes) / 3), units.length - 1) : 0
   const numbers = new Intl.NumberFormat('en', { maximumFractionDigits: 1 })
   return {
-    images: `${numbers.format(images.value.length)} ${images.value.length === 1 ? 'image' : 'images'}`,
-    tags: `${numbers.format(tags.size)} ${tags.size === 1 ? 'tag' : 'tags'}`,
+    images: `${numbers.format(summary.value.images)} ${summary.value.images === 1 ? 'image' : 'images'}`,
+    tags: `${numbers.format(summary.value.tags)} ${summary.value.tags === 1 ? 'tag' : 'tags'}`,
     size: `${numbers.format(bytes / 1000 ** unit)} ${units[unit]}`,
   }
 })
 const publicImages = computed(() => discoveryImages(images.value))
 const eligibleImages = computed(() => discoveryImages(images.value, destination.value.hidden))
-const loading = ref(true)
+const routeLoading = ref(true)
+const imageLoading = ref(false)
+const linkedImageError = ref(false)
+const loading = computed(() => catalog.enabled.value ? !catalog.current.value.started && !catalog.current.value.error : routeLoading.value)
 const saving = ref(false)
 const uploadProgress = ref<{ current: number; total: number } | null>(null)
 const uploadResult = shallowRef<UploadResult | null>(null)
@@ -62,6 +62,8 @@ const noticeKind = ref<'success' | 'error'>('success')
 const sharedNotice = ref(sharedCaptureMessage(useRequestURL().searchParams))
 const navigation = useLibraryNavigation()
 const destination = navigation.destination
+const catalog = useLibraryCatalog(destination, images)
+const pagedImages = catalog.images
 const contentMode = computed(() => destination.value.screen === 'library' && !destination.value.hidden && destination.value.searchMode === 'content' && !destination.value.problem)
 const contentQuery = computed(() => contentMode.value ? destination.value.query : '')
 const contentTagIds = computed(() => contentMode.value ? destination.value.tagIds : [])
@@ -107,7 +109,8 @@ const subjectTag = computed(() => destination.value.subjectId ? tagMetadata.valu
 const coverDimensions = ref<Record<string, { width: number; height: number }>>({})
 const tagsLoading = ref(false)
 const tagsError = ref(false)
-const libraryError = ref(false)
+const routeError = ref(false)
+const libraryError = computed(() => catalog.enabled.value ? catalog.current.value.error && !catalog.current.value.started : routeError.value)
 let tagsRequest = 0
 const galleryQuery = computed({
   get: () => contentMode.value ? contentDraft.value : destination.value.query,
@@ -123,36 +126,43 @@ const requiredTagIds = computed(() => [...(destination.value.subjectId ? [destin
 const missingFilters = computed(() => destination.value.tagIds.filter((id) => tagLookups.value[id] === 'missing' && !tagMetadata.value[id]))
 const resolvingDestination = computed(() => !loading.value && !libraryError.value && requiredTagIds.value.some((id) => !tagMetadata.value[id] && !['missing', 'error'].includes(tagLookups.value[id] ?? 'loading')))
 const destinationError = computed(() => requiredTagIds.value.some((id) => !tagMetadata.value[id] && tagLookups.value[id] === 'error'))
-const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This folder is no longer available.' : null))
+const destinationUnavailable = computed(() => destination.value.problem || (!loading.value && !libraryError.value && !imageLoading.value && screen.value === 'similar' && !referenceImage.value ? 'This reference is no longer available.' : null) || (destination.value.subjectId && !tagMetadata.value[destination.value.subjectId] && tagLookups.value[destination.value.subjectId] === 'missing' ? 'This folder is no longer available.' : null))
 const destinationBlocked = computed(() => Boolean(destinationUnavailable.value || missingFilters.value.length || destinationError.value || resolvingDestination.value))
 const title = computed(() => screen.value === 'subject' ? subjectTag.value?.name ?? 'Folder' : screen.value === 'explore' ? 'Explore' : screen.value === 'similar' ? 'Similar images' : screen.value === 'duplicates' ? 'Review duplicates' : 'Library')
 useHead(() => ({ title: `${title.value} · Visual Library` }))
 const navigationHref = (target: 'library' | 'folders' | 'explore') => libraryDestinationUrl(navigation.savedDestination(target))
 const imageHref = (id: string) => libraryDestinationUrl({ ...destination.value, imageId: id })
 const linkAction = (event: MouseEvent, action: () => void) => { if (interceptLibraryLink(event) && !applyingTags.value) action() }
-const subjectImages = computed(() => subjectTag.value ? publicImages.value.filter((image) => image.tags.some((tag) => tag.id === subjectTag.value!.id)) : [])
-const allFolders = computed(() => automaticTagFolders(images.value, tagSummaries.value))
-const folders = computed(() => automaticTagFolders(images.value, tagSummaries.value, galleryQuery.value))
-const rediscoveryBatches = createRediscoveryBatches()
-const rediscovery = computed(() => rediscoveryBatches.get(destination.value.selectionId))
+type Folder = { id: string; name: string; normalizedName: string; imageCount: number; previews: { id: string; src: string; thumbnailSrc?: string | null; width: number | null; height: number | null }[] }
+const allFolders = shallowRef<Folder[]>([])
+const folders = computed(() => {
+  const terms = normalizeSearch(galleryQuery.value).split(' ').filter(Boolean)
+  return allFolders.value.filter(folder => terms.every(term => normalizeSearch(folder.name).includes(term)))
+})
+const subjectTotal = computed(() => catalog.current.value.subjectTotal)
+const selections = new Map<string, { ids: string[]; includesRecent: boolean }>()
+const rediscovery = computed(() => destination.value.selectionId ? selections.get(destination.value.selectionId) : undefined)
+const selectionVersion = ref(0)
 const rediscoveredImages = computed(() => {
+  selectionVersion.value
   const current = new Map(publicImages.value.map(image => [image.id, image]))
   return (rediscovery.value?.ids ?? []).map(id => current.get(id)).filter((image): image is ImageRecord => Boolean(image))
 })
-const anotherSelection = () => {
-  const selectionId = crypto.randomUUID()
-  rediscoveryBatches.create(selectionId, publicImages.value, rediscovery.value?.ids)
-  navigation.replace({ ...destination.value, selectionId, imageId: null })
+let rediscoveryRequest = 0
+const anotherSelection = async () => {
+  const request = ++rediscoveryRequest
+  routeLoading.value = true; routeError.value = false
+  try {
+    const page = await $fetch<{ images: ImageRecord[]; ids: string[]; includesRecent: boolean }>('/api/library/rediscovery', { query: { previous: rediscovery.value?.ids ?? [] } })
+    if (request !== rediscoveryRequest || screen.value !== 'explore') return
+    catalog.merge(page.images)
+    const id = crypto.randomUUID()
+    if (selections.size >= 20) selections.delete(selections.keys().next().value!)
+    selections.set(id, page); selectionVersion.value++
+    navigation.replace({ ...destination.value, selectionId: id, imageId: null })
+  } catch { if (request === rediscoveryRequest) routeError.value = true }
+  finally { if (request === rediscoveryRequest) routeLoading.value = false }
 }
-// A batch belongs to this page session; never reconstruct a different lot under an old ID.
-watch([() => destination.value.selectionId, () => destination.value.screen, loading, libraryError, () => publicImages.value.length], () => {
-  if (loading.value || libraryError.value || destination.value.problem || screen.value !== 'explore') return
-  if (rediscovery.value && (rediscovery.value.ids.length || !publicImages.value.length)) return
-  if (destination.value.imageId) {
-    navigation.replace({ ...libraryDestination(), imageId: destination.value.imageId })
-    showNotice('This selection is no longer available. Opened the image in Library.', 'success')
-  } else anotherSelection()
-})
 type PagePosition = { scrollTop: number; focusId: string | null }
 let pageTransition = 0
 let cancelPageRestoration = () => {}
@@ -190,7 +200,7 @@ const applyBulkTags = async (tags: string[]) => {
       selectedIds.value = []
       bulkNotice.value = 'Tags added.'
     } else showNotice('Tags added to the selected images.', 'success')
-    await loadTags()
+    await refreshLibrary()
   } catch (error) {
     const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     const feedback = message === 'Tag is too long' ? 'Tag is too long.'
@@ -215,11 +225,7 @@ const visibleImages = computed(() => {
   if (screen.value === 'explore') return destinationBlocked.value ? [] : rediscoveredImages.value
   if (screen.value === 'similar') return destinationBlocked.value ? [] : similarity.current.value.images
     .map(image => images.value.find(current => current.id === image.id) ?? image).filter(image => !image.hiddenFromGallery)
-  return eligibleImages.value.filter((image) => {
-    const imageTags = new Set(image.tags.map((tag) => tag.normalizedName))
-    return !destinationBlocked.value && matchesImageSearch(image, galleryQuery.value)
-      && effectiveFilters.value.every((filter) => imageTags.has(filter.normalizedName))
-  })
+  return destinationBlocked.value ? [] : pagedImages.value
 })
 
 const hasLibraryTags = computed(() => galleryTagSummaries.value.length > 0)
@@ -232,7 +238,7 @@ const selectedImageIndex = computed(() => {
   return visibleImages.value.findIndex((image) => image.id === selectedImageId.value)
 })
 
-const selectedImage = computed(() => !loading.value && !destinationBlocked.value ? eligibleImages.value.find((image) => image.id === selectedImageId.value) ?? null : null)
+const selectedImage = computed(() => !destinationBlocked.value ? eligibleImages.value.find((image) => image.id === selectedImageId.value) ?? null : null)
 
 const hiddenLinkedImage = computed(() => !loading.value && !destination.value.hidden
   ? images.value.find(image => image.id === destination.value.imageId && image.hiddenFromGallery) ?? null : null)
@@ -264,28 +270,34 @@ const changeVisibility = async (id: string, hiddenFromGallery: boolean) => {
     }
     images.value = images.value.map(image => image.id === id ? { ...image, hiddenFromGallery: response.hiddenFromGallery } : image)
     showNotice(hiddenFromGallery ? 'Image hidden from gallery.' : 'Image shown in gallery.', 'success')
-    await loadTags()
+    await refreshLibrary()
   } catch {
     if (key === navigation.entry.value?.key) visibilityNotice.value = 'Could not change visibility. Try again.'
     else showNotice('Could not change visibility. Try again.', 'error')
   } finally { visibilityBusy.value = new Set([...visibilityBusy.value].filter(value => value !== id)) }
 }
-const galleryTagSummaries = computed(() => {
-  if (!destination.value.hidden) return tagSummaries.value
-  const tags = new Map<string, TagSummary>()
-  for (const image of eligibleImages.value) for (const tag of image.tags) {
-    const summary = tags.get(tag.id) ?? { ...tag, imageCount: 0, lastUsedAt: image.createdAt, coverImageId: null }
-    summary.imageCount++
-    tags.set(tag.id, summary)
-  }
-  return [...tags.values()]
+const galleryTagSummaries = computed(() => tagSummaries.value)
+const viewerDiscovery = useRemoteViewerDiscovery(selectedImage, catalog.merge)
+const relatedImages = computed(() => {
+  const current = new Map(eligibleImages.value.map(image => [image.id, image]))
+  return viewerDiscovery.images.value.map(image => current.get(image.id)).filter((image): image is ImageRecord => Boolean(image))
 })
-
-const viewerDiscovery = useViewerDiscovery(selectedImage, eligibleImages)
-const relatedImages = viewerDiscovery.images
-
-const hasPreviousImage = computed(() => selectedImageIndex.value > 0)
-const hasNextImage = computed(() => selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
+const neighbors = shallowRef<{ previous: ImageRecord | null; next: ImageRecord | null }>({ previous: null, next: null })
+let neighborRequest = 0
+const loadNeighbors = async () => {
+  const request = ++neighborRequest
+  neighbors.value = { previous: null, next: null }
+  if (!selectedImageId.value || !catalog.enabled.value) return
+  try {
+    const result = await $fetch<{ previous: ImageRecord | null; next: ImageRecord | null }>('/api/library/neighbors', { query: { ...catalog.query.value, id: selectedImageId.value } })
+    if (request !== neighborRequest) return
+    catalog.merge([result.previous, result.next].filter((image): image is ImageRecord => Boolean(image)))
+    neighbors.value = result
+  } catch { /* The detail remains available; failed neighbor requests are retried on navigation. */ }
+}
+watch([selectedImageId, catalog.key], () => { if (import.meta.client) void loadNeighbors() })
+const hasPreviousImage = computed(() => catalog.enabled.value ? Boolean(neighbors.value.previous) : selectedImageIndex.value > 0)
+const hasNextImage = computed(() => catalog.enabled.value ? Boolean(neighbors.value.next) : selectedImageIndex.value >= 0 && selectedImageIndex.value < visibleImages.value.length - 1)
 
 const showNotice = (message: string, kind: 'success' | 'error') => {
   notice.value = message
@@ -304,13 +316,22 @@ const isDuplicateSaveResponse = (response: SaveImageResponse): response is Dupli
   return 'duplicate' in response && response.duplicate
 }
 
+const acceptSavedImage = (image: ImageRecord) => {
+  catalog.merge([image])
+  if (catalog.enabled.value && image.hiddenFromGallery === destination.value.hidden && matchesImageSearch(image, destination.value.query)
+    && catalog.query.value.tag.every(id => image.tags.some(tag => tag.id === id))) {
+    const state = catalog.current.value
+    if (!state.ids.includes(image.id)) { state.ids = [image.id, ...state.ids]; state.total++ }
+  }
+}
+
 const applySaveResponse = (response: SaveImageResponse) => {
   if (isDuplicateSaveResponse(response)) {
     showNotice(response.message, 'success')
     return
   }
 
-  images.value = [response, ...images.value]
+  acceptSavedImage(response)
   showNotice('Saved.', 'success')
 }
 
@@ -342,7 +363,7 @@ const loadTags = async () => {
   const request = ++tagsRequest
   tagsLoading.value = true
   try {
-    const tags = await $fetch<TagSummary[]>('/api/tags')
+    const tags = await $fetch<TagSummary[]>('/api/tags', { query: { hidden: destination.value.hidden ? '1' : '0' } })
     if (request !== tagsRequest) return
     tagSummaries.value = tags
     for (const tag of tags) tagMetadata.value[tag.id] = tag
@@ -354,22 +375,85 @@ const loadTags = async () => {
   }
 }
 
-const loadImages = async () => {
-  loading.value = true
-  libraryError.value = false
-
-  try {
-    const [loaded] = await Promise.all([$fetch<ImageRecord[]>('/api/images'), loadTags()])
-    const loadedIds = new Set(loaded.map((image) => image.id))
-    images.value = [...images.value.filter((image) => !loadedIds.has(image.id)), ...loaded]
-    for (const image of images.value) for (const tag of image.tags) tagMetadata.value[tag.id] = tag
-  } catch {
-    libraryError.value = true
-    showNotice('Could not load the library.', 'error')
-  } finally {
-    loading.value = false
-  }
+let summaryRequest = 0
+const loadSummary = async () => {
+  const request = ++summaryRequest
+  try { const result = await $fetch<typeof summary.value>('/api/library/summary'); if (request === summaryRequest) summary.value = result }
+  catch { /* Retry with the next metadata refresh. */ }
 }
+let foldersLoaded = false
+let routeRequest = 0
+const loadImages = async () => {
+  const request = ++routeRequest
+  if (catalog.enabled.value) { catalog.activate(); routeLoading.value = false; return }
+  routeLoading.value = true; routeError.value = false
+  try {
+    if (screen.value === 'folders' && !foldersLoaded) {
+      const result = await $fetch<Folder[]>('/api/library/folders')
+      if (request !== routeRequest) return
+      allFolders.value = result; foldersLoaded = true
+    } else if (screen.value === 'explore') {
+      if (destination.value.selectionId && selections.has(destination.value.selectionId)) return
+      if (destination.value.imageId) {
+        navigation.replace({ ...libraryDestination(), imageId: destination.value.imageId })
+        showNotice('This selection is no longer available. Opened the image in Library.', 'success')
+      } else await anotherSelection()
+    }
+  } catch { if (request === routeRequest) routeError.value = true }
+  finally { if (request === routeRequest) routeLoading.value = false }
+}
+let imageRequest = 0
+const ensureLinkedImage = async () => {
+  const ids = [...new Set([destination.value.imageId, referenceId.value].filter((id): id is string => Boolean(id)))], request = ++imageRequest
+  if (!ids.length) { imageLoading.value = false; linkedImageError.value = false; return }
+  imageLoading.value = true; linkedImageError.value = false
+  try {
+    await Promise.all(ids.map(async id => {
+      try {
+        const image = await $fetch<ImageRecord>('/api/library/image', { query: { id } })
+        if (request === imageRequest) catalog.merge([image])
+      } catch (error) {
+        if (request === imageRequest) {
+          if ((error as { statusCode?: number }).statusCode === 404) images.value = images.value.filter(image => image.id !== id)
+          else linkedImageError.value = true
+        }
+      }
+    }))
+  } finally { if (request === imageRequest) imageLoading.value = false }
+}
+const refreshLibrary = async () => {
+  imageRequest++; neighborRequest++; routeRequest++
+  imageLoading.value = false
+  foldersLoaded = false
+  const depth = catalog.current.value.ids.length, key = catalog.key.value
+  const anchor = Array.from(document.querySelectorAll<HTMLElement>('[data-lightbox-open-id]')).find(node => node.getBoundingClientRect().bottom > 100)
+  const anchorId = anchor?.dataset.lightboxOpenId, anchorTop = anchor?.getBoundingClientRect().top
+  await Promise.all([loadTags(), loadSummary(), catalog.refresh()])
+  if (catalog.enabled.value) {
+    await catalog.restore(depth)
+    await nextTick()
+    if (catalog.key.value === key && !selectedImageId.value && anchorId && anchorTop !== undefined) {
+      const current = document.querySelector<HTMLElement>(`[data-lightbox-open-id="${CSS.escape(anchorId)}"]`)
+      if (current) scrollBy(0, current.getBoundingClientRect().top - anchorTop)
+    }
+  }
+  else if (screen.value === 'folders') await loadImages()
+  else if (screen.value === 'explore' && !rediscovery.value?.ids.length && summary.value.visible) await anotherSelection()
+  if (selectedImageId.value || referenceId.value) { void ensureLinkedImage(); void loadNeighbors() }
+}
+const selectingAll = ref(false)
+const selectAllImages = async () => {
+  if (selectingAll.value) return
+  if (!catalog.enabled.value) { selectedIds.value = visibleImages.value.map(image => image.id); return }
+  const key = catalog.key.value
+  selectingAll.value = true
+  try { const ids = await catalog.selectAll(); if (key === catalog.key.value && selecting.value) selectedIds.value = ids }
+  catch { bulkNotice.value = 'Could not select all images. Try again.' }
+  finally { selectingAll.value = false }
+}
+watch(() => [destination.value.screen, destination.value.searchMode], () => { if (import.meta.client && navigation.entry.value) void loadImages() })
+watch(() => destination.value.hidden, () => { if (import.meta.client) void loadTags() })
+watch([selectedImageId, referenceId], () => { if (import.meta.client) void ensureLinkedImage() })
 
 const clearCaptureNotice = () => {
   if (noticeTimer) clearTimeout(noticeTimer)
@@ -396,10 +480,10 @@ const handleSave = async (files: File[], retry = false) => {
       formData.append('tags', JSON.stringify(tags))
       const saved = await $fetch<SaveImageResponse>('/api/images', { method: 'POST', body: formData })
       if (isDuplicateSaveResponse(saved)) return 'duplicate'
-      images.value = [saved, ...images.value]
+      acceptSavedImage(saved)
       return 'saved'
     }, (current, total) => { uploadProgress.value = { current, total } }, previous, uploadLimit)
-    void loadTags()
+    void refreshLibrary()
     if (!uploadResult.value.failures.length) {
       const result = uploadResult.value
       uploadResultTimer = setTimeout(() => { if (uploadResult.value === result) uploadResult.value = null }, 3200)
@@ -429,7 +513,7 @@ const handleSaveUrl = async (url: string) => {
     const response = await $fetch<({ kind: 'image'; result: SaveImageResponse }) | ({ kind: 'page' } & PageDiscovery)>('/api/capture-url', { method: 'POST', body: { url, tags } })
     if (response.kind === 'page') pageCapture.value = response
     else applySaveResponse(response.result)
-    void loadTags()
+    void refreshLibrary()
   } catch (error) {
     const message = (error as { data?: { statusMessage?: string } }).data?.statusMessage
     showNotice(message || 'This image URL cannot be saved.', 'error')
@@ -443,7 +527,7 @@ const applyDuplicateResolution = (result: { removedIds: string[]; images: ImageR
   const removed = new Set(result.removedIds), updated = new Map(result.images.map(image => [image.id, image]))
   images.value = images.value.filter(image => !removed.has(image.id)).map(image => updated.get(image.id) ?? image)
   for (const id of removed) { similarity.remove(id); content.remove(id) }
-  void loadTags()
+  void refreshLibrary()
 }
 
 const handleDelete = async (id: string) => {
@@ -452,12 +536,7 @@ const handleDelete = async (id: string) => {
     images.value = images.value.filter((image) => image.id !== id)
     similarity.remove(id)
     content.remove(id)
-    const retained = destination.value.tagIds.filter((tagId) => images.value.some((image) => image.tags.some((tag) => tag.id === tagId)))
-    if (retained.length !== destination.value.tagIds.length) {
-      navigation.replace({ ...destination.value, tagIds: retained })
-      showFilterNotice('Filters with no remaining images were removed.')
-    }
-    void loadTags()
+    void refreshLibrary()
   } catch {
     showNotice('Could not remove this image.', 'error')
   }
@@ -508,7 +587,7 @@ const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> =>
       method: 'PUT', body: { tags },
     })
     images.value = images.value.map((image) => image.id === id ? { ...image, tags: response.tags } : image)
-    void loadTags()
+    void refreshLibrary()
     return response.tags
   } finally {
     pendingTagSaves.value = new Set([...pendingTagSaves.value].filter((pendingId) => pendingId !== id))
@@ -516,6 +595,7 @@ const saveImageTags = async (id: string, tags: string[]): Promise<ImageTag[]> =>
 }
 
 const restorePage = async (position: PagePosition, selector: string, transition: number) => {
+  if (catalog.enabled.value) await catalog.restore((position as PagePosition & { depth?: number }).depth ?? 60, position.focusId)
   await nextTick()
   if (transition !== pageTransition) return
   const fallback = screen.value === 'folders' ? '[data-folder-search]' : screen.value === 'explore' ? '[data-explore-search]' : screen.value === 'similar' ? '[data-similar-heading]' : '[data-library-search]'
@@ -614,8 +694,8 @@ watch([() => navigation.entry.value?.key, loading, destinationBlocked, similarIn
     void restorePage(state, selector, pageTransition)
   }
 })
-watch([selectedImage, loading, destinationBlocked], () => {
-  if (loading.value || destinationBlocked.value || libraryError.value || (destination.value.imageId && visibilityBusy.value.has(destination.value.imageId))) return
+watch([selectedImage, loading, destinationBlocked, imageLoading], () => {
+  if (loading.value || imageLoading.value || linkedImageError.value || destinationBlocked.value || libraryError.value || (destination.value.imageId && visibilityBusy.value.has(destination.value.imageId))) return
   if (selectedImage.value) navigation.ensureViewerParent()
   else if (destination.value.imageId && !hiddenLinkedImage.value) {
     navigation.replace({ ...destination.value, imageId: null })
@@ -655,12 +735,12 @@ const navigateViewer = (id: string | undefined, position: ViewerPosition, relate
   selectedImageId.value = id
 }
 
-const openRelatedImage = (id: string, position: ViewerPosition) => navigateViewer(id, position, true)
+const openRelatedImage = (id: string, position: ViewerPosition) => { catalog.merge(relatedImages.value); navigateViewer(id, position, true) }
 const showPreviousImage = (position: ViewerPosition) => {
-  if (hasPreviousImage.value) navigateViewer(visibleImages.value[selectedImageIndex.value - 1]?.id, position)
+  if (hasPreviousImage.value) navigateViewer(catalog.enabled.value ? neighbors.value.previous?.id : visibleImages.value[selectedImageIndex.value - 1]?.id, position)
 }
 const showNextImage = (position: ViewerPosition) => {
-  if (hasNextImage.value) navigateViewer(visibleImages.value[selectedImageIndex.value + 1]?.id, position)
+  if (hasNextImage.value) navigateViewer(catalog.enabled.value ? neighbors.value.next?.id : visibleImages.value[selectedImageIndex.value + 1]?.id, position)
 }
 const goBackInViewer = () => {
   const { entry, history } = popViewerVisit(viewerHistory.value, new Set(eligibleImages.value.map((image) => image.id)))
@@ -772,9 +852,14 @@ onMounted(() => {
   document.addEventListener('drop', globalDrop)
   window.addEventListener('blur', resetDrop)
   void loadImages()
+  void loadTags()
+  void loadSummary()
+  void ensureLinkedImage()
+  void loadNeighbors()
 })
 
 onBeforeUnmount(() => {
+  routeRequest++; imageRequest++; neighborRequest++; rediscoveryRequest++; summaryRequest++
   navigation.stop()
   document.removeEventListener('paste', globalPaste)
   document.removeEventListener('dragenter', globalDrag)
@@ -791,9 +876,9 @@ onBeforeUnmount(() => {
   if (viewerFilterNoticeTimer) clearTimeout(viewerFilterNoticeTimer)
 })
 
-watch(visibleImages, () => {
-  const visibleIds = new Set(visibleImages.value.map((image) => image.id))
-  selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id))
+watch(catalog.key, async () => {
+  selectedIds.value = []; selecting.value = false
+  if (catalog.enabled.value && navigation.mode.value === 'replace' && !destination.value.imageId) { await nextTick(); scrollTo(0, 0) }
 })
 
 </script>
@@ -860,13 +945,16 @@ watch(visibleImages, () => {
       @error="showNotice($event, 'error')"
     />
 
-    <PageImageSelection data-page-selection v-if="pageCapture" :page="pageCapture" :tags="batchTags" @close="closePageCapture" @busy="saving = $event" @saved="images = [$event, ...images]; loadTags()" />
+    <PageImageSelection data-page-selection v-if="pageCapture" :page="pageCapture" :tags="batchTags" @close="closePageCapture" @busy="saving = $event" @saved="acceptSavedImage($event); refreshLibrary()" />
 
     <section v-if="sharedNotice" class="destinationProblem" role="status">
       <p>{{ sharedNotice }}</p>
       <button type="button" @click="sharedNotice = ''">Dismiss</button>
     </section>
 
+    <section v-if="linkedImageError" class="loadError" role="status">
+      <p>Could not load this image.</p><button type="button" @click="ensureLinkedImage">Try again</button>
+    </section>
     <section v-if="hiddenLinkedImage && !destinationBlocked" class="destinationProblem" role="status">
       <p>This image is hidden from the gallery.</p>
       <button type="button" @click="openHiddenLink">Open hidden image</button>
@@ -889,20 +977,20 @@ watch(visibleImages, () => {
             <h2 id="rediscovery-heading" data-rediscovery-heading tabindex="-1">Rediscover</h2>
             <p v-if="!loading && !libraryError && rediscoveredImages.length">{{ rediscovery?.includesRecent ? 'A selection of your saves, including more recent images.' : 'From images you saved at least 30 days ago.' }}</p>
           </div>
-          <button v-if="!loading && !libraryError && publicImages.length && (publicImages.length > 1 || !rediscoveredImages.length)" data-rediscovery-refresh type="button" @click="anotherSelection">Another selection</button>
+          <button v-if="!loading && !libraryError && summary.visible && (summary.visible > 1 || !rediscoveredImages.length)" data-rediscovery-refresh type="button" @click="anotherSelection">Another selection</button>
         </div>
         <div v-if="libraryError" class="loadError" role="status">
           <p>Could not load saved images.</p><button type="button" @click="loadImages">Try again</button>
         </div>
         <GalleryGrid v-else :images="rediscoveredImages" :loading="loading" compact :image-href="imageHref"
-          :empty-text="publicImages.length ? 'No images remain in this selection. Choose another selection.' : 'Saved images will appear here.'"
+          :empty-text="summary.visible ? 'No images remain in this selection. Choose another selection.' : 'Saved images will appear here.'"
           @open="openViewer" @delete="handleDelete" />
       </section>
     </template>
     <FolderGrid v-else-if="screen === 'folders'"
       v-model:query="galleryQuery" :groups="folders" :has-tags="allFolders.length > 0"
       :restore-focus-id="navigation.entry.value?.focusId"
-      :loading="loading || (tagsLoading && !tagSummaries.length)"
+      :loading="loading"
       :error="libraryError || (tagsError && !tagSummaries.length)"
       :dimensions="coverDimensions" :library-href="navigationHref('library')"
       @open="openSubject" @library="showLibrary" @retry="retrySubjects" @dimension="rememberCoverDimensions"
@@ -921,10 +1009,10 @@ watch(visibleImages, () => {
       <div v-if="screen === 'subject'" class="subjectContext">
         <a :href="navigationHref('folders')" :aria-disabled="applyingTags || undefined" @click="linkAction($event, showFolders)">Back to Folders</a>
         <button type="button" class="shellPlain" :disabled="applyingTags" @click="searchEntireLibrary">Search entire library</button>
-        <p>{{ galleryQuery.trim() || galleryFilters.length ? `${visibleImages.length} of ${subjectImages.length}` : subjectImages.length }} {{ subjectImages.length === 1 ? 'image' : 'images' }}</p>
+        <p>{{ galleryQuery.trim() || galleryFilters.length ? `${catalog.current.value.total} of ${subjectTotal}` : subjectTotal }} {{ subjectTotal === 1 ? 'image' : 'images' }}</p>
       </div>
       <p v-if="screen === 'library' && !contentMode && !loading && !libraryError && !destinationBlocked && (galleryQuery.trim() || galleryFilters.length)" class="libraryResultCount" role="status">
-        {{ visibleImages.length.toLocaleString('en') }} of {{ librarySummary.images }}
+        {{ catalog.current.value.total.toLocaleString('en') }} of {{ librarySummary.images }}
       </p>
 
       <section v-if="contentMode" class="contentStatus" role="status" aria-live="polite">
@@ -932,7 +1020,7 @@ watch(visibleImages, () => {
         <p v-if="content.current.value.busy && !content.current.value.started">Loading content search.</p>
         <template v-else-if="content.current.value.state === 'inactive' && !content.current.value.error">
           <p>Prepare locally once to search your saved images. The first preparation downloads a model (about 412 MB).</p>
-          <button type="button" :disabled="content.current.value.busy || !publicImages.length" @click="content.prepare">Prepare content search</button>
+          <button type="button" :disabled="content.current.value.busy || !summary.visible" @click="content.prepare">Prepare content search</button>
         </template>
         <p v-else-if="content.current.value.state === 'preparing'">Preparing content search. {{ content.current.value.preparedCount }} of {{ content.current.value.totalCount }} images ready. You can keep using the library.</p>
         <template v-else-if="content.current.value.state === 'unavailable' || content.current.value.error">
@@ -951,12 +1039,12 @@ watch(visibleImages, () => {
       <GalleryBulkTags hide-entry
         :selecting="selecting"
         :count="selectedIds.length"
-        :busy="applyingTags"
+        :busy="applyingTags || selectingAll"
         :notice="bulkNotice"
         :tags="galleryTagSummaries"
         @enter="selecting = true; bulkNotice = ''"
         @exit="exitSelection"
-        @select-all="selectedIds = visibleImages.map((image) => image.id)"
+        @select-all="selectAllImages"
         @apply="applyBulkTags"
       />
 
@@ -975,13 +1063,17 @@ watch(visibleImages, () => {
       </div>
       <GalleryGrid v-else-if="!contentMode || (content.current.value.state === 'ready' && destination.query.trim())"
         :images="visibleImages"
+        :has-more="catalog.enabled.value && catalog.current.value.cursor !== null"
+        :loading-more="catalog.enabled.value && catalog.current.value.busy"
+        :more-error="catalog.enabled.value && catalog.current.value.error"
+        @more="catalog.more"
         :image-href="imageHref"
         :selecting="selecting"
         :selected-ids="selectedIds"
         :busy="applyingTags"
         @toggle="toggleSelection"
         :loading="loading || contentInitialLoading"
-        :empty-text="screen === 'subject' && !subjectImages.length ? 'This folder has no images now. You can return to Folders.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
+        :empty-text="screen === 'subject' && !subjectTotal ? 'This folder has no images now. You can return to Folders.' : galleryFilters.length > 0 || galleryQuery.trim() ? 'No images match your search.' : 'No images saved yet.'"
         @open="openViewer"
         @delete="handleDelete"
       />

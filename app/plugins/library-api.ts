@@ -1,12 +1,16 @@
 export default defineNuxtPlugin(() => {
   const authenticated = useState('library-authenticated', () => false)
   const version = useState('library-access-version', () => 0)
+  const activatedImages = useState<Record<string, true>>('activated-library-images', () => ({}))
+  const expandedFolders = useState<string[]>('expanded-shared-folder-cards', () => [])
   const pending = new Set<AbortController>()
   const requests = new WeakMap<object, { controller: AbortController; version: number }>()
   const cookies = import.meta.server ? useRequestHeaders(['cookie']) : {}
   const invalidate = () => {
     version.value++
     authenticated.value = false
+    activatedImages.value = {}
+    expandedFolders.value = []
     for (const controller of pending) controller.abort()
     pending.clear()
   }

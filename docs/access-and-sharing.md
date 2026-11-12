@@ -108,3 +108,9 @@ Na área **Save images**, colar uma URL pública de blog abre a seleção das im
 Funciona com imagens declaradas no HTML da página; não executa JavaScript nem entra em sites que exigem login. Limites: 2 MiB de HTML, 200 candidatas, cinco redirecionamentos e cinco segundos por download. Cada imagem respeita o limite de tamanho já configurado. Falhas são informadas; as recuperáveis podem ser tentadas novamente sem repetir sucessos. Fechar ou recarregar encerra a seleção pendente.
 
 Essa captura exige sessão do dono e mesma origem, inclusive para prévias; tokens de aplicação não dão acesso às novas rotas. Twitter/Reddit não têm suporte garantido. O menu Compartilhar do sistema continua aceitando arquivos e URLs diretas de imagem; para escolher imagens de um post, colar sua URL na captura da biblioteca.
+
+## Revalidação privada — 036
+
+A navegação pessoal passa a permitir armazenamento local de miniaturas e originais de `/images/*` com `Cache-Control: private, no-cache`. Toda reutilização exige revalidação autenticada; conhecer o ETag não dá acesso sem sessão. Caches compartilhados não podem armazenar essas respostas. Exclusão e expiração/revogação de sessão bloqueiam novas entregas e 304; cópias já recebidas não são revogáveis retroativamente.
+
+Metadados, autenticação, erros, redirects de fallback e conteúdo da integração `/api/assets/*/content` conservam `no-store`. Links públicos mantêm a política própria. Logout descarta o catálogo da interface e cancela requests; restauração por back-forward cache verifica a sessão antes de remontar a biblioteca.

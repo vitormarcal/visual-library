@@ -44,8 +44,14 @@ async function login() {
 }
 let poll: ReturnType<typeof setInterval> | undefined
 const checkVisibleSession = () => { if (document.visibilityState === 'visible' && authenticated.value) void checkSession() }
-onMounted(() => { poll = setInterval(checkVisibleSession, 60_000); window.addEventListener('focus', checkVisibleSession); document.addEventListener('visibilitychange', checkVisibleSession) })
-onBeforeUnmount(() => { if (poll) clearInterval(poll); window.removeEventListener('focus', checkVisibleSession); document.removeEventListener('visibilitychange', checkVisibleSession) })
+const checkRestoredSession = async (event: PageTransitionEvent) => {
+  if (!event.persisted) return
+  ready.value = false
+  $invalidateLibraryAccess()
+  await checkSession()
+}
+onMounted(() => { poll = setInterval(checkVisibleSession, 60_000); window.addEventListener('focus', checkVisibleSession); window.addEventListener('pageshow', checkRestoredSession); document.addEventListener('visibilitychange', checkVisibleSession) })
+onBeforeUnmount(() => { if (poll) clearInterval(poll); window.removeEventListener('focus', checkVisibleSession); window.removeEventListener('pageshow', checkRestoredSession); document.removeEventListener('visibilitychange', checkVisibleSession) })
 </script>
 
 <template>

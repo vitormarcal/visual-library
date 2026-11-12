@@ -1,6 +1,6 @@
 import { libraryDestination, libraryDestinationUrl, parseLibraryDestination, type LibraryDestination } from '../utils/library-navigation'
 
-export type LibraryPosition = { scrollTop: number; focusId: string | null }
+export type LibraryPosition = { scrollTop: number; focusId: string | null; depth?: number }
 type Snapshot = LibraryPosition & { key: string; index: number; url: string }
 type NavigationEntry = Snapshot & {
   version: 1
@@ -26,7 +26,7 @@ export const useLibraryNavigation = () => {
   let removeRouterHook: (() => void) | undefined
 
   const locationUrl = () => `${location.pathname}${location.search}${location.hash}`
-  const snapshot = (value: NavigationEntry): Snapshot => ({ key: value.key, index: value.index, url: value.url, scrollTop: value.scrollTop, focusId: value.focusId })
+  const snapshot = (value: NavigationEntry): Snapshot => ({ key: value.key, index: value.index, url: value.url, scrollTop: value.scrollTop, focusId: value.focusId, depth: value.depth })
   const readEntry = (state: unknown): NavigationEntry | null => {
     const value = (state as { visualLibrary?: NavigationEntry } | null)?.visualLibrary
     return value?.version === 1 && typeof value.key === 'string' && Number.isInteger(value.index)
@@ -34,11 +34,14 @@ export const useLibraryNavigation = () => {
   }
   const position = (): LibraryPosition => ({
     scrollTop: window.scrollY,
+    depth: Number(document.querySelector<HTMLElement>('[data-library-count]')?.dataset.libraryCount) || undefined,
     focusId: (document.activeElement as HTMLElement | null)?.dataset.folderTagId
       ?? (document.activeElement as HTMLElement | null)?.dataset.exploreTagId
       // Switching views focuses the navigation link, not a content card. Keep
       // the last content target so returning to that view can restore it.
-      ?? (document.activeElement as HTMLElement | null)?.dataset.lightboxOpenId ?? entry.value?.focusId ?? null,
+      ?? (document.activeElement as HTMLElement | null)?.dataset.lightboxOpenId
+      ?? Array.from(document.querySelectorAll<HTMLElement>('[data-lightbox-open-id]')).find(node => { const rect = node.getBoundingClientRect(); return rect.bottom > 100 && rect.top < innerHeight })?.dataset.lightboxOpenId
+      ?? entry.value?.focusId ?? null,
   })
   const write = (value: NavigationEntry, push = false) => {
     snapshots.set(value.key, value)
@@ -83,7 +86,7 @@ export const useLibraryNavigation = () => {
     if (url === entry.value.url && !destination.value.problem) return
     remember(focusId)
     const value = makeEntry(url, entry.value)
-    if (restore) { value.scrollTop = restore.scrollTop; value.focusId = restore.focusId }
+    if (restore) { value.scrollTop = restore.scrollTop; value.focusId = restore.focusId; value.depth = restore.depth }
     if (next.imageId) value.parent = snapshot(entry.value!)
     if ((next.screen === 'similar' || next.screen === 'duplicates') && !next.imageId) value.origin = snapshot(entry.value!)
     if (next.screen !== 'similar' && next.screen !== 'duplicates') value.origin = null

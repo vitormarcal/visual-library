@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { normalizeSearch } from '../app/utils/image-search.ts'
 
 export type ImageRow = {
   id: string
@@ -48,6 +49,7 @@ export const ensureDataStore = async () => {
 
   if (!db) {
     db = new DatabaseSync(dbPath)
+    db.function('normalize_search', { deterministic: true }, value => normalizeSearch(String(value ?? '')))
     db.exec('PRAGMA busy_timeout = 5000')
     db.exec(`
       CREATE TABLE IF NOT EXISTS images (
@@ -177,6 +179,9 @@ export const ensureDataStore = async () => {
     }
     reconcileTagCovers()
 
+    db.exec(`CREATE INDEX IF NOT EXISTS images_browse ON images(hidden_from_gallery, created_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS image_tags_by_tag ON image_tags(tag_id, image_id);`)
+
     db.exec('DROP INDEX IF EXISTS images_content_hash_idx')
     db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS images_content_hash_unique_idx
@@ -240,7 +245,7 @@ export const getImageTags = (imageId: string) => {
   return rows.map(toTagResponse)
 }
 
-export const listTagSummaries = () => {
+export const listTagSummaries = (hidden = false) => {
   const dbInstance = db
 
   if (!dbInstance) {
@@ -252,15 +257,15 @@ export const listTagSummaries = () => {
       tags.id,
       tags.name,
       tags.normalized_name,
-      tags.last_used_at,
+      ${hidden ? 'MAX(images.created_at)' : 'tags.last_used_at'} AS last_used_at,
       tags.cover_image_id,
       COUNT(image_tags.image_id) AS image_count
     FROM tags
     INNER JOIN image_tags ON image_tags.tag_id = tags.id
-    INNER JOIN images ON images.id = image_tags.image_id AND images.hidden_from_gallery = 0
+    INNER JOIN images ON images.id = image_tags.image_id AND images.hidden_from_gallery = ?
     GROUP BY tags.id
     ORDER BY tags.last_used_at DESC, image_count DESC, tags.name ASC
-  `).all() as TagSummaryRow[]
+  `).all(Number(hidden)) as TagSummaryRow[]
 
   return rows.map((row) => ({
     id: row.id,

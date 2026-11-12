@@ -40,7 +40,7 @@ try {
     const [a, b] = await Promise.all([fetch(url), fetch(url)])
     assert.equal(a.status, 200); assert.equal(b.status, 200)
     assert.equal(a.headers.get('content-type'), 'image/webp')
-    assert.equal(a.headers.get('cache-control'), 'no-store')
+    assert.equal(a.headers.get('cache-control'), 'private, no-cache')
     const bytes = Buffer.from(await a.arrayBuffer())
     assert.deepEqual(Buffer.from(await b.arrayBuffer()), bytes)
     const firstPairMs = Math.round(performance.now() - started)

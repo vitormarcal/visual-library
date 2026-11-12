@@ -23,6 +23,10 @@ Tags remain optional and freeform. These observations do not impose a taxonomy o
 
 ## Implemented Responses to Friction
 
+### Carregar o acervo sem montar a biblioteca inteira
+
+Após medição autenticada de 2.936 imagens/1.182 tags, implementado localmente em [036](docs/specs/036-lighter-library-loading/spec.md): lotes de 60, busca e seleção globais, consultas próprias para Explore/pastas/detalhe, masonry com append estável, compressão de JSON, prévia do original e cache privado com revalidação. Na fixture de 3.000 imagens, DOM inicial passou de 19.299 para 1.722 elementos e corpos das APIs de 1,44 MB para 17,7 KB. 97 testes, build e smokes isolados passaram; detalhes, comparação e limites no [relatório](docs/performance/2026-11-11-asset-loading-implementation.md). Sem deploy ou alteração do acervo real. Geração e qualidade de miniaturas preservadas; virtualização depende de evidência adicional.
+
 ### Priorizar pastas com mais imagens
 
 Ajuste solicitado após uso da 0.25.0: a maioria das tags tem apenas uma imagem. Diretório e busca de pastas passam a ordenar por quantidade de imagens visíveis únicas, decrescente, com desempate por nome e ID. Capas compartilhadas continuam valendo uma imagem; os nomes internos ficam em ordem alfabética. Sem seletor adicional, mudança de associações ou ordenação das imagens dentro das pastas. Entrega na versão 0.26.0, com commit, push e release autorizados pelo usuário; deploy permanece separado.
@@ -81,7 +85,7 @@ Solicitado em 2026-10-17 e implementado em [018](docs/specs/018-upload-filter-ta
 
 Solicitado e implementado em 2026-10-14 em [017](docs/specs/017-progressive-image-loading/spec.md): arquivos imutáveis com cache de longa duração, proporções reservadas e downloads por proximidade da tela. Galeria, capas e relacionadas compartilham ativação durante a sessão. Dimensões do legado são preenchidas com leituras limitadas e persistidas. Metadados de imagens e tags chegam em paralelo; respostas 304 dispensam leitura de conteúdo.
 
-Miniaturas foram selecionadas em 021 com base nas medições de 23/10. Paginação permanece para avaliação posterior; todos os metadados/cartões continuam no cliente.
+Miniaturas foram selecionadas em 021 com base nas medições de 23/10. Paginação e montagem inicial limitada foram implementadas localmente em [036](docs/specs/036-lighter-library-loading/spec.md), sem catálogo completo no startup. O DOM ainda cresce ao percorrer os lotes; virtualização permanece condicionada a medição.
 
 ### Recognizing subjects visually
 

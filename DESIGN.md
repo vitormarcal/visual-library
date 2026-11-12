@@ -650,3 +650,9 @@ Collections remain distinct from tags. The 031 release introduces no collections
 - Search groups only the names matching the current query. Regroup automatically when members change; folders with several images or different image IDs remain separate even when their covers look alike.
 - Preserve the chosen folder ID when restoring focus, rendering the corresponding cover block and expanding its names as needed after reload. Pagination measures visual blocks while retaining access to every folder.
 
+
+## Progressive library loading — 036
+
+- Preserve the existing masonry density, card geometry and responsive columns. New batches append without moving earlier cards at the same viewport size. DOM and keyboard order follow result order; responsive reflow preserves a visible content anchor.
+- Load more appears at the end of the gallery with a 44px target. Automatic loading uses the same action. Loading announces progress; a failed batch retains existing cards with a short local message and Try again. Busy disables repeat requests; focus remains visible.
+- Detail and expansion show the existing thumbnail while the original loads and decodes, using the same proportions without cropping. Failed originals retain the preview and offer a 44px retry action. Respect reduced-motion preferences.

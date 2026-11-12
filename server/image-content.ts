@@ -17,7 +17,7 @@ export const sendImageContent = async (event: H3Event, row: ImageRow, publicCont
     if (!stat.isFile()) throw createError({ statusCode: 404, statusMessage: 'Image file not found.' })
     const etag = `W/"${createHash('sha256').update(`${row.id}-${stat.size}-${stat.mtimeMs}`).digest('hex')}"`
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    setHeader(event, 'Cache-Control', publicContent ? 'public, max-age=31536000, immutable' : 'no-store')
+    setHeader(event, 'Cache-Control', publicContent ? 'public, max-age=31536000, immutable' : event.path.split('?')[0]?.startsWith('/images/') ? 'private, no-cache' : 'no-store')
     setHeader(event, 'ETag', etag)
     setHeader(event, 'Last-Modified', stat.mtime.toUTCString())
     const match = getRequestHeader(event, 'if-none-match')

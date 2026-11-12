@@ -33,6 +33,8 @@ const routes = [
   ['post', '/api/auth/setup', 'api/auth/setup.post.ts'], ['post', '/api/auth/login', 'api/auth/login.post.ts'], ['get', '/api/auth/session', 'api/auth/session.get.ts'], ['post', '/api/auth/logout', 'api/auth/logout.post.ts'],
   ['get', '/api/access/tokens', 'api/access/tokens.get.ts'], ['post', '/api/access/tokens', 'api/access/tokens.post.ts'], ['delete', '/api/access/tokens/:id', 'api/access/tokens/[id].delete.ts'],
   ['get', '/api/images/:id/public-link', 'api/images/[id]/public-link.get.ts'], ['post', '/api/images/:id/public-link', 'api/images/[id]/public-link.post.ts'], ['delete', '/api/images/:id/public-link', 'api/images/[id]/public-link.delete.ts'],
+  ['get', '/api/library/images', 'api/library/images.get.ts'], ['get', '/api/library/summary', 'api/library/summary.get.ts'], ['get', '/api/library/ids', 'api/library/ids.get.ts'], ['get', '/api/library/folders', 'api/library/folders.get.ts'],
+  ['get', '/api/library/image', 'api/library/image.get.ts'], ['get', '/api/library/neighbors', 'api/library/neighbors.get.ts'], ['get', '/api/library/related', 'api/library/related.get.ts'], ['get', '/api/library/rediscovery', 'api/library/rediscovery.get.ts'],
   ['get', '/api/images', 'api/images.get.ts'], ['post', '/api/assets', 'api/assets.post.ts'], ['get', '/api/assets/:id', 'api/assets/[id].get.ts'], ['get', '/api/assets/:id/content', 'api/assets/[id]/content.get.ts'],
   ['post', '/api/assets/lookup', 'api/assets/lookup.post.ts'],
   ['put', '/api/assets/:id/references/tags', 'api/assets/[id]/references/tags.put.ts'],
@@ -112,7 +114,7 @@ try {
   assert.equal((await owner('/api/images')).status, 200)
   assert.equal(db.prepare('SELECT token_hash FROM owner_sessions').all().some(row => cookie.includes(String(row.token_hash))), false)
   const privateContent = await owner('/images/private.png')
-  assert.equal(privateContent.status, 200); assert.equal(privateContent.headers.get('cache-control'), 'no-store')
+  assert.equal(privateContent.status, 200); assert.equal(privateContent.headers.get('cache-control'), 'private, no-cache')
   const privateEtag = privateContent.headers.get('etag')!
   assert.deepEqual(Buffer.from(await privateContent.arrayBuffer()), png)
   assert.equal((await call('/images/private.png', { headers: { 'if-none-match': privateEtag } })).status, 401)
@@ -183,10 +185,10 @@ try {
   }
   for (const path of ['/images/private.png', '/api/assets/00000000-0000-4000-8000-000000000001/content']) {
     const privateResponse = await owner(path)
-    assert.equal(privateResponse.headers.get('cache-control'), 'no-store')
+    assert.equal(privateResponse.headers.get('cache-control'), path.startsWith('/images/') ? 'private, no-cache' : 'no-store')
     const unchanged = await call(path, { headers: { cookie, 'if-none-match': privateResponse.headers.get('etag')! } })
     assert.equal(unchanged.status, 304)
-    assert.equal(unchanged.headers.get('cache-control'), 'no-store')
+    assert.equal(unchanged.headers.get('cache-control'), path.startsWith('/images/') ? 'private, no-cache' : 'no-store')
   }
   // Valid public links must not make missing or unreadable image responses cacheable.
   try {
